@@ -73,10 +73,20 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     const base = s.replace(/\s*(시즌|season)\s*\d+|\s+S\d+\b/gi, '').trim();
     // 앞 단어가 같은 시즌 (7llin’ in the DREAM, 7llin’ in our Youth …) → "7llin'" 가족
     const root = sq(base.split(/\s+/)[0]);
-    const famKey = cfg ? `cfg:${cfg.id}` : root.length >= 4 ? `root:${root}` : `name:${sq(base)}`;
+    //   첫 단어가 연도·숫자("2026 NCT JNJM …" / "2026 RENJUN&CHENLE …")면 다른 시리즈라서 쓰지 않는다
+    const famKey = cfg ? `cfg:${cfg.id}` : root.length >= 4 && !/^\d+$/.test(root) ? `root:${root}` : `name:${sq(base)}`;
     const fam = byFamily.get(famKey) ?? { name: cfg?.name ?? base, seasons: new Map() };
     fam.seasons.set(s, [...(fam.seasons.get(s) ?? []), v]);
     byFamily.set(famKey, fam);
+  }
+  // 이름 하나가 다른 이름의 앞부분이면 같은 시리즈 ("… To The World" ⊂ "… To The World in OSAKA")
+  const nameKeys = [...byFamily.keys()].filter((k) => k.startsWith('name:')).sort((a, b) => a.length - b.length);
+  for (const long of nameKeys) {
+    const short = nameKeys.find((k) => k !== long && k.length >= 5 + 10 && long.startsWith(k) && byFamily.has(k));
+    if (!short || !byFamily.has(long)) continue;
+    const into = byFamily.get(short)!;
+    for (const [n, vs] of byFamily.get(long)!.seasons) into.seasons.set(n, [...(into.seasons.get(n) ?? []), ...vs]);
+    byFamily.delete(long);
   }
   for (const [key, fam] of byFamily) {
     const all = [...fam.seasons.values()].flat();
