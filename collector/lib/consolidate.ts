@@ -321,6 +321,8 @@ const VIDEO_RELEASE_RE = /트레일러|trailer|티저|teaser|뮤직비디오|MV|
  *     예: 기사 "3일 첫 번째 트레일러 공개" + 공식 채널 11/03 00:00 "EP.1 WE’RE DREAM AFTER SERVICE!" → 00:00
  */
 function timeFromVideos(e: PublicEvent, videos: VideoLite[]): { time: string; video: VideoLite } | null {
+  // 영상 업로드 시각은 영상 공개·방송(유튜브 회차) 일정에만 맞다. 녹화·촬영·행사·출국은 영상이 나중에 올라오므로 쓰지 않는다
+  if (!(e.kind === '발매' || e.kind === '방송') || /녹화|사녹|촬영|녹음|출국|입국|참석|개막/.test(`${e.step} ${e.title}`)) return null;
   const sameDay = videos.filter((v) => {
     const p = toKstParts(new Date(v.publishedAt));
     return kstDate(p.year, p.month, p.day) === e.date;
