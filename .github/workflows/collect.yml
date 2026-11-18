@@ -11,6 +11,8 @@ on:
   schedule:
     - cron: '0 * * * *'
     - cron: '15,30,45 * * * *'
+    # 과거 기사 채우기: 3시간마다 40분씩 이어서 (다 채우면 금방 끝남)
+    - cron: '50 */3 * * *'
   push:
     branches: [main]
     paths: ['site/**', 'collector/lib/ask-core.ts']
@@ -80,7 +82,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
-          if [ "${{ inputs.mode }}" = "backfill" ]; then
+          if [ "${{ inputs.mode }}" = "backfill" ] || [ "${{ github.event.schedule }}" = "50 */3 * * *" ]; then
             # 과거 기사 채우기 (개발 비용은 운영 월 상한과 따로) → 다시 내보내기
             npm run backfill:news -- --minutes=40 && npm run collect -- --publish-only
           elif [ "${{ github.event.schedule }}" = "15,30,45 * * * *" ] || [ "${{ inputs.mode }}" = "fast" ]; then
