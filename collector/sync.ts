@@ -108,7 +108,7 @@ async function pull() {
   const cached = version ? readCache(version) : null;
   if (cached) {
     writeFileSync(archive, cached);
-    execFileSync('tar', ['-xzf', archive, '-C', ROOT]);
+    execFileSync('tar', ['-xzf', archive, '--exclude', '._*', '-C', ROOT]);
     console.log(`캐시의 데이터를 썼어요 (Supabase와 같은 버전이라 내려받지 않음, ${(cached.length / 1e6).toFixed(1)}MB)`);
   } else {
     const res = await fetch(`${url}/storage/v1/object/authenticated/${BUCKET}/${OBJECT}`, { headers });
@@ -119,7 +119,7 @@ async function pull() {
     } else {
       const body = Buffer.from(await res.arrayBuffer());
       writeFileSync(archive, body);
-      execFileSync('tar', ['-xzf', archive, '-C', ROOT]);
+      execFileSync('tar', ['-xzf', archive, '--exclude', '._*', '-C', ROOT]);
       writeCache(body, sha1(body));
       console.log(`데이터를 내려받았어요 (${(body.length / 1e6).toFixed(1)}MB)`);
     }
@@ -133,7 +133,8 @@ async function push(seed: boolean) {
   if (!seed && !existsSync(marker)) throw new Error('pull 하지 않은 상태라 올리지 않아요 (처음이면 --seed)');
   await ensureBucket();
   const paths = ['data', '.cache'].filter((p) => existsSync(join(ROOT, p)));
-  execFileSync('tar', ['-czf', archive, '--exclude', '.cache/sync-pulled', '-C', ROOT, ...paths]);
+  // 맥 tar는 확장 속성을 ._이름 파일로 넣는다 → 리눅스(Actions)에서 풀면 JSON이 아닌 파일이 생기므로 넣지 않는다
+  execFileSync('tar', ['-czf', archive, '--exclude', '.cache/sync-pulled', '--exclude', '._*', '-C', ROOT, ...paths], { env: { ...process.env, COPYFILE_DISABLE: '1' } });
   const body = readFileSync(archive);
   await upload(OBJECT, body);
   await upload('state.version', Buffer.from(sha1(body)), 'text/plain');

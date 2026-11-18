@@ -155,7 +155,7 @@ export class JsonRepo implements Repo {
       return [];
     }
     const out: ExtractionRecord[] = [];
-    for (const f of files) if (f.endsWith('.json')) out.push(await readJson<ExtractionRecord>(`state/extractions/${docType}/${f}`, null as never));
+    for (const f of files) if (f.endsWith('.json') && !f.startsWith('.')) out.push(await readJson<ExtractionRecord>(`state/extractions/${docType}/${f}`, null as never));
     return out.filter(Boolean);
   }
 

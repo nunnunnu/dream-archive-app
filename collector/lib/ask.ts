@@ -52,7 +52,7 @@ export async function loadAskData(repo: JsonRepo, opts: { articleDays?: number }
     watch: JSON.parse(readFileSync(join(ROOT, 'config', 'watch.json'), 'utf8')).watch,
     rules: { answer: JSON.parse(readFileSync(join(ROOT, 'config', 'ask-rules.json'), 'utf8')).answer },
     // 조회 도구용: 시리즈·종류별 모아보기 전체 (회차·영상 목록, 멤버)
-    series: readdirSync(join(ROOT, 'data', 'public', 'series')).filter((f) => f.endsWith('.json')).map((f) => {
+    series: readdirSync(join(ROOT, 'data', 'public', 'series')).filter((f) => f.endsWith('.json') && !f.startsWith('.')).map((f) => {
       const sr = JSON.parse(readFileSync(join(ROOT, 'data', 'public', 'series', f), 'utf8')) as { name: string; type: string; seasons: { name: string; videos: { title: string; date: string; url: string; members: string[]; ep: number | null }[] }[] };
       return { name: sr.name, type: sr.type, seasons: sr.seasons.map((s) => ({ name: s.name, videos: s.videos.map((v) => ({ title: v.title, date: v.date, url: v.url, members: v.members, ep: v.ep })) })) };
     }),
