@@ -17,7 +17,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'full, fast, site(배포만)'
+        description: 'full, fast, site(배포만), backfill(과거 기사 채우기)'
         default: full
 
 concurrency:
@@ -63,24 +63,27 @@ jobs:
         run: npm run sync -- pull
 
       - name: 브라우저 캐시
-        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'fast'
+        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'fast' || inputs.mode == 'backfill'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('package-lock.json') }}
 
       - name: 브라우저 설치
-        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'fast'
+        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'fast' || inputs.mode == 'backfill'
         run: npx playwright install --with-deps chromium
 
       - name: 수집
         id: collect
-        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'fast'
+        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'fast' || inputs.mode == 'backfill'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
-          if [ "${{ github.event.schedule }}" = "15,30,45 * * * *" ] || [ "${{ inputs.mode }}" = "fast" ]; then
+          if [ "${{ inputs.mode }}" = "backfill" ]; then
+            # 과거 기사 채우기 (개발 비용은 운영 월 상한과 따로) → 다시 내보내기
+            npm run backfill:news -- --minutes=40 && npm run collect -- --publish-only
+          elif [ "${{ github.event.schedule }}" = "15,30,45 * * * *" ] || [ "${{ inputs.mode }}" = "fast" ]; then
             npm run collect -- --fast
           else
             npm run collect
@@ -116,12 +119,12 @@ jobs:
 
       # 사이트 배포는 코드가 바뀌었을 때만 (main 푸시·직접 실행)
       - name: 사이트 빌드
-        if: github.event_name != 'schedule'
+        if: github.event_name != 'schedule' && inputs.mode != 'backfill'
         working-directory: site
         run: npm ci && npm run build
 
       - name: Cloudflare Pages 배포
-        if: github.event_name != 'schedule'
+        if: github.event_name != 'schedule' && inputs.mode != 'backfill'
         working-directory: site
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

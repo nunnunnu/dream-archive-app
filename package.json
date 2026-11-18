@@ -18,7 +18,8 @@
     "eval:ask": "tsx collector/eval-ask.ts",
     "ask:feedback": "tsx collector/ask-feedback.ts",
     "publish:site": "tsx collector/publish-site.ts",
-    "rag:index": "tsx collector/rag-index.ts"
+    "rag:index": "tsx collector/rag-index.ts",
+    "backfill:news": "tsx collector/backfill-news.ts"
   },
   "keywords": [],
   "author": "",
