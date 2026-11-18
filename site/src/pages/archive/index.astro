@@ -5,7 +5,8 @@ import { loadPublic, md, type EraSummary } from '../../lib/data';
 
 const { eras } = await loadPublic<{ eras: EraSummary[] }>(Astro.locals, 'eras.json', { eras: [] });
 // 활동은 끝난 해 기준으로 묶는다 (2025년에 시작해 2026년에 끝난 투어는 2026)
-const yearOf = (e: EraSummary) => e.to.slice(0, 4);
+// 시작한 해 기준 (연말 컴백의 발매 기념 이벤트가 다음 해까지 이어져도 컴백한 해에)
+const yearOf = (e: EraSummary) => e.from.slice(0, 4);
 const years = [...new Set(eras.map(yearOf))].sort().reverse();
 const KIND_ORDER = ['컴백', '콘서트·투어', '팬미팅', '드라마', '예능', '시상식', '페스티벌', '팝업', '활동'];
 ---
