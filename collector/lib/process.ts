@@ -76,7 +76,8 @@ export async function processArticles(
       continue;
     }
     // 예전 기준으로 "일정과 무관"이라 건너뛴 묶음도 지금 기준으로 다시 본다
-    const pending = c.articles.filter((a) => a.status === 'pending' || !a.status || (a.status === 'skipped' && a.note === '일정과 무관해 보임'));
+    // 본문을 못 읽어 실패한 것(Actions에서 구글 뉴스 링크가 원문으로 안 넘어감)과 예전 타이틀곡 채우기에서 목록용으로만 둔 "지난 기사"도 다시 본다
+    const pending = c.articles.filter((a) => a.status === 'pending' || !a.status || (a.status === 'skipped' && (a.note === '일정과 무관해 보임' || a.note?.startsWith('지난 기사'))) || (a.status === 'failed' && a.note === '본문을 못 읽음'));
     if (!pending.length) continue;
     if (!looksLikeSchedule(c) && !c.articles.some((a) => a.origin === 'followup')) {
       for (const a of pending) Object.assign(a, { status: 'skipped', note: '일정과 무관해 보임' });
@@ -93,14 +94,19 @@ export async function processArticles(
       let url = rep.link;
       if (!body) {
         const opened = await openArticle(page, rep.link).catch(() => null);
-        if (!opened) {
+        if (opened) {
+          body = opened.text;
+          url = opened.url;
+          if (opened.publishedAt) rep.pagePublishedAt = opened.publishedAt;
+          await repo.putBody('article', rep.guid, body);
+        } else if (rep === reps.at(-1) || reps.length === 1) {
+          // 원문을 못 열면(데이터센터 IP에서 구글 뉴스가 원문으로 안 넘겨 줌 — 우회하지 않음) 제목과 게시일만으로 뽑는다.
+          // 본문으로 저장하지 않아서 나중에 원문을 읽을 수 있으면 다시 처리된다
+          body = `(본문을 열지 못해 제목만 있음) ${rep.title}`;
+        } else {
           Object.assign(rep, { status: 'failed', note: '본문을 못 읽음' });
           continue;
         }
-        body = opened.text;
-        url = opened.url;
-        if (opened.publishedAt) rep.pagePublishedAt = opened.publishedAt;
-        await repo.putBody('article', rep.guid, body);
       }
       // 구글 뉴스 날짜보다 기사 페이지 날짜를 믿는다 (옛 기사가 새 날짜로 다시 올라오는 경우)
       const writtenAt = rep.pagePublishedAt ?? rep.publishedAt;
