@@ -410,6 +410,7 @@ export function checkAgainstSource(
 }
 
 /** 질문 에이전트 등에서 쓰는 범용 호출: 모델·노력 수준을 골라 JSON 또는 글로 받는다 */
+const dropLone = (t: string) => t.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
 export async function callModel(opts: { model?: string; effort?: 'minimal' | 'low' | 'medium' | 'high'; instructions: string; input: string; schema?: { name: string; schema: object } }): Promise<LlmResult<string>> {
   const model = opts.model ?? LLM_MODEL;
   const res = await getClient().responses.create({
@@ -417,8 +418,9 @@ export async function callModel(opts: { model?: string; effort?: 'minimal' | 'lo
     reasoning: { effort: opts.effort ?? 'low' },
     max_output_tokens: 8000,
     input: [
-      { role: 'system', content: opts.instructions },
-      { role: 'user', content: opts.input },
+      // 글자 수로 자른 본문에 짝 없는 문자(이모지 반쪽)가 있으면 요청 JSON이 깨진다
+      { role: 'system', content: dropLone(opts.instructions) },
+      { role: 'user', content: dropLone(opts.input) },
     ],
     ...(opts.schema ? { text: { format: { type: 'json_schema' as const, name: opts.schema.name, schema: opts.schema.schema as Record<string, unknown>, strict: true } } } : {}),
   });

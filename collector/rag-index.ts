@@ -78,9 +78,9 @@ if (!dry && needDocs.length) {
     const batch = videoDocs.slice(i, i + 40);
     const r = await callModel({
       model: 'gpt-5-nano', effort: 'low', instructions: `${SUMMARY_RULE} 여러 건이 번호와 함께 온다. 번호마다 한 줄씩.`,
-      input: batch.map(([, cs], j) => `[${j}] ${cs[0].title}\n${cs[0].content.slice(0, 300)}`).join('\n\n'),
+      input: clean(batch.map(([, cs], j) => `[${j}] ${cs[0].title}\n${cs[0].content.slice(0, 300)}`).join('\n\n')),
       schema: { name: 'summaries', schema: { type: 'object', additionalProperties: false, required: ['items'], properties: { items: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['i', 's'], properties: { i: { type: 'integer' }, s: { type: 'string' } } } } } } },
-    }).catch(() => null);
+    }).catch((err) => { console.log(`\n영상 요약 실패 (${i}~${i + batch.length - 1}번): ${(err as Error).message.slice(0, 160)}`); return null; });
     if (!r) continue;
     enrichCost += r.usage.costUsd;
     for (const it of (JSON.parse(r.value) as { items: { i: number; s: string }[] }).items) {
@@ -92,7 +92,7 @@ if (!dry && needDocs.length) {
   }
   // 공지·기사: 문서마다
   for (const [k, [url, cs]] of textDocs.entries()) {
-    const r = await callModel({ model: 'gpt-5-nano', effort: 'low', instructions: SUMMARY_RULE, input: `${cs[0].title}\n${cs.map((c) => c.content).join('\n').slice(0, 1800)}`, schema: { name: 'summary', schema: { type: 'object', additionalProperties: false, required: ['s'], properties: { s: { type: 'string' } } } } }).catch(() => null);
+    const r = await callModel({ model: 'gpt-5-nano', effort: 'low', instructions: SUMMARY_RULE, input: clean(`${cs[0].title}\n${cs.map((c) => c.content).join('\n').slice(0, 1800)}`), schema: { name: 'summary', schema: { type: 'object', additionalProperties: false, required: ['s'], properties: { s: { type: 'string' } } } } }).catch(() => null);
     if (!r) continue;
     enrichCost += r.usage.costUsd;
     enrichCache[docKey(url, cs.map((c) => c.content).join('\n'))] = clean((JSON.parse(r.value) as { s: string }).s).slice(0, 200);
@@ -134,7 +134,7 @@ for (let i = 0; i < todo.length; i += 100) {
   const res = await fetch('https://api.openai.com/v1/embeddings', {
     method: 'POST',
     headers: { authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, input: batch.map((c) => `${c.title}\n${c.content}`) }),
+    body: JSON.stringify({ model: MODEL, input: batch.map((c) => clean(`${c.title}\n${c.content}`)) }),
   });
   if (!res.ok) throw new Error(`임베딩 실패 ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const out = (await res.json()) as { data: { embedding: number[] }[]; usage: { total_tokens: number } };

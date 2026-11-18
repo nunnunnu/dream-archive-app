@@ -45,7 +45,7 @@ export const supabaseVector = (env: { OPENAI_API_KEY?: string; SUPABASE_URL?: st
   const key = env.SUPABASE_SERVICE_ROLE_KEY;
   const sb = { apikey: key, ...(key.startsWith('sb_secret_') ? {} : { Authorization: `Bearer ${key}` }) };
   return async (text, { count }) => {
-    const e = await fetch('https://api.openai.com/v1/embeddings', { method: 'POST', headers: { authorization: `Bearer ${env.OPENAI_API_KEY}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'text-embedding-3-small', input: text.slice(0, 2000) }) });
+    const e = await fetch('https://api.openai.com/v1/embeddings', { method: 'POST', headers: { authorization: `Bearer ${env.OPENAI_API_KEY}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: 'text-embedding-3-small', input: dropLoneSurrogates(text.slice(0, 2000)) }) });
     if (!e.ok) throw new Error(`임베딩 실패 ${e.status}`);
     const emb = (await e.json()) as { data: { embedding: number[] }[]; usage: { total_tokens: number } };
     const r = await fetch(`${env.SUPABASE_URL!.replace(/\/$/, '')}/rest/v1/rpc/match_rag_chunks`, { method: 'POST', headers: { ...sb, 'content-type': 'application/json' }, body: JSON.stringify({ query_embedding: `[${emb.data[0].embedding.join(',')}]`, match_count: count, doc_types: ['notice', 'article', 'video'] }) });
@@ -67,7 +67,10 @@ export interface AskTurn { q: string; a: string }
 export interface VectorHit { doc_type: string; doc_url: string; title: string; published_at: string | null; content: string; similarity: number }
 /** 의미 검색: 질문(+찾을 낱말)을 임베딩해 rag_chunks 에서 가까운 조각을 찾는다. 없으면 낱말 검색만 */
 export type VectorSearch = (text: string, opts: { count: number }) => Promise<{ hits: VectorHit[]; costUsd: number }>;
-export async function askCore(question: string, data: AskData, call: AskCall, opts: { today?: string; model?: string; onCost?: (usd: number) => void; log?: (s: string) => void; history?: AskTurn[]; vector?: VectorSearch; rerank?: boolean } = {}): Promise<AskResult> {
+/** 글자 수로 자르다 이모지 한가운데가 잘리면 짝 없는 문자가 생겨 요청 JSON이 깨진다 → 모델·임베딩에 보내기 직전에 뺀다 */
+export const dropLoneSurrogates = (t: string) => t.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+export async function askCore(question: string, data: AskData, rawCall: AskCall, opts: { today?: string; model?: string; onCost?: (usd: number) => void; log?: (s: string) => void; history?: AskTurn[]; vector?: VectorSearch; rerank?: boolean } = {}): Promise<AskResult> {
+  const call: AskCall = (o) => rawCall({ ...o, instructions: dropLoneSurrogates(o.instructions), input: dropLoneSurrogates(o.input) });
   // 앞 대화(최근 2개): "유투브에서봐?"처럼 이어지는 질문을 이해하게
   const history = (opts.history ?? []).slice(-2).map((t) => ({ q: t.q.slice(0, 200), a: t.a.replace(/\[[EDL]\d+\]/g, '').slice(0, 500) }));
   const historyText = history.length ? `이전 대화:\n${history.map((t) => `Q: ${t.q}\nA: ${t.a}`).join('\n')}\n\n` : '';
