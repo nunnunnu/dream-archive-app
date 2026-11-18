@@ -1,0 +1,70 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/schedule.css';
+import { loadSite } from '../lib/data';
+
+const members = (await loadSite(Astro.locals)).members;
+---
+<Base title="일정" current="schedule">
+  <div class="filters">
+    <div class="wrap">
+      <div class="filter-row"><span class="filter-label">멤버</span><div class="chips" id="who"></div></div>
+      <div class="filter-row"><span class="filter-label">유형</span><div class="chips" id="kinds"></div></div>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <p class="eyebrow">SCHEDULE</p>
+    <div class="section-head">
+      <h2>다가오는 일정</h2>
+      <span class="note" id="upcoming-note"></span>
+    </div>
+    <div class="upcoming" id="upcoming"></div>
+
+    <p class="eyebrow">CALENDAR</p>
+    <div class="section-head">
+      <h2>월간 일정</h2>
+      <span class="note">기간 일정은 날짜를 가로지르는 막대로 보여요</span>
+    </div>
+
+    <div class="cal-bar">
+      <div class="seg" role="group" aria-label="캘린더 선택" id="cal-switch">
+        <button data-cal="공식" aria-pressed="true"><b>공식 일정</b><span>드림이 나오는 일정</span></button>
+        <button data-cal="참여" aria-pressed="false"><b>참여 일정</b><span>예약·티켓팅·인증·신청</span></button>
+        <button data-cal="전체" aria-pressed="false"><b>전체</b></button>
+      </div>
+      <details class="subscribe">
+        <summary>캘린더 구독</summary>
+        <div class="subscribe-menu card">
+          <p>휴대폰·구글 캘린더에 추가하면 새 일정이 자동으로 들어와요.</p>
+          <a href="/calendar/official.ics">공식 일정</a>
+          <a href="/calendar/participate.ics">참여 일정</a>
+          <a href="/calendar/all.ics">전체 (당첨자 단계 제외)</a>
+          <div class="sub-members">
+            {members.map((m) => <a href={`/calendar/${m.slug}.ics`}>{m.name}</a>)}
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="cal-layout">
+      <section class="card cal-card" aria-label="월간 달력">
+        <div class="cal-head">
+          <button class="nav-btn" id="prev" aria-label="이전 달">‹</button>
+          <h3 id="month-title"></h3>
+          <button class="nav-btn" id="next" aria-label="다음 달">›</button>
+          <button class="today-btn" id="today">오늘</button>
+          <label class="winners" id="winners-wrap" hidden><input type="checkbox" id="winners" /> 당첨자 단계 보기</label>
+        </div>
+        <div class="cal-grid" id="grid"></div>
+        <div class="legend" id="legend"></div>
+      </section>
+      <aside class="card day-panel" id="panel" aria-live="polite"></aside>
+    </div>
+  </main>
+</Base>
+
+<script>
+  import { start } from '../scripts/schedule.ts';
+  start();
+</script>

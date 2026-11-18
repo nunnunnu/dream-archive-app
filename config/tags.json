@@ -1,0 +1,132 @@
+{
+  "_설명": "모아보기 태그. eras = 활동기(날짜 범위 + 키워드), projects = 작품·시리즈·행사(키워드). 영상 제목의 'OO EP.n' 시리즈와 고정 출연 추적 목록은 자동으로 작품 태그가 된다. 종류·연도·멤버 태그도 자동.",
+  "eras": [
+    {
+      "id": "boogie-woogie",
+      "name": "Boogie Woogie 활동 (정규 6집 DREAM AFTER DREAM)",
+      "from": "2026-10-20",
+      "to": "2026-12-31",
+      "keywords": [
+        "Boogie Woogie",
+        "부기우기",
+        "부기 우기",
+        "DREAM AFTER DREAM",
+        "드림 애프터 드림",
+        "정규 6집"
+      ],
+      "title": "DREAM AFTER DREAM",
+      "subtitle": "정규 6집",
+      "titleSong": "Boogie Woogie",
+      "release": "2026-11-09",
+      "cover": {
+        "from": "#c5f03a",
+        "to": "#10180a",
+        "text": "#c5f03a"
+      }
+    },
+    {
+      "id": "moonlight",
+      "name": "Moonlight (일본 타이틀곡)",
+      "from": "2024-06-05",
+      "to": "2024-07-24",
+      "keywords": [
+        "Moonlight"
+      ],
+      "subtitle": "일본 타이틀곡",
+      "region": "일본"
+    }
+  ],
+  "projects": [
+    {
+      "id": "crash2",
+      "name": "드라마 크래시2",
+      "keywords": [
+        "크래시2",
+        "크래시 2",
+        "CRASH 2",
+        "CRASH2"
+      ]
+    },
+    {
+      "id": "mukho",
+      "name": "OFF TO DREAM in Mukho (묵호 여행)",
+      "keywords": [
+        "Mukho",
+        "묵호"
+      ]
+    },
+    {
+      "id": "idols-table",
+      "name": "아이돌스 테이블",
+      "keywords": [
+        "아이돌스 테이블",
+        "아이돌스테이블",
+        "IDOL'S TABLE",
+        "IDOLS TABLE"
+      ]
+    },
+    {
+      "id": "mma2026",
+      "name": "MMA 2026",
+      "keywords": [
+        "MMA2026",
+        "MMA 2026",
+        "멜론뮤직어워드"
+      ]
+    },
+    {
+      "id": "lele-show-2",
+      "name": "천러 생일 파티 Lele's Show 2",
+      "keywords": [
+        "Lele’s Show",
+        "Lele's Show",
+        "CHENLE B-day"
+      ]
+    },
+    {
+      "id": "welcome-dreamers",
+      "name": "팝업스토어 WELCOME, DREAMERS",
+      "keywords": [
+        "WELCOME, DREAMERS",
+        "WELCOME DREAMERS"
+      ]
+    },
+    {
+      "id": "coachella2027",
+      "name": "코첼라 2027",
+      "keywords": [
+        "코첼라",
+        "Coachella"
+      ]
+    }
+  ],
+  "_설명_활동페이지": "활동 페이지는 일정 제목 속 작품 이름으로 자동으로 묶인다. 여기 eras에 같은 이름(키워드)이 있으면 표지 색·타이틀곡·부제·발매일만 덧씌운다.",
+  "seriesGroups": [
+    {
+      "id": "7llin",
+      "name": "7llin' DREAM",
+      "match": [
+        "7llin"
+      ]
+    },
+    {
+      "id": "dreamvsdream",
+      "name": "Dream VS Dream",
+      "match": [
+        "Dream VS Dream"
+      ]
+    },
+    {
+      "id": "travel",
+      "name": "여행 자컨",
+      "match": [
+        "RAINBOW DREAM STAY",
+        "DREAM HAUS",
+        "Finding 7-UJEONG",
+        "JEJU DREAM",
+        "OFF TO DREAM"
+      ]
+    }
+  ],
+  "_설명_시리즈": "seriesGroups: 이름이 제각각인 자체 콘텐츠를 한 시리즈로 묶을 때 (예: 여행 자컨). 7llin'처럼 앞 단어가 같은 시즌은 자동으로 묶인다."
+}

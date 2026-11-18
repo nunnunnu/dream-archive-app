@@ -1,0 +1,46 @@
+---
+import '../styles/global.css';
+import { loadSite } from '../lib/data';
+const cfg = await loadSite(Astro.locals);
+const groupName = cfg.group.name;
+// 로고 글자: 상위 그룹 이름을 뗀 첫 글자 (NCT DREAM → D)
+const mark = cfg.group.parentNames.reduce((n, p) => n.replace(new RegExp(`^${p}\\s*`, 'i'), ''), groupName).slice(0, 1);
+
+interface Props {
+  title: string;
+  current: 'schedule' | 'archive' | 'series' | 'ask' | 'report';
+}
+const { title, current } = Astro.props;
+const nav = [
+  { id: 'schedule', href: '/', label: '일정' },
+  { id: 'archive', href: '/archive/', label: '아카이브' },
+  { id: 'series', href: '/series/', label: '시리즈' },
+  { id: 'ask', href: '/ask/', label: '물어보기' },
+];
+---
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title} · 드림아카이브</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#c5f03a" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+  </head>
+  <body>
+    <header class="site-head">
+      <div class="wrap">
+        <a class="brand" href="/"><span class="brand-mark">{mark}</span>{groupName} <small>아카이브</small></a>
+        <nav class="nav" aria-label="주요 메뉴">
+          {nav.map((n) => <a href={n.href} aria-current={n.id === current ? 'page' : undefined}>{n.label}</a>)}
+          <a class="report-btn" href="/report/" aria-current={current === 'report' ? 'page' : undefined}>제보</a>
+        </nav>
+      </div>
+    </header>
+    <slot />
+    <footer class="wrap site-foot">{groupName} 팬 아카이브 · 공식 공지·기사·영상에서 자동으로 모은 일정이에요. 정확한 내용은 각 출처를 확인해 주세요.</footer>
+  </body>
+</html>

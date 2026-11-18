@@ -1,0 +1,84 @@
+/* 드림아카이브 공통 스타일: 크림 배경 + 흰 카드 + 라임 포인트 */
+:root {
+  --bg: #f4f2ed;
+  --card: #ffffff;
+  --line: #e6e3dc;
+  --line-soft: #efece6;
+  --text: #141414;
+  --sub: #6b6b6b;
+  --faint: #a3a19c;
+  --accent: #c5f03a;
+  --accent-ink: #1a1f00;
+  --dark: #121212;
+  --sun: #d64545;
+  --sat: #3b6fd6;
+  --today: #f6fbe4;
+  --radius: 14px;
+
+  /* 일정 종류 색 */
+  --k-신청: #3b82f6;
+  --k-당첨발표: #8b5cf6;
+  --k-본인확인: #0ea5e9;
+  --k-녹화: #ec4899;
+  --k-방송: #14b8a6;
+  --k-발매: #a855f7;
+  --k-투표: #f97316;
+  --k-판매: #10b981;
+  --k-행사: #f59e0b;
+  --k-모임: #0d9488;
+  --k-기타: #9ca3af;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+
+/* 머리말 */
+.site-head { border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 20; }
+.site-head .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+.brand { display: flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 800; font-size: 17px; letter-spacing: -0.02em; }
+.brand-mark { width: 20px; height: 20px; border-radius: 5px; background: var(--accent); color: var(--accent-ink); font-size: 11px; font-weight: 900; display: grid; place-items: center; }
+.brand small { font-weight: 500; color: var(--sub); font-size: 15px; }
+.nav { display: flex; gap: 28px; }
+.nav a { text-decoration: none; color: var(--sub); font-weight: 600; padding: 18px 0; border-bottom: 3px solid transparent; }
+.nav a[aria-current='page'] { color: var(--text); border-bottom-color: var(--accent); }
+
+/* 섹션 제목 */
+.eyebrow { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.08em; margin: 40px 0 6px; }
+.eyebrow::before { content: ''; width: 8px; height: 8px; background: var(--accent); border-radius: 2px; }
+.section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.section-head h2 { margin: 0; font-size: 24px; letter-spacing: -0.03em; }
+.section-head .note { color: var(--sub); font-size: 13px; }
+
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+
+/* 칩 */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.chip[aria-pressed='true'] { background: var(--dark); color: #fff; border-color: var(--dark); }
+.chip .n { color: var(--faint); font-size: 12px; }
+.chip[aria-pressed='true'] .n { color: #bbb; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c, #999); display: inline-block; flex: none; }
+
+.site-foot { margin: 60px 0 30px; color: var(--faint); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .brand small { display: none; }
+  .nav { gap: 16px; }
+  .nav a { font-size: 14px; }
+}
+
+.nav { align-items: center; }
+.nav a.report-btn { padding: 6px 14px; border: 0; border-radius: 999px; background: var(--dark); color: #fff; font-size: 13px; }
+.nav a.report-btn[aria-current='page'] { background: var(--accent); color: var(--accent-ink); }

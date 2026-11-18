@@ -1,0 +1,20 @@
+{
+  "_설명": "해외 일정 시간대. abbr: 공지에 쓰는 약어 → 시간대, cities: 도시 이름(제목·단계·근거에 나오면) → 시간대. 해외 공연 시간에 약어가 없거나 잘못됐으면 도시로 정한다",
+  "abbr": {
+    "WIB": "Asia/Jakarta", "SGT": "Asia/Singapore", "MYT": "Asia/Kuala_Lumpur", "ICT": "Asia/Bangkok", "PHT": "Asia/Manila",
+    "JST": "Asia/Tokyo", "HKT": "Asia/Hong_Kong", "TST": "Asia/Taipei", "CST(TW)": "Asia/Taipei",
+    "PST": "America/Los_Angeles", "PDT": "America/Los_Angeles", "EST": "America/New_York", "EDT": "America/New_York",
+    "GMT": "Europe/London", "BST": "Europe/London", "CET": "Europe/Paris", "CEST": "Europe/Paris", "AEST": "Australia/Sydney", "AEDT": "Australia/Sydney"
+  },
+  "cities": {
+    "JAKARTA": "Asia/Jakarta", "자카르타": "Asia/Jakarta", "SINGAPORE": "Asia/Singapore", "싱가포르": "Asia/Singapore",
+    "KUALA LUMPUR": "Asia/Kuala_Lumpur", "쿠알라룸푸르": "Asia/Kuala_Lumpur", "BANGKOK": "Asia/Bangkok", "방콕": "Asia/Bangkok",
+    "MANILA": "Asia/Manila", "BULACAN": "Asia/Manila", "마닐라": "Asia/Manila", "TAIPEI": "Asia/Taipei", "타이베이": "Asia/Taipei",
+    "KAOHSIUNG": "Asia/Taipei", "가오슝": "Asia/Taipei", "HONG KONG": "Asia/Hong_Kong", "홍콩": "Asia/Hong_Kong",
+    "MACAU": "Asia/Macau", "마카오": "Asia/Macau", "TOKYO": "Asia/Tokyo", "도쿄": "Asia/Tokyo", "OSAKA": "Asia/Tokyo", "오사카": "Asia/Tokyo",
+    "NAGOYA": "Asia/Tokyo", "FUKUOKA": "Asia/Tokyo", "SAITAMA": "Asia/Tokyo", "YOKOHAMA": "Asia/Tokyo",
+    "LOS ANGELES": "America/Los_Angeles", "INDIO": "America/Los_Angeles", "코첼라": "America/Los_Angeles", "COACHELLA": "America/Los_Angeles",
+    "NEW YORK": "America/New_York", "뉴욕": "America/New_York", "LONDON": "Europe/London", "런던": "Europe/London",
+    "PARIS": "Europe/Paris", "파리": "Europe/Paris", "MILAN": "Europe/Rome", "밀라노": "Europe/Rome", "SYDNEY": "Australia/Sydney"
+  }
+}

@@ -1,0 +1,112 @@
+---
+import Base from '../layouts/Base.astro';
+import { loadSite } from '../lib/data';
+const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
+---
+<Base title="제보" current="report">
+  <main class="wrap report">
+    <p class="eyebrow">REPORT</p>
+    <div class="section-head"><h2>제보하기</h2><span class="note">보내 주신 제보는 확인한 뒤 반영돼요</span></div>
+
+    <form class="card report-form" id="report-form">
+      <fieldset class="types">
+        <legend>어떤 제보인가요?</legend>
+        <label><input type="radio" name="type" value="add" checked /> <b>추가 요청</b><span>빠진 일정·소식을 알려 주세요</span></label>
+        <label><input type="radio" name="type" value="fix" /> <b>정보 보완 요청</b><span>날짜·시간·멤버·링크가 틀렸어요</span></label>
+        <label><input type="radio" name="type" value="delete" /> <b>삭제 요청</b><span>잘못 들어온 일정이에요</span></label>
+      </fieldset>
+
+      <div class="field" id="event-field" hidden>
+        <span>대상 일정</span>
+        <p class="event-box" id="event-box">일정 화면의 "정보 보완 · 삭제 요청"을 누르면 자동으로 채워져요. 직접 적으셔도 돼요.</p>
+        <input type="hidden" name="eventId" />
+        <input name="eventTitle" placeholder="예: 11/14 쇼! 음악중심" />
+      </div>
+
+      <label class="field"><span>링크</span><input name="url" type="url" placeholder="공식 공지·SNS·기사·영상 주소" /></label>
+
+      <div class="row" id="when-fields">
+        <label class="field"><span id="date-label">날짜</span><input name="date" type="date" /></label>
+        <label class="field"><span id="time-label">시간</span><input name="time" type="time" /></label>
+      </div>
+
+      <div class="field"><span>멤버</span>
+        <div class="chips">{members.map((m) => <label class="chip-check"><input type="checkbox" name="members" value={m} />{m}</label>)}</div>
+      </div>
+
+      <label class="field"><span>내용</span><textarea name="message" rows="4" placeholder="예: 11/22 인기가요는 녹화가 아니라 생방송이에요 / 출처는 위버스 공지 40989"></textarea></label>
+      <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+      <p class="privacy">연락처·이름 같은 개인정보는 적지 말아 주세요.</p>
+      <button type="submit" class="submit">보내기</button>
+      <p class="result" id="result" role="status"></p>
+    </form>
+  </main>
+</Base>
+
+<style>
+  .report { max-width: 720px; }
+  .report-form { padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+  .types { border: 0; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .types legend { font-weight: 700; margin-bottom: 8px; }
+  .types label { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 2px; cursor: pointer; }
+  .types label:has(input:checked) { border-color: var(--dark); box-shadow: inset 0 0 0 1px var(--dark); }
+  .types input { position: absolute; opacity: 0; }
+  .types span { color: var(--sub); font-size: 12px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > span { font-weight: 700; font-size: 13px; }
+  input, textarea { font: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #fff; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .event-box { margin: 0; color: var(--sub); font-size: 13px; background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+  .chip-check { border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+  .chip-check:has(input:checked) { background: var(--dark); color: #fff; border-color: var(--dark); }
+  .chip-check input { display: none; }
+  .hp { position: absolute; left: -9999px; }
+  .privacy { color: var(--sub); font-size: 12px; margin: 0; }
+  .submit { border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 800; border-radius: 12px; padding: 12px; cursor: pointer; font-size: 15px; }
+  .result { margin: 0; font-weight: 600; }
+  @media (max-width: 640px) { .types { grid-template-columns: 1fr; } }
+</style>
+
+<script>
+  const form = document.getElementById('report-form') as HTMLFormElement;
+  const params = new URLSearchParams(location.search);
+  const setType = (t: string) => {
+    const radio = form.querySelector<HTMLInputElement>(`input[name="type"][value="${t}"]`);
+    if (radio) radio.checked = true;
+    update();
+  };
+  function update() {
+    const type = new FormData(form).get('type');
+    (document.getElementById('event-field') as HTMLElement).hidden = type === 'add';
+    (document.getElementById('date-label') as HTMLElement).textContent = type === 'fix' ? '올바른 날짜' : '날짜';
+    (document.getElementById('time-label') as HTMLElement).textContent = type === 'fix' ? '올바른 시간' : '시간';
+    (document.getElementById('when-fields') as HTMLElement).hidden = type === 'delete';
+  }
+  form.addEventListener('change', update);
+  if (params.get('type')) setType(params.get('type')!);
+  if (params.get('date')) (form.elements.namedItem('date') as HTMLInputElement).value = params.get('date')!;
+  if (params.get('event')) {
+    (form.elements.namedItem('eventId') as HTMLInputElement).value = params.get('event')!;
+    (form.elements.namedItem('eventTitle') as HTMLInputElement).value = params.get('title') ?? '';
+    (document.getElementById('event-box') as HTMLElement).textContent = `${params.get('title') ?? ''} (${params.get('event')})`;
+  }
+  update();
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(form);
+    const body = Object.fromEntries(fd.entries()) as Record<string, unknown>;
+    body.members = fd.getAll('members');
+    const result = document.getElementById('result') as HTMLElement;
+    result.textContent = '보내는 중…';
+    try {
+      const res = await fetch('/api/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => ({ ok: false, error: '서버 응답이 없어요' }));
+      result.textContent = data.ok ? '고마워요! 확인한 뒤 반영할게요.' : `보내지 못했어요: ${data.error}`;
+      if (data.ok) form.reset();
+    } catch {
+      result.textContent = '보내지 못했어요. 이 미리보기에서는 제보 서버가 없어요 (사이트를 올리면 동작해요).';
+    }
+  });
+</script>

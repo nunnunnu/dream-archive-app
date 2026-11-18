@@ -1,0 +1,7 @@
+{
+  "_설명": "프로그램·작품을 볼 수 있는 곳 (질문 \"어디서 봐?\"와 일정 화면에 쓴다). 이름은 일정 제목에 들어가는 말. 링크가 회차마다 다르면 프로그램 페이지나 대표 링크를 적는다",
+  "watch": {
+    "IDOL’S TABLE": [{ "label": "Mnet Plus 풀영상(Full VOD)", "url": "https://mnetplus.world/media/ko/videos/6af275c201a020d7949e381b", "note": "회차별 풀영상은 Mnet Plus, 클립은 Mnet Plus 유튜브" }],
+    "크래시2": [{ "label": "ENA 본방 (월·화 밤 10시)" }, { "label": "KT 지니TV" }, { "label": "디즈니+" }]
+  }
+}

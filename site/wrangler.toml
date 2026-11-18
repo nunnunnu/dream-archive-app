@@ -1,0 +1,18 @@
+# Cloudflare Pages 설정 (wrangler pages deploy 가 읽는다). 비밀값(OPENAI_API_KEY)은 여기 말고 pages secret 으로.
+name = "dream-archive"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 제보·질문 횟수 제한·답변 평가(👍/👎) 저장
+[[kv_namespaces]]
+binding = "REPORTS"
+id = "4225a7e3871048e8999155e3d16010e1"
+
+[vars]
+# 질문 의미 검색(pgvector)용. 비밀 키는 pages secret SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_URL = "https://ejexnrkwktkukpilkbaf.supabase.co"
+# 사이트 데이터 (수집기가 npm run publish:site 로 올림). 공개 주소라 비밀값 아님
+SITE_DATA_URL = "https://ejexnrkwktkukpilkbaf.supabase.co/storage/v1/object/public/site-data"
+ASK_MODEL = "gpt-5-mini"
+ASK_DAILY_LIMIT = "50"

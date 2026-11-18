@@ -1,0 +1,22 @@
+---
+// 활동 표지: 유튜브 썸네일이 있으면 그 위에 제목, 없으면 색 그라데이션 + 제목 (공식 이미지는 다시 올리지 않는다)
+interface Props { title: string; sub?: string; cover: { from: string; to: string; text: string }; size?: 'lg' | 'md'; image?: string }
+const { title, sub, cover, size = 'md', image } = Astro.props;
+---
+<div class={`cover cover-${size}${image ? ' has-img' : ''}`} style={`--from:${cover.from};--to:${cover.to};--ink:${cover.text}`}>
+  {image ? <img src={image} alt="" loading="lazy" /> : <div class="cover-glow"></div>}
+  <div class="cover-text">
+    <strong>{title}</strong>
+    {sub && <small>{sub}</small>}
+  </div>
+</div>
+<style>
+  .cover { position: relative; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; background: linear-gradient(160deg, color-mix(in srgb, var(--from) 35%, var(--to)) 0%, var(--to) 55%); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25); }
+  .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .cover.has-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, color-mix(in srgb, var(--to) 85%, transparent) 100%); }
+  .cover-glow { position: absolute; inset: -30% -30% auto auto; width: 90%; aspect-ratio: 1; background: radial-gradient(circle, var(--from) 0%, transparent 65%); opacity: 0.7; }
+  .cover-text { position: absolute; left: 16px; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 4px; z-index: 1; }
+  .cover-text strong { color: var(--ink); font-size: 22px; line-height: 1.05; font-weight: 900; letter-spacing: -0.02em; text-transform: uppercase; text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35); }
+  .cover-text small { color: #fff; opacity: 0.85; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .cover-lg .cover-text strong { font-size: 30px; }
+</style>

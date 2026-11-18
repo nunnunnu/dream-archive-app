@@ -1,0 +1,264 @@
+{
+  "_설명": "그룹·멤버 설정. 멤버가 빠지면 members에서 formerMembers로 옮기면 된다 (hide: true면 그 멤버 관련 글을 모두 숨김). 유닛이 생기면 units에 추가.",
+  "id": "nctdream",
+  "name": "NCT DREAM",
+  "nameVariants": [
+    "NCT DREAM",
+    "NCT 드림",
+    "엔시티 드림",
+    "엔시티드림",
+    "NCTDREAM",
+    "NCT드림"
+  ],
+  "parentNames": [
+    "NCT",
+    "엔시티"
+  ],
+  "extraPatterns": [
+    "127\\s*[·∙,&-]\\s*(DREAM|드림)"
+  ],
+  "fandom": [
+    "시즈니",
+    "NCTzen",
+    "즈니"
+  ],
+  "nicknames": [
+    "엔드림",
+    "드림이",
+    "드림이들",
+    "칠드림",
+    "드리미",
+    "dreamies"
+  ],
+  "members": [
+    {
+      "name": "런쥔",
+      "slug": "renjun",
+      "aliases": [
+        "런쥔",
+        "황런쥔",
+        "RENJUN"
+      ],
+      "nicknames": [
+        "런쥬니"
+      ],
+      "emojis": [
+        "🦊"
+      ]
+    },
+    {
+      "name": "제노",
+      "slug": "jeno",
+      "aliases": [
+        "제노",
+        "이제노",
+        "JENO"
+      ],
+      "nicknames": [
+        "제노야"
+      ],
+      "emojis": [
+        "🐶"
+      ]
+    },
+    {
+      "name": "해찬",
+      "slug": "haechan",
+      "aliases": [
+        "해찬",
+        "이해찬",
+        "이동혁",
+        "HAECHAN"
+      ],
+      "nicknames": [
+        "해찬아",
+        "해찬이",
+        "해치니"
+      ],
+      "emojis": [
+        "🐻"
+      ],
+      "otherGroups": [
+        "NCT 127"
+      ]
+    },
+    {
+      "name": "재민",
+      "slug": "jaemin",
+      "aliases": [
+        "재민",
+        "나재민",
+        "JAEMIN"
+      ],
+      "nicknames": [
+        "재민아",
+        "재민이"
+      ],
+      "emojis": [
+        "🐰"
+      ]
+    },
+    {
+      "name": "천러",
+      "slug": "chenle",
+      "aliases": [
+        "천러",
+        "종천러",
+        "CHENLE"
+      ],
+      "nicknames": [
+        "천러야"
+      ],
+      "emojis": [
+        "🐬"
+      ]
+    },
+    {
+      "name": "지성",
+      "slug": "jisung",
+      "aliases": [
+        "지성",
+        "박지성",
+        "JISUNG"
+      ],
+      "nicknames": [
+        "지성아",
+        "지성이"
+      ],
+      "emojis": [
+        "🐹"
+      ]
+    }
+  ],
+  "formerMembers": [
+    {
+      "name": "마크",
+      "aliases": [
+        "마크",
+        "이민형",
+        "MARK"
+      ],
+      "hide": true,
+      "emojis": [
+        "🦁"
+      ]
+    }
+  ],
+  "units": [
+    {
+      "name": "NCT JNJM",
+      "aliases": [
+        "JNJM",
+        "제노재민",
+        "제노·재민"
+      ],
+      "members": [
+        "제노",
+        "재민"
+      ]
+    }
+  ],
+  "weverse": {
+    "community": "nctdream"
+  },
+  "youtube": {
+    "channels": [
+      {
+        "id": "UCXURHJRGr4-EB3l87kcbElw",
+        "name": "NCT DREAM",
+        "filter": false,
+        "guest": false
+      },
+      {
+        "id": "UCwgtORdDtUKhpjE1VBv6XfA",
+        "name": "NCT",
+        "filter": true,
+        "guest": false
+      },
+      {
+        "id": "UCG-coSVp89xFSWN4pbVL53w",
+        "name": "NCT DAILY",
+        "filter": true,
+        "guest": false
+      },
+      {
+        "id": "UCEf_Bc-KVd7onSeifS3py9g",
+        "name": "SMTOWN",
+        "filter": true,
+        "guest": false
+      },
+      {
+        "id": "UCcnk_XPx9NtZDFhBdz-DfIA",
+        "name": "채널 NCT DANCE",
+        "filter": true,
+        "guest": false
+      },
+      {
+        "id": "UCeLPm9yH_a_QH8n6445G-Ow",
+        "name": "KBS Kpop",
+        "filter": true,
+        "guest": true
+      },
+      {
+        "id": "UCe52oeb7Xv_KaJsEzcKXJJg",
+        "name": "MBCkpop",
+        "filter": true,
+        "guest": true
+      },
+      {
+        "id": "UCS_hnpJLQTvBkqALgapi_4g",
+        "name": "SBSKPOP X INKIGAYO",
+        "filter": true,
+        "guest": true
+      },
+      {
+        "id": "UCqJ3rYYs-n5blu6JxpciQjA",
+        "name": "Mnet K-POP",
+        "filter": true,
+        "guest": true
+      },
+      {
+        "id": "UCweOkPb1wVVH0Q0Tlj4a5Pw",
+        "name": "1theK (원더케이)",
+        "filter": true,
+        "guest": true
+      },
+      {
+        "id": "UCEIi7zFR_wE23jFncVtd6-A",
+        "name": "STUDIO CHOOM",
+        "filter": true,
+        "guest": true
+      }
+    ],
+    "_설명": "filter: 그룹 이름이 제목에 있는 영상만. guest: 방송사·제작사 채널이라 영상이 출연 콘텐츠일 수 있음 (소속사·공식 채널은 false)",
+    "stageChannels": [
+      "KBS WORLD TV",
+      "KBS WORLD Latino",
+      "KBS 한국방송",
+      "KBS Entertain",
+      "MBC WORLD",
+      "MBC every1",
+      "MBC entertainment",
+      "M2",
+      "Mnet K-POP",
+      "Mnet TV",
+      "ALL THE K-POP",
+      "THE K-POP",
+      "SBSKPOP ZOOM",
+      "SBS Entertainment",
+      "SBS KPOP PLAY",
+      "ARIRANG K-POP",
+      "STUDIO CHOOM",
+      "1theK (원더케이)"
+    ],
+    "_stageChannels설명": "등록 채널 밖에서 찾은 영상 중 음방 무대·직캠으로 인정할 방송사 공식 채널 이름. 팬 채널의 재업로드·교차편집이 섞이지 않게 이름으로만 인정한다",
+    "agencyChannels": [
+      "SM STATION",
+      "SMTOWN",
+      "SM Entertainment",
+      "NCT DAILY"
+    ],
+    "_agencyChannels설명": "소속사·레이블 쪽 채널 이름 (수집 등록과 별개). 여기 영상은 외부 출연으로 치지 않는다"
+  },
+  "_otherGroups설명": "members[].otherGroups: 이 그룹 밖 활동(예: NCT 127). 그 일정은 수집하지 않아서 질문 답변에 \"빠질 수 있음\"으로 알린다"
+}

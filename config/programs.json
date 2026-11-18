@@ -1,0 +1,69 @@
+{
+  "_설명": "정해진 시간에 방송되는 프로그램. 기사에 방송 시간이 없을 때 요일이 맞으면 이 시간으로 채운다. 편성이 바뀌면 여기만 고치면 된다.",
+  "programs": [
+    {
+      "names": [
+        "뮤직뱅크",
+        "Music Bank",
+        "KBS Music Bank"
+      ],
+      "weekday": "금",
+      "time": "17:05",
+      "short": "뮤뱅"
+    },
+    {
+      "names": [
+        "음악중심",
+        "Show! MusicCore",
+        "MusicCore",
+        "Music Core",
+        "쇼! 음악중심"
+      ],
+      "weekday": "토",
+      "time": "15:20",
+      "short": "음중"
+    },
+    {
+      "names": [
+        "인기가요",
+        "Inkigayo",
+        "SBS Inkigayo"
+      ],
+      "weekday": "일",
+      "time": "15:20",
+      "short": "인가"
+    },
+    {
+      "names": [
+        "엠카운트다운",
+        "M COUNTDOWN",
+        "엠카",
+        "MCOUNTDOWN"
+      ],
+      "weekday": "목",
+      "time": "18:00",
+      "short": "엠카"
+    },
+    {
+      "names": [
+        "쇼챔피언",
+        "SHOW CHAMPION",
+        "쇼챔",
+        "SHOWCHAMPION"
+      ],
+      "weekday": "수",
+      "time": "18:00",
+      "short": "쇼챔"
+    },
+    {
+      "names": [
+        "더쇼",
+        "THE SHOW",
+        "THESHOW"
+      ],
+      "weekday": "화",
+      "time": "18:00",
+      "short": "더쇼"
+    }
+  ]
+}

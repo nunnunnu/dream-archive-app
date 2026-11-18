@@ -1,0 +1,12 @@
+node_modules/
+.env
+.dev.vars
+data/
+.cache/
+.state-cache/
+tmp/
+site/node_modules/
+site/dist/
+site/.astro/
+site/.wrangler/
+.wrangler/

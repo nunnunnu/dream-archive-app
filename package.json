@@ -1,0 +1,36 @@
+{
+  "name": "nctdream-archive",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "collect": "tsx collector/run.ts",
+    "submit": "tsx collector/submit.ts",
+    "test": "tsx --test collector/**/*.test.ts",
+    "typecheck": "tsc",
+    "view:build": "tsx viewer/build.ts",
+    "view": "tsx viewer/build.ts && open viewer/dist/index.html",
+    "track": "tsx collector/track.ts",
+    "reports": "tsx collector/reports.ts",
+    "backfill:releases": "tsx collector/backfill-releases.ts",
+    "sync": "tsx collector/sync.ts",
+    "ask": "tsx collector/ask.ts",
+    "eval:ask": "tsx collector/eval-ask.ts",
+    "ask:feedback": "tsx collector/ask-feedback.ts",
+    "publish:site": "tsx collector/publish-site.ts",
+    "rag:index": "tsx collector/rag-index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "playwright": "^1.65.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "openai": "^7.55.0"
+  }
+}

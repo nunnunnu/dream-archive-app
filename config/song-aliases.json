@@ -1,0 +1,26 @@
+{
+  "_설명": "곡·활동 이름의 다른 표기 (한글로 쓴 영어 곡명 등). 활동 페이지에서 영상을 찾을 때 활동 이름과 같이 쓴다. 활동 기간 안의 영상에만 적용된다. 너무 흔한 말(고, 조이, 더 선)은 넣지 않는다",
+  "aliases": {
+    "Chewing Gum": ["츄잉껌"],
+    "We Young": ["위영"],
+    "We Go Up": ["위고업"],
+    "Candle Light": ["캔들라이트"],
+    "BOOM": ["붐"],
+    "Hot Sauce": ["핫소스"],
+    "Hello Future": ["헬로퓨처", "헬퓨"],
+    "Glitch Mode": ["글리치모드"],
+    "Beatbox": ["비트박스"],
+    "Candy": ["캔디"],
+    "Best Friend Ever": ["베스트프렌드에버"],
+    "Broken Melodies": ["브로큰멜로디"],
+    "Smoothie": ["스무디"],
+    "Moonlight": ["문라이트"],
+    "Rains in Heaven": ["레인즈인헤븐"],
+    "Flying Kiss": ["플라잉키스"],
+    "When I'm With You": ["웬아임위드유"],
+    "CHILLER": ["칠러"],
+    "Go Back To The Future": ["백투더퓨처"],
+    "Beat It Up": ["비트잇업"],
+    "Boogie Woogie": ["부기우기"]
+  }
+}

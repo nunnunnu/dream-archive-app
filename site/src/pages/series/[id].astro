@@ -1,0 +1,109 @@
+---
+import Base from '../../layouts/Base.astro';
+import Cover from '../../components/Cover.astro';
+import { groupNameRe, loadPublic, loadSite, md, ymd, type SeriesPage } from '../../lib/data';
+import '../../styles/series.css';
+
+const { id } = Astro.params;
+const found = await loadPublic<SeriesPage | null>(Astro.locals, `series/${id}.json`, null);
+if (!found) return new Response('없는 시리즈예요', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+const sr = found;
+const GROUP_RE = groupNameRe(await loadSite(Astro.locals));
+const clean = (t: string) => t.replace(GROUP_RE, '').replace(/#\S+/g, '').replace(/\s{2,}/g, ' ').replace(/^[\s|·-]+|[\s|·-]+$/g, '').trim() || t;
+// 멤버별로 보기: 이 시리즈 영상에 나오는 멤버 (영상이 많은 순)
+const memberCount = new Map<string, number>();
+for (const se of sr.seasons) for (const v of se.videos) for (const m of v.members) memberCount.set(m, (memberCount.get(m) ?? 0) + 1);
+const seriesMembers = [...memberCount.entries()].sort((a, b) => b[1] - a[1]).map(([m]) => m);
+---
+<Base title={sr.name} current="series">
+  <nav class="crumbs wrap" aria-label="경로"><a href="/series/">시리즈</a><span>/</span><span>{sr.type}</span><span>/</span><b>{sr.name}</b></nav>
+  <section class="s-hero">
+    <div class="wrap s-hero-in">
+      <div>
+        <span class="sc-type">{sr.type}</span>
+        <h1>{sr.name}</h1>
+        <p>{sr.type === '반복 활동' ? `활동 ${sr.count}개` : `${sr.count}편`} · {ymd(sr.from)} – {ymd(sr.to)}{sr.members.length ? ` · ${sr.members.join('·')}` : ''}</p>
+      </div>
+      {sr.seasons.length > 1 && <nav class="season-jump">{sr.seasons.map((s, i) => <a href={`#season-${i}`}>{s.name} <span>{s.videos.length}</span></a>)}</nav>}
+    </div>
+  </section>
+
+  <main class="wrap">
+    {seriesMembers.length > 1 && (
+      <nav class="member-filter" data-member-filter aria-label="멤버별로 보기">
+        <button type="button" class="mf-all" aria-pressed="true" data-m="">전체</button>
+        {seriesMembers.map((m) => <button type="button" aria-pressed="false" data-m={m}>{m}</button>)}
+        <span class="mf-mode" hidden>
+          <label><input type="radio" name="mf-mode" value="all" checked /> 모두 나오는 영상</label>
+          <label><input type="radio" name="mf-mode" value="any" /> 한 명이라도</label>
+        </span>
+        <span class="mf-count" aria-live="polite"></span>
+      </nav>
+    )}
+    {sr.seasons.map((s, i) => (
+      <details class="season" id={`season-${i}`} open={i === 0 || sr.seasons.length <= 3}>
+        <summary><b>{s.name}</b><span>{s.videos.length}편 · {md(s.videos[0].date)}{s.videos.length > 1 ? ` – ${md(s.videos.at(-1)!.date)}` : ''} {s.videos[0].date.slice(0, 4)}</span></summary>
+        <div class="vgrid">
+          {s.videos.map((v) => (
+            <a class="vcard" href={v.url} target="_blank" rel="noopener" data-members={v.members.join(',')}>
+              <span class="thumb"><img src={v.thumb} alt="" loading="lazy" />{v.ep && <i>EP.{v.ep}</i>}</span>
+              <b>{clean(v.title)}</b><small>{ymd(v.date)}{v.members.length ? ` · ${v.members.join('·')}` : ''}</small>
+            </a>
+          ))}
+        </div>
+      </details>
+    ))}
+
+    {sr.episodes && (
+      <div class="vgrid ep-list">
+        {sr.episodes.map((e) => (
+          <a class="vcard" href={e.url} target="_blank" rel="noopener">
+            <span class={`thumb${e.thumb ? '' : ' none'}`}>{e.thumb ? <img src={e.thumb} alt="" loading="lazy" /> : <em>{e.title}</em>}</span>
+            <b>{e.step}</b><small>{ymd(e.date)}{e.time ? ` ${e.time}` : ''} · {e.members.length ? e.members.join('·') : '단체'}</small>
+          </a>
+        ))}
+      </div>
+    )}
+
+    {sr.activities && (
+      <div class="act-grid">
+        {sr.activities.map((a) => (
+          <a class="card act-card" href={`/archive/${a.id}/`}>
+            <div class="act-cover"><Cover title={a.title} cover={a.cover} image={a.thumb} /></div>
+            <div><span class="sc-type">{a.kind}</span><b>{a.title}</b><small>{a.owner} · {ymd(a.from)} – {md(a.to)}</small></div>
+          </a>
+        ))}
+      </div>
+    )}
+  </main>
+</Base>
+
+<script>
+  // 멤버별로 보기: 여러 명 고를 수 있음. "모두 나오는 영상"(같이 나온 영상) 또는 "한 명이라도"
+  for (const nav of document.querySelectorAll<HTMLElement>('[data-member-filter]')) {
+    const all = nav.querySelector<HTMLButtonElement>('.mf-all')!;
+    const buttons = [...nav.querySelectorAll<HTMLButtonElement>('button[data-m]:not(.mf-all)')];
+    const mode = nav.querySelector<HTMLElement>('.mf-mode')!;
+    const count = nav.querySelector<HTMLElement>('.mf-count')!;
+    const apply = () => {
+      const picked = buttons.filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.dataset.m!);
+      const how = (nav.querySelector<HTMLInputElement>('input[name="mf-mode"]:checked')?.value ?? 'all') as 'all' | 'any';
+      all.setAttribute('aria-pressed', String(picked.length === 0));
+      mode.hidden = picked.length < 2;
+      let shown = 0;
+      for (const card of document.querySelectorAll<HTMLElement>('.vcard[data-members]')) {
+        const ms = (card.dataset.members ?? '').split(',').filter(Boolean);
+        const ok = picked.length === 0 || (how === 'all' ? picked.every((m) => ms.includes(m)) : picked.some((m) => ms.includes(m)));
+        card.hidden = !ok;
+        if (ok) shown++;
+      }
+      count.textContent = picked.length ? `${shown}편` : '';
+      // 고른 멤버 영상이 하나도 없는 시즌·해는 숨긴다
+      for (const d of document.querySelectorAll<HTMLElement>('details.season')) d.hidden = picked.length > 0 && !d.querySelector('.vcard[data-members]:not([hidden])');
+      if (picked.length) for (const d of document.querySelectorAll<HTMLDetailsElement>('details')) d.open = true;
+    };
+    all.addEventListener('click', () => { for (const b of buttons) b.setAttribute('aria-pressed', 'false'); apply(); });
+    for (const b of buttons) b.addEventListener('click', () => { b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); apply(); });
+    mode.addEventListener('change', apply);
+  }
+</script>
