@@ -47,6 +47,8 @@ export async function loadPublic<T>(locals: Locals, path: string, fallback: T): 
 }
 
 export interface EraVideo { id: string; title: string; url: string; thumb: string; date: string; channel: string; members: string[]; group?: string }
+export type GuideType = '투표' | '앨범 구매' | '응모·신청' | '예매' | '라디오';
+export interface GuideItem { id: string; type: GuideType; title: string; start: string; startTime: string | null; due: string; dueTime: string | null; source: string; auto: boolean; url?: string; openEnded?: boolean; check?: boolean }
 export interface EraPage {
   id: string; kind: string; title: string; subtitle?: string; titleSong?: string; release?: string;
   owner: { scope: string; members: string[]; label: string };
@@ -58,6 +60,7 @@ export interface EraPage {
   news?: { date: string; title: string; url: string; publisher: string }[];
   timeline: { date: string; label: string; sub: string }[];
   schedule: { date: string; time: string | null; endDate: string | null; title: string; step: string; kind: string; url?: string; group: string }[];
+  guide?: GuideItem[];
   ownGroups: string[];
   parts?: string[];
   official: EraVideo[];
@@ -67,7 +70,7 @@ export interface EraPage {
   own: EraVideo[];
   outside: { date: string; title: string; sub: string; members: string[]; url?: string; thumb?: string }[];
 }
-export type EraSummary = Omit<EraPage, 'official' | 'stages' | 'fancams' | 'related' | 'own' | 'shorts' | 'outside' | 'timeline' | 'schedule' | 'ownGroups' | 'news'>;
+export type EraSummary = { guideCount?: number } & Omit<EraPage, 'guide' | 'official' | 'stages' | 'fancams' | 'related' | 'own' | 'shorts' | 'outside' | 'timeline' | 'schedule' | 'ownGroups' | 'news'>;
 
 export const md = (d: string) => `${d.slice(5, 7)}.${d.slice(8, 10)}`;
 export const ymd = (d: string) => d.replaceAll('-', '.');

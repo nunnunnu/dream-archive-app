@@ -3,6 +3,7 @@ import Base from '../../layouts/Base.astro';
 import Cover from '../../components/Cover.astro';
 import { groupNameRe, loadPublic, loadSite, md, ymd, type EraPage } from '../../lib/data';
 import '../../styles/era.css';
+import '../../styles/guide.css';
 
 const { id } = Astro.params;
 const found = await loadPublic<EraPage | null>(Astro.locals, `eras/${id}.json`, null);
@@ -44,6 +45,10 @@ const short = (t: string) =>
       <a href="#timeline">타임라인</a><a href="#schedule">일정</a>{era.official.length > 0 && <a href="#official">공식 영상</a>}{showStages && <a href="#stages">음방 무대</a>}{relatedBy.length > 0 && <a href="#related">관련 영상</a>}{era.own.length > 0 && <a href="#own">자체 콘텐츠</a>}{(era.shorts ?? []).length > 0 && <a href="#shorts">쇼츠</a>}{era.outside.length > 0 && <a href="#outside">외부 콘텐츠</a>}
     </div>
   </nav>
+  {(era.guide ?? []).length > 0 && <nav class="era-tabs wrap" aria-label="활동 보기">
+    <a href={`/archive/${era.id}/`} aria-current="page">활동 정보</a>
+    <a href={`/archive/${era.id}/guide/`}>활동 가이드 <span>{era.guide!.length}</span></a>
+  </nav>}
 
   <section class="hero">
     <div class="wrap hero-in">

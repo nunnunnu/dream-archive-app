@@ -139,7 +139,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   if (keptIds) console.log(`활동 주소 유지 ${keptIds}개`);
   const eras = buildEraPages(events, allVideos, acts, today, allArticles);
   for (const era of eras) await repo.publish(`eras/${era.id}.json`, era);
-  await repo.publish('eras.json', { eras: eras.map(({ official, stages, fancams, related, own, shorts, outside, timeline, schedule, ownGroups, news, ...rest }) => rest) });
+  await repo.publish('eras.json', { eras: eras.map(({ official, stages, fancams, related, own, shorts, outside, timeline, schedule, ownGroups, news, guide, ...rest }) => ({ ...rest, guideCount: guide?.length ?? 0 })) });
   // 시리즈: 자체 콘텐츠 시리즈 · 종류별 모아보기 · 고정 출연 · 반복 활동
   const series = buildSeries(await loadRecentVideos(now, 120), events, acts, eras);
   for (const sr of series) await repo.publish(`series/${sr.id}.json`, sr);

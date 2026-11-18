@@ -82,3 +82,14 @@ button { font: inherit; color: inherit; }
 .nav { align-items: center; }
 .nav a.report-btn { padding: 6px 14px; border: 0; border-radius: 999px; background: var(--dark); color: #fff; font-size: 13px; }
 .nav a.report-btn[aria-current='page'] { background: var(--accent); color: var(--accent-ink); }
+
+/* 좁은 화면: 메뉴 글자가 세로로 쪼개지지 않게 */
+.nav a { white-space: nowrap; }
+@media (max-width: 480px) {
+  .site-head .wrap { padding: 0 16px; gap: 10px; }
+  .brand { font-size: 15px; white-space: nowrap; }
+  .brand small { display: none; }
+  .nav { gap: 12px; }
+  .nav a { font-size: 13px; }
+  .nav a.report-btn { padding: 5px 10px; font-size: 12px; }
+}

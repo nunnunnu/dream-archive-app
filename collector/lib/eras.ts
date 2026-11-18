@@ -35,6 +35,8 @@ export interface EraPage {
   timeline: { date: string; label: string; sub: string }[];
   /** 이 활동의 일정 (공연 날짜·예매 등) */
   schedule: { date: string; time: string | null; endDate: string | null; title: string; step: string; kind: string; url?: string; group: string }[];
+  /** 활동 가이드: 팬이 해야 할 일(투표·앨범 구매·응모·예매·라디오)과 마감 */
+  guide?: GuideItem[];
   /** 자체 콘텐츠 묶음 순서 */
   ownGroups: string[];
   official: EraVideo[];
@@ -104,6 +106,41 @@ const OWN_ORDER: VideoKind[] = ['비하인드', '라이브', '응원법', '자�
 const SHORT_KINDS: VideoKind[] = ['챌린지', '쇼츠'];
 const ownGroupOf = (title: string, duration?: number) => videoKind({ title, duration });
 
+export type GuideType = '투표' | '앨범 구매' | '응모·신청' | '예매' | '라디오';
+export interface GuideItem {
+  id: string; type: GuideType; title: string;
+  /** 시작(그날부터 할 수 있음)과 마감 */
+  start: string; startTime: string | null; due: string; dueTime: string | null;
+  source: string; auto: boolean; url?: string;
+  /** "사전투표 시작"처럼 시작만 알고 마감은 모름 */
+  openEnded?: boolean;
+  /** 근거와 숫자가 안 맞는 등 확인이 필요한 일정 */
+  check?: boolean;
+}
+const SOURCE_LABEL: Record<string, string> = { 'weverse-notice': '위버스 공지', news: '기사', youtube: '유튜브', sns: '공식 SNS', submission: '팬 제보' };
+/** 활동 일정 → 할 일. 공연 관람·녹화처럼 가서 보는 일정은 빼고, 미리 해야 하는 일만 */
+export function guideOf(e: PublicEvent): GuideItem | null {
+  const text = `${e.title} ${e.step}`;
+  let type: GuideType | null = null;
+  if (/라디오|radio|컬투쇼|FM\b|파워타임|볼륨을 높여요|두시탈출/i.test(text)) type = '라디오';
+  else if (e.kind === '투표' || /투표|vote/i.test(text)) type = '투표';
+  else if (/예매|티켓|ticket|선예매|사전\s*인증|팬클럽\s*인증/i.test(text)) type = '예매';
+  else if (e.kind === '판매' || /구매|예약\s*판매|추가\s*판매|pre-?order/i.test(text)) type = '앨범 구매';
+  else if (e.kind === '신청' || e.kind === '당첨 발표' || e.kind === '본인 확인' || /응모|신청|당첨/.test(text)) type = '응모·신청';
+  if (!type || e.audience !== 'all') return null;
+  // 라디오는 듣는 일정(방송)도 할 일로, 나머지는 참여 일정만
+  if (type !== '라디오' && e.category !== '참여') return null;
+  if (/공연\s*일시|녹화$|^녹화|본인\s*확인\s*모임|입장|부스|주의/.test(e.step)) return null;
+  const src = e.sources.find((x) => x.type !== 'submission') ?? e.sources[0];
+  return {
+    id: e.id, type, title: e.step.includes(e.title) ? e.step : `${e.title} · ${e.step}`,
+    start: e.date, startTime: e.time, due: e.endDate ?? e.date, dueTime: e.endDate ? e.endTime : (e.endTime ?? e.time),
+    source: SOURCE_LABEL[src?.type ?? ''] ?? '기타', auto: e.sources.some((x) => x.type !== 'submission'), url: src?.url,
+    ...(!e.endDate && !e.endTime && /시작|오픈|open/i.test(e.step) ? { openEnded: true } : {}),
+    ...(e.status === 'needs-check' ? { check: true } : {}),
+  };
+}
+
 /** 활동 일정 묶음: 합쳐진 작은 활동(팝업 등) 이름 → 음악방송 → 팬사인회·이벤트 → 예매·판매 → 공연·행사 → 공개·발매 → 방송 → 기타 */
 function scheduleGroupOf(e: PublicEvent, parts: string[]): string {
   const text = `${e.title} ${e.step}`;
@@ -148,6 +185,8 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       .map((a) => ({ date: kstDate(a.publishedAt), title: a.title, url: a.link, publisher: a.source }));
   };
   const byId = new Map(events.map((e) => [e.id, e]));
+  // 어느 활동에도 안 묶인 일정 (제목에 곡 이름이 없는 "KBS 뮤직뱅크 사전녹화"·"인기가요 사전투표" 등) → 컴백 활동 가이드에 넣는다
+  const assigned = new Set(acts.flatMap((a) => a.eventIds));
   // 다른 활동(드라마·팬미팅·고정 예능 등)으로 묶인 일정은 컴백의 외부 출연에서 뺀다. 며칠짜리 단발 예능은 홍보 출연이라 남긴다
   const claimed = new Set(acts.filter((a) => a.kind !== '예능' || Date.parse(a.to) - Date.parse(a.from) > 7 * 864e5).flatMap((a) => a.eventIds));
   // 활동 이름으로 정확히 걸린 영상 (예: #DUALITY) → 다른 활동이 보조 구절로 가져가지 못하게
@@ -299,6 +338,15 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       shorts: shorts.map((v) => ({ ...toVid(v), group: videoKind(v) === '챌린지' ? ('챌린지' as const) : ('멤버 쇼츠' as const) })).reverse(),
       timeline: marks,
       schedule: actEvents.filter((e) => e.audience === 'all').map((e) => ({ date: e.date, time: e.time, endDate: e.endDate, title: e.title, step: e.step, kind: e.kind, url: e.sources[0]?.url, group: scheduleGroupOf(e, act.parts) })),
+      guide: (() => {
+        const live = today >= act.from && today <= act.to;
+        const until = live ? [act.to, new Date(Date.parse(today) + 14 * 864e5).toISOString().slice(0, 10)].sort()[1] : act.to;
+        const loose = act.kind !== '컴백' ? [] : events.filter((e) => !assigned.has(e.id) && e.date >= act.from && e.date <= until
+          && (programName(e.title) || /사전\s*녹화|사전\s*투표|음악\s*방송/.test(`${e.title} ${e.step}`))
+          && (act.owner.scope === '단체' ? e.scope === '단체' : e.members.some((m) => act.owner.members.includes(m))));
+        return [...actEvents, ...loose].map(guideOf).filter((g): g is GuideItem => g !== null)
+          .sort((a, b) => `${a.due} ${a.dueTime ?? '99'}`.localeCompare(`${b.due} ${b.dueTime ?? '99'}`));
+      })(),
       ownGroups: OWN_ORDER.filter((g) => own.some((v) => ownGroupOf(v.title, v.duration) === g)),
       stages: [...byProg.entries()].map(([program, videos]) => ({ program, videos })),
       fancams,
