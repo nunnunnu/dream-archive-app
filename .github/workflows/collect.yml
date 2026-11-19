@@ -9,11 +9,9 @@ name: collect
 
 on:
   # 실행 시각은 Cloudflare 예약 작업(cron/)이 정한다: 매시 정각 full, 15·30·45분 fast, 3시간마다 backfill (workflow_dispatch)
-  # GitHub 자체 예약은 제때 안 돌아서(몇 시간씩 빠짐) 예비로만 둔다 (Cloudflare 예약 작업이 돌기 전까지는 이것도 씀)
+  # GitHub 자체 예약은 제때 안 돌아서(몇 시간씩 빠짐) 6시간마다 전체 수집 한 번만 예비로
   schedule:
-    - cron: '0 * * * *'
-    - cron: '15,30,45 * * * *'
-    - cron: '50 */3 * * *'
+    - cron: '7 */6 * * *'
   push:
     branches: [main]
     paths: ['site/**', 'collector/lib/ask-core.ts']
