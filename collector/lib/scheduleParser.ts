@@ -253,7 +253,8 @@ export function parseScheduleFromBody(body: string, postedAtIso: string, noticeT
 
   for (const rawLine of body.split('\n')) {
     const line = rawLine.trim();
-    if (!line || NOISE_LINE_RE.test(line)) {
+    // "※ 팬 카드는 11월 23일(월)부터 KWANGYA SEOUL에서 …" 같은 참고 문장은 일정이 아니다 (음악중심 사전녹화가 23일로 잡히던 문제)
+    if (!line || NOISE_LINE_RE.test(line) || /^[※*＊]/.test(line)) {
       parentLabel = '';
       contextLabel = '';
       paragraphHeader = '';

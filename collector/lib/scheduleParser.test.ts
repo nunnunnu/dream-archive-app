@@ -134,3 +134,10 @@ test('공지 제목의 M/D (요일) 날짜', () => {
   assert.equal(e?.kind, '방송');
   assert.equal(e?.uncertain, undefined);
 });
+
+test('※ 참고 문장의 날짜는 일정으로 보지 않는다', () => {
+  const body = ['■ 녹화 시간 : 2026. 11. 21 (토) 11:10AM', '※ <DREAM AFTER DREAM> 팬 카드는 11월 23일 (월)부터 KWANGYA SEOUL에서 수령 가능합니다.'].join('\n');
+  const dates = parseScheduleFromBody(body, '2026-11-18T06:00:00Z').map((e) => e.date);
+  assert.ok(dates.includes('2026-11-21'));
+  assert.ok(!dates.includes('2026-11-23'));
+});
