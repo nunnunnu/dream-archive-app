@@ -36,8 +36,6 @@ export interface Video {
   channelSubscribers?: number;
   /** 영상 설명 (출연 탐색 영상을 AI가 해석할 때 씀) */
   description?: string;
-  /** 댄스 챌린지 검색으로 찾은 다른 채널 영상 (출연 영상으로 쓰지 않음) */
-  challengeSearch?: boolean;
   /** 프리미어·예약 공개 전이면 true (publishedAt은 공개 예정 시각) */
   upcoming?: boolean;
   /** 비공개·삭제되어 더 볼 수 없는 영상 (확인한 시각). 사이트·활동·질문 자료에서 뺀다 */
@@ -551,32 +549,3 @@ export function videoMembers(v: { title: string; description?: string; who: Who 
   return found.length ? found : v.who.members;
 }
 
-// ── 댄스 챌린지: 다른 가수 채널에 올라온 챌린지 (#Lucifer #챌린지 with #JENO) ──────────────
-/**
- * 멤버별 "○○ challenge" 검색 (처음 한 번 + 이후 하루 한 번 최근 것만). 다른 가수·회사 공식 채널(구독자 10만 이상)만,
- * 팬 채널·팬 영상은 뺀다. 출연 영상(guest)으로 쓰지 않고 챌린지 모아보기에만 쓴다.
- */
-export async function searchChallengeVideos(now: Date, publishedAfter?: Date): Promise<Video[]> {
-  if (!process.env.YOUTUBE_API_KEY) return [];
-  const nowIso = now.toISOString();
-  const found: Video[] = [];
-  const people = GROUP.members.map((m) => ({ name: m.name, en: m.aliases.find((a) => /^[A-Za-z]+$/.test(a)) ?? m.name, aliases: m.aliases }));
-  for (const p of people) {
-    const data = await ytGet<{ items: { id: { videoId: string }; snippet: { title: string; channelId: string; channelTitle: string; publishedAt: string } }[] }>('search', {
-      part: 'snippet', type: 'video', maxResults: '25', q: `${p.en} challenge`, order: publishedAfter ? 'date' : 'relevance',
-      ...(publishedAfter ? { publishedAfter: publishedAfter.toISOString() } : {}),
-    }).catch(() => ({ items: [] }));
-    const items = data.items.filter((it) => {
-      const t = decodeEntities(it.snippet.title);
-      return /challenge|챌린지|with\s+#/i.test(t) && new RegExp(p.aliases.join('|'), 'i').test(t) && !OWN_CHANNELS.has(it.snippet.channelId) && !FAN_CHANNEL_RE.test(it.snippet.channelTitle);
-    });
-    const subs = await channelSubscribers(items.map((it) => it.snippet.channelId));
-    for (const it of items) {
-      if ((subs.get(it.snippet.channelId) ?? 0) < 100_000) continue;
-      const title = decodeEntities(it.snippet.title);
-      if (/reaction|리액션|cover\s*dance|커버\s*댄스|tutorial|mirror|교차편집|compilation|모음/i.test(title)) continue;
-      found.push({ ...toVideo({ id: it.snippet.channelId, name: it.snippet.channelTitle, filter: false }, it.id.videoId, title, it.snippet.publishedAt), firstSeenAt: nowIso, channelSubscribers: subs.get(it.snippet.channelId), challengeSearch: true } as Video);
-    }
-  }
-  return found.length ? storeVideos(found) : [];
-}
