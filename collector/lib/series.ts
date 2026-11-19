@@ -6,6 +6,7 @@
  *  3) 고정 출연: 여러 회 이어지는 외부 예능 (활동 묶기에서 '예능'으로 나온 것)
  *  4) 해마다 반복되는 활동: 생일, 시상식, 개인·유닛 활동 (아카이브 활동을 다시 묶음)
  */
+import type { ChallengeMap } from './challenges.ts';
 import { originalAirDate, videoMembers } from './youtube.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -56,7 +57,7 @@ const COLLECTIONS: [string, RegExp][] = [
   ['응원법', /응원법|cheering\s*guide/i],
 ];
 
-export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activity[], eras: EraPage[]): SeriesPage[] {
+export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activity[], eras: EraPage[], challenges: ChallengeMap = {}): SeriesPage[] {
   // 공식 채널 영상은 수집할 때 이미 드림 관련(제목·설명 해시태그)만 받았다 → 제목에 이름이 없어도(천지의 이것저것 등) 시리즈에 쓴다
   const own = videos.filter((v) => OWN.has(v.channel) && (v.channel === GROUP.name || isDreamRelated(`${v.title}\n${v.description ?? ''}`)) && !/react|리액션/i.test(v.title));
   const pages: SeriesPage[] = [];
@@ -111,6 +112,32 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
       id: `c-${slug(name)}`, type: '종류별 모아보기', name, count: list.length, ...range(list.map((v) => kst(v.publishedAt))),
       thumb: `https://i.ytimg.com/vi/${latest.videoId}/mqdefault.jpg`, members: [],
       seasons: [...byYear.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([y, vs]) => ({ name: `${y}년`, videos: sortVids(vs.map(toVid)).reverse() })),
+    });
+  }
+
+  // 2-1) 댄스 챌린지 (AI가 쇼츠 제목으로 판단, 다른 가수 채널 챌린지 포함) → 노래별
+  const chal = videos.filter((v) => challenges[v.videoId]?.c && !v.unavailableAt);
+  if (chal.length >= 3) {
+    // 같은 노래의 다른 표기 합치기: 띄어쓰기·기호 차이(WhenImWithYou), 한쪽이 다른 쪽을 품음(Go Back To The Future ⊃ Back To The Future), 머리글자(BTTF)
+    const songOf = (v: Video) => { const s = challenges[v.videoId].song; return s && !/^(null|none|unknown)$/i.test(s) ? s : '노래 이름 미상'; };
+    const acronym = (s: string) => s.normalize('NFKC').split(/[^\p{L}\p{N}]+/u).filter(Boolean).map((w) => w[0]).join('').toLowerCase();
+    const names = [...new Set(chal.map(songOf))];
+    const parent = new Map(names.map((n) => [n, n]));
+    const find = (n: string): string => (parent.get(n) === n ? n : find(parent.get(n)!));
+    const same = (x: string, y: string) => { const a = sq(x), b = sq(y); return a === b || (Math.min(a.length, b.length) >= 6 && (a.includes(b) || b.includes(a))) || (b.length >= 3 && acronym(x) === b) || (a.length >= 3 && acronym(y) === a); };
+    for (const x of names) for (const y of names) if (x < y && x !== '노래 이름 미상' && y !== '노래 이름 미상' && same(x, y)) parent.set(find(x), find(y));
+    const groups = new Map<string, { names: string[]; vids: Video[] }>();
+    for (const v of chal) { const r = find(songOf(v)); const g = groups.get(r) ?? { names: [], vids: [] }; g.names.push(songOf(v)); g.vids.push(v); groups.set(r, g); }
+    // 대표 이름: 띄어쓰기가 있는 표기 중 가장 많이 나온 것 (WhenImWithYou → When I'm With You)
+    const pick = (ns: string[]) => [...new Set(ns)].sort((x, y) => Number(/\s/.test(y)) - Number(/\s/.test(x)) || ns.filter((n) => n === y).length - ns.filter((n) => n === x).length)[0];
+    const bySong = new Map([...groups].map(([r, g]) => [r, { name: pick(g.names), vids: g.vids }]));
+    const latest = chal.slice().sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
+    pages.push({
+      id: 'c-dancechallenge', type: '종류별 모아보기', name: '댄스 챌린지', count: chal.length, ...range(chal.map((v) => kst(v.publishedAt))),
+      thumb: `https://i.ytimg.com/vi/${latest.videoId}/mqdefault.jpg`, members: [],
+      // 최근에 한 챌린지 노래부터, 이름 모르는 건 맨 뒤
+      seasons: [...bySong.values()].map((g) => ({ name: g.name, videos: sortVids(g.vids.map(toVid)).reverse() }))
+        .sort((a, b) => Number(a.name === '노래 이름 미상') - Number(b.name === '노래 이름 미상') || b.videos[0].date.localeCompare(a.videos[0].date)),
     });
   }
 

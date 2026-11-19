@@ -20,6 +20,7 @@
  *       npm run collect -- --backfill                              (위버스 공지 과거 자료 채우기)
  *       npm run collect -- --publish-only                          (수집·AI 없이 합치기·내보내기만)
  */
+import { classifyChallenges, type ChallengeMap } from './lib/challenges.ts';
 import { stripBroadcaster } from './lib/broadcasters.ts';
 import { chromium } from 'playwright';
 import { Budget } from './lib/budget.ts';
@@ -53,7 +54,7 @@ import { readOpenNotice } from './lib/weverse.ts';
 import { itemsFromTracked, loadTracked, syncTracked } from './lib/tracked.ts';
 import { kstDate, toKstParts } from './lib/time.ts';
 import { collectWeverse } from './lib/weverseCollect.ts';
-import { checkAvailability, collectVideos, discoverVideos, searchActivityVideos, unavailableVideoIds, isAppearance, isArchiveClip, loadRecentVideos, refreshVideoTimes, searchVideos } from './lib/youtube.ts';
+import { searchChallengeVideos, checkAvailability, collectVideos, discoverVideos, searchActivityVideos, unavailableVideoIds, isAppearance, isArchiveClip, loadRecentVideos, refreshVideoTimes, searchVideos } from './lib/youtube.ts';
 
 const arg = (name: string, fallback: number) => Number(process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1] ?? fallback);
 const ARTICLES_DAYS = arg('articles-days', 14);
@@ -142,7 +143,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   for (const era of eras) await repo.publish(`eras/${era.id}.json`, era);
   await repo.publish('eras.json', { eras: eras.map(({ official, stages, fancams, related, own, shorts, outside, timeline, schedule, ownGroups, news, guide, ...rest }) => ({ ...rest, guideCount: guide?.length ?? 0 })) });
   // 시리즈: 자체 콘텐츠 시리즈 · 종류별 모아보기 · 고정 출연 · 반복 활동
-  const series = buildSeries(await loadRecentVideos(now, 120), events, acts, eras);
+  const series = buildSeries(await loadRecentVideos(now, 130), events, acts, eras, await repo.getState<ChallengeMap>('youtube/challenges', {}));
   for (const sr of series) await repo.publish(`series/${sr.id}.json`, sr);
   await repo.publish('series.json', { series: series.map(({ seasons, episodes, activities, ...rest }) => rest) });
   // 목록에 없는 지난 파일은 지운다 (주소가 바뀐 활동의 옛 파일이 남아 옛 내용이 보이지 않게)
@@ -198,13 +199,10 @@ try {
   }
 
   if (fast) {
-    const yt = await collectVideos(now);
-    for (const l of await refreshVideoTimes(now).catch((err) => [`영상 공개 시각 확인 실패: ${(err as Error).message}`])) console.log(l);
-    console.log(`유튜브 새 영상 ${yt.added.length}개${yt.failed.length ? ` (실패: ${yt.failed.length}개 채널)` : ''}`);
-    step('② 처리 (새 공지·제보·영상만)');
+    // 빠른 실행(15분마다): 위버스 하이라이트·공지와 사이트 제보만. 유튜브·기사는 매시 전체 실행에서
+    step('② 처리 (새 공지·제보만)');
     for (const l of await processNotices(repo, budget, now, { sinceDays: NOTICES_DAYS })) console.log(l);
     for (const l of await processSubmissions(repo, page, budget, now)) console.log(l);
-    for (const l of await processVideos(repo, budget, now)) console.log(l);
     step('③ 합치기 · 내보내기');
     await consolidateAndPublish();
   }
@@ -226,6 +224,13 @@ try {
     if (avail) console.log(`영상 공개 여부 확인 ${avail.checked}개: 비공개·삭제 ${avail.gone.length}개${avail.gone.length ? ` (${avail.gone.slice(0, 3).map((v) => v.title.slice(0, 20)).join(', ')}…)` : ''}${avail.back ? `, 다시 공개 ${avail.back}개` : ''}`);
     const actVids = await searchActivityVideos(repo, now).catch((err) => { console.log(`드라마 영상 검색 실패: ${(err as Error).message}`); return []; });
     if (actVids.length) console.log(`드라마 영상 검색: 새 영상 ${actVids.length}개`);
+    // 댄스 챌린지: 다른 가수 채널 검색은 하루 한 번(처음엔 전체, 이후 최근 3일), 분류는 새 쇼츠만
+    const chSearch = await repo.getState<{ at?: string }>('backfill/challenge-search', {});
+    if (!chSearch.at || Date.now() - Date.parse(chSearch.at) > 23 * 3600 * 1000) {
+      const found = await searchChallengeVideos(now, chSearch.at ? new Date(Date.now() - 3 * 864e5) : undefined).catch((err) => { console.log(`챌린지 검색 실패: ${(err as Error).message}`); return null; });
+      if (found) { console.log(`다른 채널 댄스 챌린지 ${found.length}개`); await repo.putState('backfill/challenge-search', { at: now.toISOString() }); }
+    }
+    for (const l of await classifyChallenges(repo, budget, await loadRecentVideos(now, 130))) console.log(l);
     if (guest.ran) console.log(`유튜브 출연 탐색: 새 출연 영상 ${guest.added.length}개${guest.added.length ? ` (${guest.added.slice(0, 5).map((v) => v.channel).join(', ')}…)` : ''}`);
     let ytFound = 0;
     for (const y of queued.youtube) ytFound += (await searchVideos(y.focus, new Date(y.after), now).catch(() => [])).length;

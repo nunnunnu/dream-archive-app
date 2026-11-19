@@ -8,10 +8,11 @@
 name: collect
 
 on:
+  # 실행 시각은 Cloudflare 예약 작업(cron/)이 정한다: 매시 정각 full, 15·30·45분 fast, 3시간마다 backfill (workflow_dispatch)
+  # GitHub 자체 예약은 제때 안 돌아서(몇 시간씩 빠짐) 예비로만 둔다 (Cloudflare 예약 작업이 돌기 전까지는 이것도 씀)
   schedule:
     - cron: '0 * * * *'
     - cron: '15,30,45 * * * *'
-    # 과거 기사 채우기: 3시간마다 40분씩 이어서 (다 채우면 금방 끝남)
     - cron: '50 */3 * * *'
   push:
     branches: [main]
@@ -30,6 +31,8 @@ permissions:
   contents: read
 
 env:
+  # 실행 종류: Cloudflare 예약 작업이 보낸 mode, 없으면 GitHub 예약 시각으로 (15·30·45분 fast, 3시간 50분 backfill, 그 밖 full)
+  MODE: ${{ inputs.mode || (github.event.schedule == '15,30,45 * * * *' && 'fast') || (github.event.schedule == '50 */3 * * *' && 'backfill') || (github.event_name == 'push' && 'site') || 'full' }}
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
   SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
   # 수집 상태를 Actions 캐시에 둘 때 쓰는 암호화 키 (공개 레포 캐시는 남이 꺼내 볼 수 있어서 암호화)
@@ -66,27 +69,28 @@ jobs:
         run: npm run sync -- pull
 
       - name: 브라우저 캐시
-        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'fast' || inputs.mode == 'backfill'
+        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('package-lock.json') }}
 
       - name: 브라우저 설치
-        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'fast' || inputs.mode == 'backfill'
+        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill'
         run: npx playwright install --with-deps chromium
 
       - name: 수집
         id: collect
-        if: github.event_name == 'schedule' || inputs.mode == 'full' || inputs.mode == 'fast' || inputs.mode == 'backfill'
+        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
-          if [ "${{ inputs.mode }}" = "backfill" ] || [ "${{ github.event.schedule }}" = "50 */3 * * *" ]; then
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          if [ "$MODE" = "backfill" ]; then
             # 과거 기사 채우기 (개발 비용은 운영 월 상한과 따로) → 다시 내보내기
             npm run backfill:news -- --minutes=20 --total-minutes=45 && npm run collect -- --publish-only
-          elif [ "${{ github.event.schedule }}" = "15,30,45 * * * *" ] || [ "${{ inputs.mode }}" = "fast" ]; then
+          elif [ "$MODE" = "fast" ]; then
             npm run collect -- --fast
           else
             npm run collect
@@ -115,19 +119,19 @@ jobs:
 
       # 질문 의미 검색 색인 (바뀐 조각만 임베딩, 보통 몇 원 이하)
       - name: RAG 색인
-        if: steps.collect.outcome == 'success'
+        if: steps.collect.outcome == 'success' && steps.collect.outputs.mode != 'fast'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: npm run rag:index
 
       # 사이트 배포는 코드가 바뀌었을 때만 (main 푸시·직접 실행)
       - name: 사이트 빌드
-        if: github.event_name != 'schedule' && inputs.mode != 'backfill'
+        if: env.MODE == 'site'
         working-directory: site
         run: npm ci && npm run build
 
       - name: Cloudflare Pages 배포
-        if: github.event_name != 'schedule' && inputs.mode != 'backfill'
+        if: env.MODE == 'site'
         working-directory: site
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
