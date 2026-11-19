@@ -4,6 +4,7 @@
  *  - 화제 검색: 팬 글 키워드 → "NCT DREAM {키워드}"
  *  - 빈칸 채우기 검색: 시간·날짜가 빈 일정이나 행사 관련 일정 → 대상 이름이 제목에 있는 기사 (NCT DREAM이 안 나와도 됨)
  */
+import { BROADCASTER_PREFIX_RE } from './broadcasters.ts';
 import { searchGoogleNews } from './googleNews.ts';
 import { coreNames, normTarget } from './consolidate.ts';
 import { GROUP, GROUP_NAME_RE, PARENT_RE } from './group.ts';
@@ -55,7 +56,7 @@ const normalize = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase()
  * 다른 가수 소식일 수 있어서 제목에 NCT DREAM도 함께 나와야 받는다.
  */
 const QUOTE_RE = /[‘'"“「<《]([^’'"”」>》]{2,20})[’'"”」>》]/g;
-const LEADING_BROADCASTER_RE = /^(KBS2?|MBC|SBS|JTBC|ENA|tvN|Mnet|MBN|유튜브|웹예능|넷플릭스|티빙|쿠팡플레이)\s+/i;
+const LEADING_BROADCASTER_RE = BROADCASTER_PREFIX_RE;
 export function titleHasFocus(title: string, focus: string): boolean {
   const t = normTarget(title);
   const quoted = [...focus.matchAll(QUOTE_RE)].map((m) => normTarget(m[1])).filter((q) => q.length >= 2);

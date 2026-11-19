@@ -8,6 +8,8 @@
  *  - 날짜를 모르는 확정 소식은 "날짜 미정" 목록으로 보낸다.
  *  - 같은 날 올라온 유튜브 영상이 있으면 그 공개 시각으로 빈 시간을 채운다.
  */
+import { BROADCASTER_PREFIX_RE, stripBroadcaster } from './broadcasters.ts';
+import { showKey } from './tracked.ts';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -181,7 +183,7 @@ const ALIASES: [RegExp, string][] = [
   [/golden\s*disc\s*awards?|골든\s*디스크(\s*어워즈)?/gi, '골든디스크'],
 ];
 
-const BROADCASTER_RE = /^(KBS2?|MBC|SBS|JTBC|ENA|tvN|Mnet|MBN|TV조선|채널A|웨이브|유튜브|웹예능|넷플릭스|티빙|쿠팡플레이)\s*/i;
+const BROADCASTER_RE = BROADCASTER_PREFIX_RE;
 export function normTarget(t: string): string {
   let x = t;
   for (const [re, name] of ALIASES) x = x.replace(re, name);
@@ -478,6 +480,7 @@ export function consolidate(
 
   // 일정이 되게 한 출처 (채우기 전용 출처는 신뢰 판단에 세지 않는다)
   const counted = new Set(items.filter((x) => !x.fillOnly).map((x) => x.source.url));
+  const manualShows = new Set(items.filter((x) => x.evidence.startsWith('추적 목록')).map((x) => showKey(x.target)));
   const events: PublicEvent[] = [];
   for (const g of groups) {
     if (g.every((x) => x.fillOnly)) continue;
@@ -494,6 +497,8 @@ export function consolidate(
       events.push(e);
       continue;
     }
+    // 직접 등록한 고정 출연(추적 목록)이 있으면 같은 프로그램의 기사 속 반복 정보로 또 펼치지 않는다 (아이돌스 테이블이 화·수 두 개로 생기던 문제)
+    if (!g.some((x) => x.evidence.startsWith('추적 목록')) && manualShows.has(showKey(e.title))) continue;
     const weekdays = rec.weekdays.map((w) => WEEKDAY_INDEX[w]).filter((n) => n !== undefined);
     // 결방이 있으면 그만큼 회차가 뒤로 밀리므로 넉넉히 만든 뒤 결방일을 빼고 번호를 다시 매긴다
     const extra = cancellations.length;
@@ -566,7 +571,7 @@ export function consolidate(
   // 2-0c) 고정 출연 회차에 같은 회차 영상 붙이기: 프로그램 이름 + "EP.06" (예고·선공개 포함, 긴 영상 먼저 3개까지)
   for (const e of events) {
     if (!e.seriesId || !e.episode) continue;
-    const show = squashName(e.title.replace(/^(Mnet\s*Plus|KBS2?|MBC|SBS|ENA|JTBC|tvN|Mnet|유튜브)\s+/i, '').split(/\s*[:：]\s*/)[0]);
+    const show = squashName(stripBroadcaster(e.title).split(/\s*[:：]\s*/)[0]);
     if (show.length < 4) continue;
     const clips = (opts.seriesVideos ?? [])
       .filter((v) => squashName(v.title).includes(show) && Number(v.title.match(/EP\.?\s*0*(\d+)/i)?.[1]) === e.episode && !/off\s*the\s*table/i.test(v.title))

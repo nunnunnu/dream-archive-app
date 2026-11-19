@@ -20,6 +20,7 @@
  *       npm run collect -- --backfill                              (위버스 공지 과거 자료 채우기)
  *       npm run collect -- --publish-only                          (수집·AI 없이 합치기·내보내기만)
  */
+import { stripBroadcaster } from './lib/broadcasters.ts';
 import { chromium } from 'playwright';
 import { Budget } from './lib/budget.ts';
 import { GROUP, GROUP_NAME_RE } from './lib/group.ts';
@@ -123,7 +124,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   // 활동 자동 묶기: 작품 이름 어휘 = 제목의 따옴표·괄호 속 이름 + 고정 출연 + 모아보기 작품 태그
   const allArticles = await repo.listArticles('2000-01-01T00:00:00Z');
   const acts = findActivities(events, [
-    ...tracked.map((t) => t.title.replace(/^(KBS2?|MBC|SBS|JTBC|ENA|tvN|Mnet)\s+/i, '').split(/\s*[:：]\s*/)[0]),
+    ...tracked.map((t) => stripBroadcaster(t.title).split(/\s*[:：]\s*/)[0]),
     ...tagger.projectNames(),
   ], allArticles);
   // 진행 중인 드라마는 다음 실행 때 이름으로 유튜브를 검색한다 (예고·클립·OST: 그룹 이름 없이 올라옴)

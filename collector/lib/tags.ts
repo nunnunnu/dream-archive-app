@@ -6,6 +6,7 @@
  *  - 연도(year), 멤버(member: 이름이 나온 멤버, 단체)
  * 태그 id 예: "era:boogie-woogie", "project:crash2", "type:외부 출연", "year:2026", "member:지성"
  */
+import { stripBroadcaster } from './broadcasters.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PublicEvent } from './consolidate.ts';
@@ -68,7 +69,7 @@ export class Tagger {
       if (!CONFIG.projects.some((p) => p.keywords.some((k) => has(name, k))) && !auto.has(id)) auto.set(id, { id, name, keywords: [name] });
     }
     for (const t of opts.tracked) {
-      const core = t.title.replace(/^(KBS2?|MBC|SBS|JTBC|ENA|tvN|Mnet)\s+/i, '');
+      const core = stripBroadcaster(t.title);
       const id = squash(core);
       if (!CONFIG.projects.some((p) => p.keywords.some((k) => has(core, k))) && !auto.has(id)) auto.set(id, { id, name: core, keywords: [core] });
     }

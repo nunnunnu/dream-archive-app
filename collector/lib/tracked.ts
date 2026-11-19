@@ -6,6 +6,7 @@
  *  - 하루 한 번 "결방", "종영", "방송 시간" 기사를 찾아 같은 흐름(AI 해석 → 검증 → 합치기)으로 반영한다
  *  - 종영일이나 마지막 회가 지나면 추적을 멈춘다
  */
+import { stripBroadcaster } from './broadcasters.ts';
 import type { ExtractedItem, PublicEvent, SourceRef } from './consolidate.ts';
 import type { NewsQuery } from './news.ts';
 import type { Repo } from './repo.ts';
@@ -27,8 +28,8 @@ export interface Tracked {
 }
 
 const STATE_KEY = 'tracked';
-const BROADCASTER_RE = /^(KBS2?|MBC|SBS|JTBC|ENA|tvN|Mnet|MBN|유튜브|웹예능|넷플릭스|티빙|쿠팡플레이)\s+/i;
-const core = (t: string) => t.replace(BROADCASTER_RE, '').split(/\s*[:：]\s*/)[0].trim();
+const core = (t: string) => stripBroadcaster(t).split(/\s*[:：]\s*/)[0].trim();
+export const showKey = (t: string) => core(t).replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
 
 export const loadTracked = (repo: Repo) => repo.getState<Tracked[]>(STATE_KEY, []);
 
@@ -55,7 +56,7 @@ export async function syncTracked(repo: Repo, events: PublicEvent[], today: stri
   for (const [seriesId, eps] of bySeries) {
     const first = eps.reduce((a, b) => (a.date < b.date ? a : b));
     const weekdays = [...new Set(eps.map((e) => '일월화수목금토'[new Date(`${e.date}T00:00:00Z`).getUTCDay()]))];
-    const existing = list.find((t) => t.id === seriesId || core(t.title) === core(first.title));
+    const existing = list.find((t) => t.id === seriesId || showKey(t.title) === showKey(first.title));
     const t: Tracked = existing ?? {
       id: seriesId, title: first.title, members: first.members, weekdays, time: first.time, startDate: first.date,
       episodes: null, endDate: null, status: 'active', origin: 'auto', sources: first.sources.slice(0, 3), addedAt: now.toISOString(),
@@ -66,8 +67,11 @@ export async function syncTracked(repo: Repo, events: PublicEvent[], today: stri
     if (!existing) list.push(t);
   }
   for (const t of list) if (t.endDate && t.endDate < today) t.status = 'ended';
-  await repo.putState(STATE_KEY, list);
-  return list;
+  // 직접 등록한 것과 같은 프로그램의 자동 등록은 지운다 (직접 등록이 기준)
+  const manual = new Set(list.filter((t) => t.origin === 'manual').map((t) => showKey(t.title)));
+  const kept = list.filter((t) => t.origin === 'manual' || !manual.has(showKey(t.title)));
+  await repo.putState(STATE_KEY, kept);
+  return kept;
 }
 
 /** 진행 중인 고정 출연마다 하루 한 번 확인할 기사 검색어 */

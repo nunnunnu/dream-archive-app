@@ -8,6 +8,7 @@
  *  - 투표·예매 기간에서 빠진 쪽 → "{대상} 마감" / "{대상} 시작"
  * 같은 검색은 12시간(관련 일정은 24시간)에 한 번만. 일정이 지나면 그만 찾는다.
  */
+import { BROADCASTER_PREFIX_RE } from './broadcasters.ts';
 import { PERIOD_KINDS, type PendingItem, type PublicEvent, type RumorItem } from './consolidate.ts';
 import type { NewsQuery } from './news.ts';
 import type { Repo } from './repo.ts';
@@ -21,7 +22,7 @@ export interface FillPlan {
 
 const MAX_NEWS = 12;
 const MAX_YOUTUBE = 4;
-const BROADCASTER_RE = /^(KBS2?|MBC|SBS|JTBC|ENA|tvN|Mnet|MBN|유튜브|웹예능|넷플릭스|티빙|쿠팡플레이)\s+/i;
+const BROADCASTER_RE = BROADCASTER_PREFIX_RE;
 const core = (title: string) => title.replace(BROADCASTER_RE, '').trim();
 const md = (date: string) => `${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`;
 
