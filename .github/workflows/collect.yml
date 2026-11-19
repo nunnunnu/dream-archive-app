@@ -38,8 +38,8 @@ env:
 jobs:
   collect:
     runs-on: ubuntu-latest
-    # 과거 기사 채우기는 오래 걸려서 2시간 반 (스크립트가 그 안에서 스스로 멈춤), 평소 수집은 45분
-    timeout-minutes: ${{ (inputs.mode == 'backfill' || github.event.schedule == '50 */3 * * *') && 150 || 45 }}
+    # 과거 기사 채우기는 75분 (스크립트가 45분 안에 스스로 멈춤 → 평소 수집이 오래 기다리지 않게), 평소 수집은 45분
+    timeout-minutes: ${{ (inputs.mode == 'backfill' || github.event.schedule == '50 */3 * * *') && 75 || 45 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -85,7 +85,7 @@ jobs:
         run: |
           if [ "${{ inputs.mode }}" = "backfill" ] || [ "${{ github.event.schedule }}" = "50 */3 * * *" ]; then
             # 과거 기사 채우기 (개발 비용은 운영 월 상한과 따로) → 다시 내보내기
-            npm run backfill:news -- --minutes=40 && npm run collect -- --publish-only
+            npm run backfill:news -- --minutes=20 --total-minutes=45 && npm run collect -- --publish-only
           elif [ "${{ github.event.schedule }}" = "15,30,45 * * * *" ] || [ "${{ inputs.mode }}" = "fast" ]; then
             npm run collect -- --fast
           else

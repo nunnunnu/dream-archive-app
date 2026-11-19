@@ -178,7 +178,7 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     const seen = new Set<string>();
     return articles
       .filter((a) => { const d = kstDate(a.publishedAt); return d >= new Date(Date.parse(from) - 21 * 864e5).toISOString().slice(0, 10) && d <= new Date(Date.parse(to) + 31 * 864e5).toISOString().slice(0, 10); })
-      .filter((a) => ks.some((k) => sq(a.title).includes(k)))
+      .filter((a) => ks.some((k) => sq(a.title).includes(k)) || keys.some((k) => sq(k).length < 3 && /^[A-Za-z0-9!?]+$/.test(k.trim()) && new RegExp(`[‘'"“<\\[]\\s*${k.trim()}\\s*[’'"”>\\]]`).test(a.title)))
       .filter((a) => (seen.has(sq(a.title).slice(0, 20)) ? false : (seen.add(sq(a.title).slice(0, 20)), true)))
       .sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))
       .slice(0, 40)
@@ -204,7 +204,9 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     // 활동 이름 + 다른 표기(config/song-aliases.json: "붐" = BOOM) + 설정 키워드. 한글 표기는 짧아도 쓴다 (활동 기간 안의 영상에만 적용)
     const aliasKeys = Object.entries(SONG_ALIASES).filter(([name]) => act.keys.some((k) => sq(k).includes(sq(name)))).flatMap(([, a]) => a);
     const keys = [...act.keys.map(sq).filter((k) => k.length >= 3), ...[...(cfg?.keywords ?? []), ...aliasKeys].map(sq).filter((k) => k.length >= 3 || /[가-힣]/.test(k))];
-    const hasKey = (t: string) => keys.some((k) => sq(t).includes(k));
+    // 두 글자 이하 영문 이름(GO 등)은 따옴표·괄호로 감싼 곡 이름으로 나올 때만 ('GO' Dance Practice, ‘GO’ MV)
+    const shortRes = act.keys.filter((k) => sq(k).length < 3 && /^[A-Za-z0-9!?]+$/.test(k.trim())).map((k) => new RegExp(`[‘'"“<\\[]\\s*${k.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[’'"”>\\]]`));
+    const hasKey = (t: string) => keys.some((k) => sq(t).includes(k)) || shortRes.some((re) => re.test(t));
     // 보조 구절("10TH ANNIVERSARY PARTY")은 해시태그를 뺀 제목에서만, 다른 활동 이름으로 걸린 영상은 제외
     const extraKeys = act.videoKeys.map(sq).filter((k) => k.length >= 8);
     const matches = (v: Video) =>
@@ -214,8 +216,15 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     // 영상은 활동이 끝난 뒤 한 달까지 (공연 라이브·비하인드가 나중에 올라온다)
     const videoTo = new Date(Date.parse(act.to) + 31 * 864e5).toISOString().slice(0, 10);
     // 지난 방송을 다시 올린 영상("MBC 190731 방송")은 올린 날이 아니라 원래 방송 날짜로 활동을 정한다
-    const vids = videos.filter((v) => { const d = originalAirDate(v) ?? kstDate(v.publishedAt); return d >= from && d <= videoTo; })
-      .filter(matches).sort((a, b) => a.publishedAt.localeCompare(b.publishedAt));
+    // 생일 파티: 일정 제목 앞부분("2025 JISUNG B-day PARTY [FM 2.05 Mhz …]")이 영상 제목에 그대로 나온다 → 그 구절로도 찾고, 비하인드가 늦게 올라와서 120일까지
+    const bdayKeys = [...new Set(act.eventIds.map((id) => byId.get(id)?.title ?? '').map((t) => t.normalize('NFKC').split(/[\[<〈《]/)[0])
+      .filter((t) => /b-?day|birthday|생일/i.test(t)).map((t) => sq(t.replace(/^\s*\d{4}\s*/, ''))).filter((k) => k.length >= 8))];
+    const bdayTo = new Date(Date.parse(act.to) + 120 * 864e5).toISOString().slice(0, 10);
+    const vids = videos.filter((v) => {
+      const d = originalAirDate(v) ?? kstDate(v.publishedAt);
+      if (d >= from && d <= videoTo && matches(v)) return true;
+      return bdayKeys.length > 0 && d >= from && d <= bdayTo && bdayKeys.some((k) => sq(v.title).includes(k));
+    }).sort((a, b) => a.publishedAt.localeCompare(b.publishedAt));
     // 시리즈 채우기: EP.n 영상이 하나라도 붙었으면 같은 채널·같은 형식의 앞뒤 편도 (EP.2만 붙고 EP.1이 빠지는 일 방지)
     const seriesKey = (v: Video) => { const m = v.title.match(/^(.*?)\bEP\.?\s*\d+/i); return m ? `${v.channel}|${sq(m[1]).slice(0, 40)}|${sq(v.title.replace(/^.*?\bEP\.?\s*\d+/i, '')).length > 0 ? 'named' : ''}` : null; };
     const seriesKeys = new Set(vids.map(seriesKey).filter(Boolean));

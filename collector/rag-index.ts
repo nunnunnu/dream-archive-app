@@ -91,13 +91,17 @@ if (!dry && needDocs.length) {
     if (i % 400 === 0) await repo.putState('rag/enrich', enrichCache);
   }
   // 공지·기사: 문서마다
-  for (const [k, [url, cs]] of textDocs.entries()) {
+  // 문서마다 한 번씩이라 8개씩 동시에 (하나씩 하면 수백 개일 때 한 시간 넘게 걸려 다른 수집을 막는다)
+  let done = 0;
+  const queue = [...textDocs];
+  await Promise.all(Array.from({ length: 8 }, async () => { for (let item = queue.shift(); item; item = queue.shift()) {
+    const [url, cs] = item;
     const r = await callModel({ model: 'gpt-5-nano', effort: 'low', instructions: SUMMARY_RULE, input: clean(`${cs[0].title}\n${cs.map((c) => c.content).join('\n').slice(0, 1800)}`), schema: { name: 'summary', schema: { type: 'object', additionalProperties: false, required: ['s'], properties: { s: { type: 'string' } } } } }).catch(() => null);
     if (!r) continue;
     enrichCost += r.usage.costUsd;
     enrichCache[docKey(url, cs.map((c) => c.content).join('\n'))] = clean((JSON.parse(r.value) as { s: string }).s).slice(0, 200);
-    process.stdout.write(`\r공지·기사 요약 ${k + 1}/${textDocs.length}`);
-  }
+    process.stdout.write(`\r공지·기사 요약 ${++done}/${textDocs.length}`);
+  } }));
   await repo.putState('rag/enrich', enrichCache);
   budget0.record(enrichCost);
   await budget0.save();

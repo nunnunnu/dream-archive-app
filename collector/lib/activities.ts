@@ -317,6 +317,11 @@ export function addReleases(
         preReleaseActs.delete(host);
       } else if (host.kind === '컴백' && !host.parts.some((p) => sq(p).endsWith(key)) && sq(host.name) !== key) host.parts.push(`곡 ${r.song}`);
       if (!host.keys.some((k) => sq(k) === key)) host.keys.push(r.song);
+      // 타이틀곡이 붙은 컴백은 적어도 MV 공개 후 7주가 활동 기간 (일정 몇 개만 있으면 기간이 짧아져 그 뒤 무대·비하인드 영상이 빠짐)
+      if (host.kind === '컴백' && host.to < pad(r.date, 49)) {
+        const next = acts.filter((a) => a !== host && sameOwner(a) && a.from > r.date).map((a) => a.from).sort()[0];
+        host.to = next && next <= pad(r.date, 49) ? pad(next, -1) : pad(r.date, 49);
+      }
       continue;
     }
     const prev = isRepackage ? acts.filter((a) => sameOwner(a) && a.from < r.date).sort((a, b) => b.from.localeCompare(a.from))[0] : undefined;
