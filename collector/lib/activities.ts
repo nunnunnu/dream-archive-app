@@ -34,6 +34,34 @@ const NAMES = [...GROUP.nameVariants, ...GROUP.parentNames, ...GROUP.members.fla
 const EVENT_TYPE_RE = /event|이벤트|팬사인|fansign|video\s*call|영상\s*통화|영통|unboxing|언박싱|mini\s*fan\s*meeting|미니\s*팬미팅|lucky\s*draw|럭키\s*드로우|특전|사인회|응모|pre-?order|예약\s*판매/i;
 const PROGRAMS_RE = /뮤직뱅크|음악중심|인기가요|엠카운트다운|쇼\s*챔피언|더\s*쇼|music\s*bank|inkigayo|m\s*countdown/i;
 
+/**
+ * 발음 뼈대: 자음 순서만 남긴 것. 한글 표기와 영어 이름이 같은지 본다
+ * ("더 스위트 드림 호텔" = "THE SWEET DREAM HOTEL" = TSTLMHTL, "글리치 모드" = "Glitch Mode" = KLJMT, "룸메이트" = "ROOMMATE" = LMT)
+ */
+const CHO = ['K', 'K', 'N', 'T', 'T', 'L', 'M', 'P', 'P', 'S', 'S', '', 'J', 'J', 'J', 'K', 'T', 'P', 'H'];
+const JONG = ['', 'K', 'K', 'K', 'N', 'N', 'N', 'T', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'M', 'P', 'P', 'T', 'T', 'N', 'T', 'T', 'K', 'T', 'P', 'T'];
+const collapse = (t: string) => t.replace(/(.)\1+/g, '$1');
+export function soundSkeleton(name: string): string {
+  const t = name.normalize('NFC');
+  if (/[가-힣]/.test(t) && !/[A-Za-z]/.test(t)) {
+    let out = '';
+    for (const ch of t) {
+      const c = ch.charCodeAt(0) - 0xac00;
+      if (c < 0 || c > 11171) continue;
+      out += CHO[Math.floor(c / 588)] + JONG[c % 28];
+    }
+    return collapse(out);
+  }
+  if (!/[A-Za-z]/.test(t) || /[가-힣]/.test(t)) return '';
+  const words = t.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+  return collapse(words.map((w) => w
+    .replace(/tch/g, 'J').replace(/ch/g, 'J').replace(/sh/g, 'S').replace(/ph/g, 'P').replace(/th/g, 'T').replace(/ck/g, 'K').replace(/ng/g, 'N').replace(/qu/g, 'K').replace(/x/g, 'KS')
+    .replace(/c(?=[eiy])/g, 'S').replace(/^h/, 'H').replace(/h/g, '')
+    .replace(/[bpfv]/g, 'P').replace(/[ckgq]/g, 'K').replace(/[dt]/g, 'T').replace(/j/g, 'J').replace(/[sz]/g, 'S').replace(/[lr]/g, 'L').replace(/m/g, 'M').replace(/n/g, 'N')
+    .replace(/[aeiouwy]/g, '')).join(''));
+}
+const isHangulName = (t: string) => /[가-힣]/.test(t) && !/[A-Za-z]/.test(t);
+
 /** 제목 속 작품 이름 후보 */
 export function quotedNames(title: string): string[] {
   const out: string[] = [];
@@ -75,7 +103,14 @@ export function findActivities(events: PublicEvent[], extraKeys: string[], artic
     const shown = (display.get(long) ?? '').normalize('NFKC');
     const core = (display.get(short) ?? '').normalize('NFKC').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     if (!core || sq(shown.split(/[:：]/).slice(1).join(' ')).includes(short)) continue;
-    if (new RegExp(`(^|[^\\p{L}\\p{N}])${core}([^\\p{L}\\p{N}]|$)`, 'iu').test(shown)) union(long, short);
+    if (new RegExp(`(^|[^\\p{L}\\p{N}])${core}([^\\p{L}\\p{N}]|$)`, 'iu').test(shown)) { if (process.env.DEBUG_UNION && new RegExp(process.env.DEBUG_UNION).test(`${long} ${short}`)) console.log(`[contain] ${long} ⊃ ${short}`); union(long, short); }
+  }
+  // 한글 표기와 영어 이름이 같은 발음이면 같은 이름 (기사는 한글, 공지는 영어로 쓰는 경우)
+  const skel = new Map(vocab.map((k) => [k, soundSkeleton(display.get(k) ?? '')]));
+  for (const h of vocab) {
+    if (!isHangulName(display.get(h) ?? '') || (skel.get(h) ?? '').length < 3) continue;
+    const latin = vocab.find((k) => k !== h && skel.get(k) === skel.get(h) && /[A-Za-z]/.test(display.get(k) ?? ''));
+    if (latin) union(h, latin);
   }
   const keysOf = new Map<string, string[]>();
   for (const e of events) {
@@ -88,7 +123,7 @@ export function findActivities(events: PublicEvent[], extraKeys: string[], artic
     const [head, ...tail] = e.title.normalize('NFKC').split(/[:：]/);
     const after = sq(tail.join(' '));
     const isSubtitle = (a: string, b: string) => tail.length > 0 && ((sq(head).includes(a) && after.includes(b) && !sq(head).includes(b)) || (sq(head).includes(b) && after.includes(a) && !sq(head).includes(a)));
-    for (let i = 1; i < hit.length; i++) if (!isSubtitle(hit[0], hit[i])) union(hit[0], hit[i]);
+    for (let i = 1; i < hit.length; i++) if (!isSubtitle(hit[0], hit[i])) { if (process.env.DEBUG_UNION && new RegExp(process.env.DEBUG_UNION).test(`${hit[0]} ${hit[i]}`)) console.log(`[union] ${hit[0]} + ${hit[i]} ← ${e.date} ${e.title}`); union(hit[0], hit[i]); }
   }
 
   // 3) 묶음 → 활동
@@ -156,9 +191,17 @@ export function findActivities(events: PublicEvent[], extraKeys: string[], artic
     const topCount = freq[0][1];
     const nameKey = keys.filter((k) => k.startsWith(top) && k !== top && own(k) >= topCount * 0.5).sort((a, b) => b.length - a.length)[0] ?? top;
     const spellings = list.flatMap((e) => quotedNames(e.title)).filter((n) => sq(n) === nameKey);
-    const name = spellings.length
+    let name = spellings.length
       ? [...new Set(spellings)].map((n) => [n, spellings.filter((x) => x === n).length] as const).sort((a, b) => b[1] - a[1])[0][0]
       : display.get(nameKey)!;
+    // 한글 이름이면 영어 이름을 쓴다: 같은 발음의 영어 키, 또는 제목 속 "'룸메이트' (ROOMMATE)"
+    if (isHangulName(name)) {
+      const sameSound = keys.find((k) => /[A-Za-z]/.test(display.get(k) ?? '') && soundSkeleton(display.get(k)!) === soundSkeleton(name));
+      const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const paren = list.map((e) => e.title.normalize('NFKC').match(new RegExp(`${esc}['’"]?\\s*\\(([A-Za-z][^)]{1,40})\\)`))?.[1]).find(Boolean);
+      if (sameSound) name = display.get(sameSound)!;
+      else if (paren) { name = paren.trim(); if (!display.has(sq(name))) display.set(sq(name), name); if (!keys.includes(sq(name))) keys.push(sq(name)); }
+    }
     const dates = list.flatMap((e) => [e.date, e.endDate ?? e.date]).sort();
     // 영상 찾기용 이름: 일정 제목에서 작품 이름·그룹 이름·연도·안내 말을 뗀 나머지 영문 구절 (두 단어 이상, 두 번 이상 나온 것)
     const phraseCount = new Map<string, number>();
@@ -196,6 +239,7 @@ export function findActivities(events: PublicEvent[], extraKeys: string[], artic
  *  - 팝업·MD처럼 그것만으로 활동이 아닌 것은 같은 주인의 컴백 기간(앞뒤 2주) 안에 있으면 그 컴백에 (WELCOME, DREAMERS → DREAM AFTER DREAM)
  *  - 일정 내용(근거 문장)에 다른 활동 이름이 나오면 그 활동에
  */
+const STANDALONE = new Set<string>(['시상식', '팬미팅', '콘서트·투어', '드라마', '페스티벌']);
 function mergeParts(acts: Activity[], events: PublicEvent[]): Activity[] {
   const byId = new Map(events.map((e) => [e.id, e]));
   const ownerKey = (a: Activity) => `${a.owner.scope}:${a.owner.members.join('·')}`;
@@ -219,7 +263,10 @@ function mergeParts(acts: Activity[], events: PublicEvent[]): Activity[] {
     const host = acts.find((big) => big !== small && !removed.has(big) && (
       (small.kind === '팝업' && big.kind === '컴백' && ownerKey(big) === ownerKey(small) && near(big, 14))
       || (isSong && big.kind === '컴백' && ownerKey(big) === ownerKey(small) && near(big, 21))
-      || (big.eventIds.length > small.eventIds.length && big.keys.some((k) => sq(k).length >= 5 && sq(evidence).includes(sq(k))))
+      // 근거 문장에 큰 활동 이름이 나오면 흡수. 단 기간이 가까울 때(앞뒤 30일)만, 그 자체로 독립된 활동(시상식·팬미팅·투어·드라마·페스티벌)은 다른 종류에 흡수하지 않는다
+      //   (MMA2026 근거에 후보곡 "DREAM AFTER DREAM" → 흡수 X, 2024-11 DREAMSCAPE ↔ 2024-03 DREAM( )SCAPE → 흡수 X)
+      || (big.eventIds.length > small.eventIds.length && near(big, 30) && !(STANDALONE.has(small.kind) && small.kind !== big.kind)
+        && big.keys.some((k) => sq(k).length >= 5 && sq(evidence).includes(sq(k))))
     ));
     if (!host) continue;
     absorb(host, small);

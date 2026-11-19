@@ -24,6 +24,8 @@ export async function stabilizeEraIds(repo: Repo, acts: Activity[]): Promise<num
   let kept = 0;
   for (const { a, id } of pairs) {
     if (done.has(a) || usedId.has(id)) continue;
+    // 예전 주소가 한글로만 돼 있고(기사의 한글 표기로 생김) 지금 이름으로 영문 주소가 나오면 영문으로 바꾼다 (2026-룸메이트 → 2026-roommate)
+    if (/^\d{4}-[가-힣\d]+$/.test(id) && !/[가-힣]/.test(a.id) && !prev[a.id]) { delete prev[id]; done.add(a); usedId.add(a.id); continue; }
     if (a.id !== id) { a.id = id; kept++; }
     done.add(a);
     usedId.add(id);
