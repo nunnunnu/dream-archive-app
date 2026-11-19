@@ -53,7 +53,7 @@ export async function processArticles(
   newPage: () => Promise<Page>,
   budget: Budget,
   now: Date,
-  opts: { windowDays: number; concurrency?: number },
+  opts: { windowDays: number; concurrency?: number; deadline?: number },
 ): Promise<string[]> {
   const log: string[] = [];
   const articles = await repo.listArticles(new Date(now.getTime() - opts.windowDays * 24 * 3600 * 1000).toISOString());
@@ -132,7 +132,7 @@ export async function processArticles(
   const workers = Array.from({ length: opts.concurrency ?? 4 }, async () => {
     const page = await newPage();
     try {
-      while (queue.length && hasLlmKey() && budget.canSpend()) {
+      while (queue.length && hasLlmKey() && budget.canSpend() && (!opts.deadline || Date.now() < opts.deadline)) {
         const { c, pending } = queue.shift()!;
         await handle(page, c, pending);
       }

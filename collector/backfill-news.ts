@@ -19,7 +19,10 @@ process.env.LLM_MAX_CALLS_PER_RUN ??= '100000';
 const arg = (n: string, d: string) => process.argv.find((a) => a.startsWith(`--${n}=`))?.split('=')[1] ?? d;
 const FROM = arg('from', '2016-08');
 const TO = arg('to', '2026-10');
-const deadline = Date.now() + Number(arg('minutes', '40')) * 60_000;
+const started = Date.now();
+const deadline = started + Number(arg('minutes', '40')) * 60_000;
+// 기사 처리까지 합쳐 이 시간 안에 끝낸다 (Actions 작업 제한 150분, 뒤의 올리기·색인 몫을 남김)
+const processUntil = started + Number(arg('total-minutes', '110')) * 60_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const repo = new JsonRepo();
@@ -79,7 +82,7 @@ const budget = await new Budget(repo, now).load();
 const browser = await chromium.launch();
 try {
   const days = Math.ceil((now.getTime() - Date.parse(`${FROM}-01`)) / 864e5);
-  for (const l of await processArticles(repo, () => browser.newPage({ locale: 'ko-KR', timezoneId: 'Asia/Seoul' }), budget, now, { windowDays: days, concurrency: 6 })) console.log(l);
+  for (const l of await processArticles(repo, () => browser.newPage({ locale: 'ko-KR', timezoneId: 'Asia/Seoul' }), budget, now, { windowDays: days, concurrency: 6, deadline: processUntil })) console.log(l);
 } finally {
   await browser.close();
   await budget.save();
