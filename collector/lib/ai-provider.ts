@@ -2,6 +2,8 @@
 export interface AiEnv {
   GROQ_API_KEY?: string;
   GROQ_MODEL?: string;
+  GROQ_SMALL_MODEL?: string;
+  GROQ_RERANK_MODEL?: string;
   OPENAI_API_KEY?: string;
   OPENAI_FALLBACK_MODEL?: string;
 }
@@ -14,6 +16,7 @@ export interface AiRequest {
   effort?: 'minimal' | 'low' | 'medium' | 'high';
   maxOutputTokens?: number;
   fallbackModel?: string;
+  primaryModel?: string;
 }
 
 export interface AiResult {
@@ -45,7 +48,7 @@ const usageCost = (model: string, input: number, output: number, cached = 0) => 
 };
 
 async function groq(env: AiEnv, req: AiRequest): Promise<AiResult> {
-  const model = env.GROQ_MODEL ?? GROQ_MODEL;
+  const model = req.primaryModel ?? env.GROQ_MODEL ?? GROQ_MODEL;
   const userContent: unknown = req.images?.length
     ? [{ type: 'text', text: clean(req.input) }, ...req.images.map((url) => ({ type: 'image_url', image_url: { url } }))]
     : clean(req.input);
@@ -56,7 +59,9 @@ async function groq(env: AiEnv, req: AiRequest): Promise<AiResult> {
       model,
       messages: [{ role: 'system', content: clean(req.instructions) }, { role: 'user', content: userContent }],
       max_completion_tokens: req.maxOutputTokens ?? 8000,
-      ...(req.effort === 'low' || req.effort === 'minimal' ? { reasoning_effort: 'none' } : {}),
+      ...(model.startsWith('qwen/')
+        ? (req.effort === 'low' || req.effort === 'minimal' ? { reasoning_effort: 'none' } : { reasoning_effort: req.effort })
+        : { reasoning_effort: req.effort === 'high' ? 'high' : req.effort === 'medium' ? 'medium' : 'low' }),
       ...(req.schema ? { response_format: { type: 'json_schema', json_schema: { name: req.schema.name, strict: true, schema: req.schema.schema } } } : {}),
     }),
   });

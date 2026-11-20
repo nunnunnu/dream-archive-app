@@ -15,5 +15,7 @@ SUPABASE_URL = "https://ejexnrkwktkukpilkbaf.supabase.co"
 # 사이트 데이터 (수집기가 npm run publish:site 로 올림). 공개 주소라 비밀값 아님
 SITE_DATA_URL = "https://ejexnrkwktkukpilkbaf.supabase.co/storage/v1/object/public/site-data"
 GROQ_MODEL = "qwen/qwen3.8-27b"
+GROQ_SMALL_MODEL = "openai/gpt-oss-20b"
+GROQ_RERANK_MODEL = "openai/gpt-oss-120b"
 OPENAI_FALLBACK_MODEL = "gpt-5-mini"
 ASK_DAILY_LIMIT = "50"

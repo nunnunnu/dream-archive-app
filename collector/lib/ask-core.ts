@@ -92,7 +92,7 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
   const near = (d: string) => Math.abs(Date.parse(d) - Date.parse(today)) < 120 * 864e5;
   const knownNames = [...new Set(events.filter((e) => near(e.date)).map((e) => e.title.replace(/^(유튜브|KBS2?|MBC|SBS|JTBC|ENA|tvN|Mnet( Plus)?)\s+/i, '').replace(/\s*[:(（].*$/, '').replace(/['‘’"“”]/g, '').trim()).filter((t) => t.length >= 2 && t.length <= 40))].slice(0, 150);
   const parsed = await call({
-    model,
+    model: 'gpt-5-nano',
     effort: 'low',
     instructions: [
       // 지시문은 매번 같게 (OpenAI 프롬프트 캐시 할인), 오늘 날짜는 입력 맨 앞에
@@ -131,6 +131,14 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
   });
   opts.onCost?.(parsed.usage.costUsd);
   const q = JSON.parse(parsed.value) as { from: string | null; to: string | null; programs: string[]; members: string[]; keywords: string[]; search_queries?: string[]; lookup?: { kind: string; name: string | null; member: string | null } };
+  // 작은 모델이 "이번 주말"을 다음 7일로 넓히는 경우가 있어 날짜는 코드로 확정한다.
+  if (/이번\s*주말|주말\s*일정/.test(question)) {
+    const todayUtc = Date.parse(`${today}T00:00:00Z`);
+    const weekday0 = new Date(todayUtc).getUTCDay();
+    const untilSaturday = (6 - weekday0 + 7) % 7;
+    q.from = new Date(todayUtc + untilSaturday * 864e5).toISOString().slice(0, 10);
+    q.to = new Date(todayUtc + (untilSaturday + 1) * 864e5).toISOString().slice(0, 10);
+  }
   // 조회 도구: 시리즈·모아보기를 데이터에서 바로 전부 가져온다 (검색 운에 맡기지 않음)
   const lookupRows: { title: string; date: string; url: string; season: string; members: string[] }[] = [];
   if (q.lookup?.kind === 'series' && q.lookup.name) {
@@ -231,7 +239,7 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
     try {
       const list = candidates.map((c, i) => `[${i}] ${c.d.title.slice(0, 80)} (${c.d.date})\n${c.text.replace(/\s+/g, ' ').slice(0, 220)}`).join('\n');
       const rr = await call({
-        model: 'gpt-5-nano', effort: 'low',
+        model: 'gpt-5.4-nano', effort: 'low',
         instructions: '질문에 답하는 데 필요한 자료 번호를 관련 높은 순서로 최대 10개 고른다. 관련 없는 자료는 고르지 않는다. 목록을 묻는 질문이면 해당하는 자료를 빠짐없이 고른다.',
         input: `오늘: ${today}\n질문: ${question}\n\n자료:\n${list}`,
         schema: { name: 'rerank', schema: { type: 'object', additionalProperties: false, required: ['ids'], properties: { ids: { type: 'array', items: { type: 'integer' } } } } },

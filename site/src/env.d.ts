@@ -8,6 +8,8 @@ interface Env {
   SITE_DATA_URL?: string;
   GROQ_API_KEY?: string;
   GROQ_MODEL?: string;
+  GROQ_SMALL_MODEL?: string;
+  GROQ_RERANK_MODEL?: string;
   OPENAI_API_KEY?: string;
   OPENAI_FALLBACK_MODEL?: string;
   ASK_MODEL?: string;

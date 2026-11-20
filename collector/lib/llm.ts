@@ -357,6 +357,11 @@ export function checkAgainstSource(
 /** 질문 에이전트 등에서 쓰는 범용 호출: 모델·노력 수준을 골라 JSON 또는 글로 받는다 */
 const dropLone = (t: string) => t.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
 export async function callModel(opts: { model?: string; effort?: 'minimal' | 'low' | 'medium' | 'high'; instructions: string; input: string; schema?: { name: string; schema: object } }): Promise<LlmResult<string>> {
-  const res = await callAi(process.env, { instructions: dropLone(opts.instructions), input: dropLone(opts.input), schema: opts.schema, effort: opts.effort, maxOutputTokens: 8000, fallbackModel: opts.model ?? process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini' });
+  const primaryModel = opts.model === 'gpt-5-nano'
+    ? (process.env.GROQ_SMALL_MODEL ?? 'openai/gpt-oss-20b')
+    : opts.model === 'gpt-5.4-nano'
+      ? (process.env.GROQ_RERANK_MODEL ?? 'openai/gpt-oss-120b')
+      : undefined;
+  const res = await callAi(process.env, { instructions: dropLone(opts.instructions), input: dropLone(opts.input), schema: opts.schema, effort: opts.effort, maxOutputTokens: 8000, primaryModel, fallbackModel: opts.model ?? process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini' });
   return { value: res.value, usage: res.usage };
 }

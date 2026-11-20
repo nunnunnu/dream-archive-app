@@ -24,11 +24,16 @@ interface KV extends SharedKV {
   get(key: string): Promise<string | null>;
   get<T>(key: string, type: 'json'): Promise<T | null>;
 }
-interface Env { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string; GROQ_API_KEY?: string; GROQ_MODEL?: string; OPENAI_API_KEY?: string; OPENAI_FALLBACK_MODEL?: string; ASK_MODEL?: string; ASK_DAILY_LIMIT?: string; ASK_MONTHLY_BUDGET_KRW?: string; ASK_ALLOW_NO_KV?: string; REPORTS?: KV }
+interface Env { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string; GROQ_API_KEY?: string; GROQ_MODEL?: string; GROQ_SMALL_MODEL?: string; GROQ_RERANK_MODEL?: string; OPENAI_API_KEY?: string; OPENAI_FALLBACK_MODEL?: string; ASK_MODEL?: string; ASK_DAILY_LIMIT?: string; ASK_MONTHLY_BUDGET_KRW?: string; ASK_ALLOW_NO_KV?: string; REPORTS?: KV }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 const ai = (env: Env): AskCall => async (o) => {
-  const r = await callAi(env, { instructions: o.instructions, input: o.input, schema: o.schema, effort: o.effort, maxOutputTokens: 6000, fallbackModel: env.OPENAI_FALLBACK_MODEL ?? 'gpt-5-mini' });
+  const primaryModel = o.model === 'gpt-5-nano'
+    ? (env.GROQ_SMALL_MODEL ?? 'openai/gpt-oss-20b')
+    : o.model === 'gpt-5.4-nano'
+      ? (env.GROQ_RERANK_MODEL ?? 'openai/gpt-oss-120b')
+      : undefined;
+  const r = await callAi(env, { instructions: o.instructions, input: o.input, schema: o.schema, effort: o.effort, maxOutputTokens: 6000, primaryModel, fallbackModel: o.model.startsWith('gpt-') ? o.model : (env.OPENAI_FALLBACK_MODEL ?? 'gpt-5-mini') });
   return { value: r.value, usage: { costUsd: r.usage.costUsd } };
 };
 
