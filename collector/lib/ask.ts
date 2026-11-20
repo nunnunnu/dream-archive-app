@@ -25,9 +25,17 @@ export async function loadAskData(repo: JsonRepo, opts: { articleDays?: number }
     docs.push({ kind: 'notice', title: n.title, date: posted.slice(0, 10), time: posted.slice(11, 16), url: n.url, text: image ? `${body}\n${image}` : body });
   }
   const since = opts.articleDays ? new Date(Date.now() - opts.articleDays * 864e5).toISOString() : '2000-01-01T00:00:00Z';
+  // 본문을 못 읽은 기사(Actions에서는 원문이 안 열림, 일정과 무관해 보여 안 연 것)도 최근 180일은 제목으로 넣는다
+  //   "천러·재민 입국", "○○ 앰버서더 발탁"처럼 제목에 핵심이 있는 소식을 답할 수 있게
+  const titleSince = new Date(Date.now() - 180 * 864e5).toISOString();
+  const seenTitle = new Set<string>();
   for (const a of await repo.listArticles(since)) {
     const body = await repo.getBody('article', a.guid);
+    const key = a.title.replace(/[^\p{L}\p{N}]+/gu, '');
+    if (seenTitle.has(key)) continue;
+    seenTitle.add(key);
     if (body) docs.push({ kind: 'article', title: a.title, date: a.publishedAt.slice(0, 10), url: a.link, text: body });
+    else if (a.publishedAt >= titleSince) docs.push({ kind: 'article', title: a.title, date: a.publishedAt.slice(0, 10), url: a.link, text: `${a.title} (${a.source ?? ''} 기사 제목, 본문 없음)` });
   }
   // 최근 영상 제목 (다른 채널의 출연·공항 영상): 출국 목적·출연 정보가 제목에 있다
   const { loadRecentVideos, originalAirDate, isFanMade } = await import('./youtube.ts');

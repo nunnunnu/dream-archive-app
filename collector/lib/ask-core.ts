@@ -191,7 +191,10 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
         else acc.push(p);
         return acc;
       }, []);
-      return paras.map((text) => ({ d, text: text.trim(), score: hits(text) * 2 + hits(d.title) + d.boost + (q.from && d.date >= new Date(Date.parse(q.from) - 21 * 864e5).toISOString().slice(0, 10) ? 1 : 0) }));
+      // 공항 질문은 최근 7일 자료를, 물어본 멤버가 제목에 있는 자료를 앞으로 (제목만 있는 짧은 기사가 긴 지난 출국 영상 설명에 밀리지 않게)
+      const recentTrip = asksTrip && d.date >= new Date(Date.parse(today) - 7 * 864e5).toISOString().slice(0, 10) ? 3 : 0;
+      const memberHit = (q.members ?? []).some((m) => [m, ...(data.memberAliases?.[m] ?? [])].some((a) => d.title.includes(a))) ? 2 : 0;
+      return paras.map((text) => ({ d, text: text.trim(), score: hits(text) * 2 + hits(d.title) + d.boost + recentTrip + memberHit + (q.from && d.date >= new Date(Date.parse(q.from) - 21 * 864e5).toISOString().slice(0, 10) ? 1 : 0) }));
     })
     .filter((c) => c.score > 1 && c.text.length > 30)
     .sort((a, b) => b.score - a.score || b.d.date.localeCompare(a.d.date))
@@ -236,6 +239,16 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
   }
   // 같은 문서의 문단은 한 번호로 묶는다 (같은 공지를 [D7][D8]로 두 번 인용하지 않게)
   const docBlocks = [...new Map(chunks.map((c) => [c.d.url, { d: c.d, texts: chunks.filter((x) => x.d.url === c.d.url).map((x) => x.text) }])).values()];
+  // 공항 질문: 최근 7일 공항 기사·영상(물어본 멤버나 단체가 제목에 있는 것)은 검색 점수와 상관없이 맨 앞에 (검색어가 매번 달라 빠지는 일 방지)
+  if (asksTrip) {
+    const weekAgo = new Date(Date.parse(today) - 7 * 864e5).toISOString().slice(0, 10);
+    const names = (q.members ?? []).flatMap((m) => [m, ...(data.memberAliases?.[m] ?? [])]);
+    const trip = docs.filter((d) => d.date >= weekAgo && d.date <= today && /출국|입국|귀국|공항|airport|arrival|departure/i.test(d.title)
+      && (!names.length || names.some((n) => d.title.includes(n)) || !(data.members ?? []).some((m) => d.title.includes(m))));
+    for (const d of trip.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 4).reverse()) {
+      if (!docBlocks.some((b) => b.d.url === d.url)) docBlocks.unshift({ d, texts: [d.text.slice(0, 600)] });
+    }
+  }
 
   // 날짜마다 요일과 오늘 기준 주(지난주·이번주·다음주)를 붙여서 AI가 "이번주"를 잘못 부르지 않게
   const dayMs = 864e5;
