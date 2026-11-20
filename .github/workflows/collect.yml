@@ -16,7 +16,8 @@ on:
     - cron: '7 */6 * * *'
   push:
     branches: [main]
-    paths: ['site/**', 'collector/lib/ask-core.ts']
+    # 사이트가 가져다 쓰는 수집기 코드(질문 처리·AI 호출)가 바뀌어도 다시 배포
+    paths: ['site/**', 'collector/lib/ask-core.ts', 'collector/lib/ai-provider.ts']
   workflow_dispatch:
     inputs:
       mode:
