@@ -97,3 +97,14 @@ button { font: inherit; color: inherit; }
   .brand-name { display: none; }
   .nav { gap: 10px; }
 }
+
+/* 스켈레톤 (데이터를 받는 동안 자리 표시) */
+@keyframes skel-shine { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+.skel-line { display: block; height: 10px; border-radius: 6px; margin: 6px 0; background: linear-gradient(90deg, var(--line-soft) 0, #e8e5de 40px, var(--line-soft) 80px); background-size: 400px 100%; animation: skel-shine 1.2s linear infinite; }
+.skel-line.inline { display: inline-block; height: 18px; vertical-align: middle; }
+.skel-line.w30 { width: 30%; } .skel-line.w40 { width: 40%; } .skel-line.w60 { width: 60%; } .skel-line.w80 { width: 80%; } .skel-line.w120 { width: 120px; }
+.skel-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; min-height: 86px; }
+.skel-day { min-height: 92px; padding: 8px; border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
+/* 다른 달을 받는 동안 달력을 흐리게 + 반짝임 */
+.cal-grid.loading { opacity: 0.45; pointer-events: none; transition: opacity 0.2s; }
+@media (prefers-reduced-motion: reduce) { .skel-line { animation: none; } }

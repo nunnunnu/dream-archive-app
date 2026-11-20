@@ -19,7 +19,7 @@ const members = (await loadSite(Astro.locals)).members;
       <h2>다가오는 일정</h2>
       <span class="note" id="upcoming-note"></span>
     </div>
-    <div class="upcoming" id="upcoming"></div>
+    <div class="upcoming" id="upcoming">{Array.from({ length: 3 }, () => <div class="skel skel-card"><i class="skel-line w40"></i><i class="skel-line w80"></i><i class="skel-line w60"></i></div>)}</div>
 
     <p class="eyebrow">CALENDAR</p>
     <div class="section-head">
@@ -51,12 +51,12 @@ const members = (await loadSite(Astro.locals)).members;
       <section class="card cal-card" aria-label="월간 달력">
         <div class="cal-head">
           <button class="nav-btn" id="prev" aria-label="이전 달">‹</button>
-          <h3 id="month-title"></h3>
+          <h3 id="month-title"><i class="skel-line w120 inline"></i></h3>
           <button class="nav-btn" id="next" aria-label="다음 달">›</button>
           <button class="today-btn" id="today">오늘</button>
           <label class="winners" id="winners-wrap" hidden><input type="checkbox" id="winners" /> 당첨자 단계 보기</label>
         </div>
-        <div class="cal-grid" id="grid"></div>
+        <div class="cal-grid" id="grid">{Array.from({ length: 35 }, () => <div class="skel skel-day"><i class="skel-line w30"></i><i class="skel-line w80"></i></div>)}</div>
         <div class="legend" id="legend"></div>
       </section>
       <aside class="card day-panel" id="panel" aria-live="polite"></aside>

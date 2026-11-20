@@ -67,6 +67,31 @@ const state = {
   selected: TODAY,
 };
 let ALL: Ev[] = [];
+// 달별 파일: 보는 달 앞뒤만 받는다 (전체 일정 파일은 2MB가 넘어서). 받은 달은 다시 받지 않는다
+let MONTHS: Record<string, number> = {};
+const LOADED = new Map<string, Ev[]>();
+const LOADING = new Map<string, Promise<void>>();
+const ymOf = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
+const around = (y: number, m: number) => [-1, 0, 1, 2].map((d) => { const t = new Date(Date.UTC(y, m - 1 + d, 1)); return ymOf(t.getUTCFullYear(), t.getUTCMonth() + 1); });
+function loadMonth(ym: string): Promise<void> {
+  if (LOADED.has(ym) || !MONTHS[ym]) return Promise.resolve();
+  if (!LOADING.has(ym)) LOADING.set(ym, fetch(`/data/events/${ym}.json`).then((r) => (r.ok ? r.json() : { events: [] })).then((d: { events: Ev[] }) => {
+    LOADED.set(ym, d.events);
+    const seen = new Map<string, Ev>();
+    for (const list of LOADED.values()) for (const e of list) seen.set(e.id, e);
+    ALL = [...seen.values()];
+  }));
+  return LOADING.get(ym)!;
+}
+/** 보는 달 앞뒤를 받고 다시 그린다 (받는 동안 달력은 스켈레톤) */
+async function ensure(y: number, m: number) {
+  const need = around(y, m).filter((ym) => MONTHS[ym] && !LOADED.has(ym));
+  if (!need.length) return;
+  if (!LOADED.has(ymOf(y, m)) && MONTHS[ymOf(y, m)]) $('grid').classList.add('loading');
+  await Promise.all(need.map(loadMonth));
+  $('grid').classList.remove('loading');
+  render();
+}
 
 const addDays = (d: string, n: number) => {
   const x = new Date(`${d}T00:00:00Z`);
@@ -305,6 +330,7 @@ function select(d: string) {
   state.y = Number(d.slice(0, 4));
   state.m = Number(d.slice(5, 7));
   render();
+  void ensure(state.y, state.m);
   if (window.innerWidth <= 1000) $('panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -317,8 +343,11 @@ function render() {
 }
 
 export async function start() {
-  const [evRes, siteRes] = await Promise.all([fetch('/data/events.json'), fetch('/data/site.json')]);
-  ALL = ((await evRes.json()) as { events: Ev[] }).events;
+  const [monthsRes, siteRes] = await Promise.all([fetch('/data/events/months.json'), fetch('/data/site.json')]);
+  MONTHS = monthsRes.ok ? ((await monthsRes.json()) as { months: Record<string, number> }).months : {};
+  // 달별 파일이 없으면(예전 데이터) 전체 파일로
+  if (!Object.keys(MONTHS).length) ALL = ((await (await fetch('/data/events.json')).json()) as { events: Ev[] }).events;
+  else await Promise.all(around(state.y, state.m).map(loadMonth));
   const cfg = (await siteRes.json()) as { group: { nameVariants: string[] }; members: { name: string }[]; programs: { names: string[]; short: string }[]; eras: { title: string }[] };
   const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*');
   MEMBERS = cfg.members.map((m) => m.name);
@@ -336,6 +365,7 @@ export async function start() {
     state.y = y;
     state.m = m;
     render();
+    void ensure(y, m);
   };
   $('prev').addEventListener('click', () => shift(-1));
   $('next').addEventListener('click', () => shift(1));

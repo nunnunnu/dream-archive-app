@@ -25,7 +25,7 @@ if (!url || !key) {
 const headers: Record<string, string> = key.startsWith('sb_secret_') ? { apikey: key } : { Authorization: `Bearer ${key}`, apikey: key };
 const PUBLIC_DIR = join(ROOT, 'data', 'public');
 // 사이트가 쓰는 파일만 (확인 대기·추측 목록 등 내부용은 올리지 않는다)
-const INCLUDE = /^(events|feed|tags|meta|site|eras|series|discography)\.json$|^(eras|series)\/[^/]+\.json$|^calendar\/.+\.ics$/;
+const INCLUDE = /^(events|feed|tags|meta|site|eras|series|discography)\.json$|^(eras|series|events)\/[^/]+\.json$|^calendar\/.+\.ics$/;
 
 const sha = (b: Buffer | string) => createHash('sha1').update(b).digest('hex').slice(0, 12);
 const typeOf = (p: string) => (p.endsWith('.ics') ? 'text/calendar; charset=utf-8' : 'application/json; charset=utf-8');

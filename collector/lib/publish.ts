@@ -141,6 +141,18 @@ export async function publishAll(
   const report = diffEvents(before.events, data.events, now);
   await repo.putState('changes', report);
   await repo.publish('events.json', { generatedAt, events: data.events });
+  // 일정 화면용 달별 파일: 그 달에 걸친 일정만 (화면은 보는 달 앞뒤만 받는다). 기간 일정은 걸친 달마다 (최대 3달)
+  const byMonth = new Map<string, PublicEvent[]>();
+  for (const e of data.events) {
+    const end = e.endDate && e.endDate > e.date ? e.endDate : e.date;
+    for (let ym = e.date.slice(0, 7), n = 0; ym <= end.slice(0, 7) && n < 3; n++) {
+      byMonth.set(ym, [...(byMonth.get(ym) ?? []), e]);
+      const [y, m] = ym.split('-').map(Number);
+      ym = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+    }
+  }
+  for (const [ym, list] of byMonth) await repo.publish(`events/${ym}.json`, { generatedAt, month: ym, events: list });
+  await repo.publish('events/months.json', { generatedAt, months: Object.fromEntries([...byMonth].sort().map(([ym, l]) => [ym, l.length])) });
   // 확인 대기: 출처가 하나뿐인 일정 (캘린더에는 넣지 않음)
   await repo.publish('review.json', { generatedAt, items: data.review });
   await repo.publish('pending.json', { generatedAt, items: data.pending });

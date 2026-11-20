@@ -43,7 +43,7 @@ const FAQ = [
       <aside class="data-card" data-stats>
         <div class="dc-head"><b>오늘 기준 데이터</b><span class="dc-fresh" data-fresh></span></div>
         <small>마지막 수집</small>
-        <p class="dc-time" data-collected>불러오는 중…</p>
+        <p class="dc-time" data-collected><i class="skel-line w120 inline"></i></p>
         <div class="dc-nums">
           <div><b data-n="notices">-</b><small>공지</small></div>
           <div><b data-n="articles">-</b><small>기사</small></div>
@@ -89,7 +89,7 @@ const FAQ = [
       <section>
         <p class="eyebrow">RECENT</p>
         <div class="section-head"><h2>최근 질문</h2><span class="note">같은 질문은 하나로 합쳐서 보여줘요</span></div>
-        <div class="recent-list" data-recent><p class="recent-empty">불러오는 중…</p></div>
+        <div class="recent-list" data-recent>{Array.from({ length: 3 }, () => <div class="card skel-card"><i class="skel-line w30"></i><i class="skel-line w60"></i><i class="skel-line w80"></i></div>)}</div>
         <button type="button" class="recent-more" data-more hidden>최근 질문 더 보기</button>
       </section>
       <aside>
