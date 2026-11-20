@@ -1,87 +1,291 @@
 ---
+/**
+ * 소식: 일정엔 못 넣는 소식(화보·광고·공항·차트)과 기사·영상을 사진 중심으로.
+ *  - 이번 주 하이라이트: 최근 7일 중 "가장 많이 모인 소식"(같은 소식 기사 수) 순 → 큰 카드 1 + 작은 카드 4
+ *  - 화보·광고·공항: 사진 소식 카드
+ *  - 기사: 날짜별, 같은 소식은 하나로 묶고 펼치면 매체별 제목·시간·원문
+ *  - 영상: 길이·LIVE 표시
+ * 사진은 원문 주소에서 바로 불러온다 (서버에 저장하지 않음, referrer 없이 → 실패하면 색 배경)
+ */
 import Base from '../../layouts/Base.astro';
 import { loadPublic } from '../../lib/data';
 import '../../styles/news.css';
 
+type Topic = '공항' | '광고' | '브랜드·화보' | '차트';
 interface FeedItem {
-  type: 'weverse-notice' | 'news' | 'youtube' | 'sns'; title: string; url: string; publishedAt: string;
-  publisher?: string; count?: number; members: string[]; topic?: '공항' | '브랜드·화보'; image?: string;
+  type: 'weverse-notice' | 'news' | 'youtube' | 'sns'; title: string; url: string; publishedAt: string; publisher?: string; count?: number;
+  members: string[]; topic?: Topic; image?: string; articles?: { title: string; url: string; publisher: string; publishedAt: string }[]; duration?: number; live?: boolean;
 }
 const { items } = await loadPublic<{ items: FeedItem[] }>(Astro.locals, 'feed.json', { items: [] });
-const list = items.filter((i) => i.publishedAt >= new Date(Date.now() - 60 * 864e5).toISOString()).slice(0, 1200);
-const label = { 'weverse-notice': '공지', news: '기사', youtube: '영상', sns: 'SNS' } as const;
+const now = Date.now();
+const list = items.filter((i) => i.publishedAt >= new Date(now - 60 * 864e5).toISOString()).slice(0, 1500);
+const weekAgo = new Date(now - 7 * 864e5).toISOString();
+const LABEL = { 'weverse-notice': '공지', news: '기사', youtube: '영상', sns: 'SNS' } as const;
+const TOPICS: Topic[] = ['공항', '브랜드·화보', '광고', '차트'];
 const members = [...new Set(list.flatMap((i) => i.members))].filter((m) => m !== '단체');
 const kst = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600e3).toISOString();
 const day = (iso: string) => kst(iso).slice(0, 10);
-const date = (iso: string) => { const d = kst(iso); return `${Number(d.slice(5, 7))}.${d.slice(8, 10)}`; };
-const time = (iso: string) => kst(iso).slice(11, 16);
-const clean = (t: string) => t.replace(/\s+-\s+[^-]{1,20}$/, '').replace(/\s+#\S+/g, '').trim() || t;
+const md = (iso: string) => { const d = kst(iso); return `${d.slice(5, 7)}.${d.slice(8, 10)}`; };
+const hm = (iso: string) => kst(iso).slice(11, 16);
+const today = day(new Date(now).toISOString());
+const when = (iso: string) => (day(iso) === today ? `오늘 ${hm(iso)}` : day(iso) === day(new Date(now - 864e5).toISOString()) ? `어제 ${hm(iso)}` : md(iso));
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const clean = (t: string) => t.replace(/\s+-\s+[^-]{1,24}$/, '').replace(/\s+#\S+/g, '').trim() || t;
 const yt = (url: string) => { try { const u = new URL(url); return u.hostname === 'youtu.be' ? u.pathname.slice(1) : u.searchParams.get('v'); } catch { return null; } };
 const visual = (i: FeedItem) => i.image ?? (i.type === 'youtube' && yt(i.url) ? `https://img.youtube.com/vi/${yt(i.url)}/hqdefault.jpg` : null);
+const dur = (s?: number) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '');
+const mc = (m: string) => `mc-${Math.max(0, members.indexOf(m)) % 7}`;
+const outlets = (i: FeedItem) => new Set((i.articles ?? []).map((a) => a.publisher)).size;
+
 const notices = list.filter((i) => i.type === 'weverse-notice');
 const articles = list.filter((i) => i.type === 'news');
 const videos = list.filter((i) => i.type === 'youtube');
-const photos = list.filter((i) => i.topic);
-const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
-const weekly = list.filter((i) => i.publishedAt >= weekAgo);
-const featured = [...photos.filter((i) => i.publishedAt >= weekAgo).slice(0, 2), ...videos.filter((i) => i.publishedAt >= weekAgo).slice(0, 1)].slice(0, 3);
-const articleDays = [...new Set(articles.slice(0, 90).map((i) => day(i.publishedAt)))];
-const mc = (m: string) => `member-${members.indexOf(m) % 7}`;
+const photos = list.filter((i) => i.topic && i.topic !== '차트');
+// 하이라이트: 최근 7일, 많이 보도된 순(같은 소식 기사 수) → 사진 있는 것 → 주제 있는 것
+const score = (i: FeedItem) => (i.count ?? 1) * 3 + (visual(i) ? 2 : 0) + (i.topic ? 1 : 0);
+const highlights = list.filter((i) => i.publishedAt >= weekAgo && i.type !== 'weverse-notice').sort((a, b) => score(b) - score(a) || b.publishedAt.localeCompare(a.publishedAt)).slice(0, 5);
+const articleDays = [...new Set(articles.map((i) => day(i.publishedAt)))];
+const SHOW_DAYS = 3;
+const shownArticles = articles.filter((i) => articleDays.slice(0, SHOW_DAYS).includes(day(i.publishedAt))).length;
+const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span class="mchip ${mc(m)}">${m}</span>`).join('') : '');
 ---
 <Base title="소식" current="news"><main class="news" data-news>
   <header class="news-hero wrap"><p class="eyebrow">NEWS · 소식</p><div class="news-intro">
-    <div><h1>일정엔 못 넣는 소식,<br/><mark>사진으로 한눈에</mark></h1><p>화보·광고·공항·차트처럼 일정이 아닌 것들을 모아요. 사진은 원문 주소에서 바로 불러오고, 눌러서 원문으로 이동해요.</p></div>
-    <dl class="news-stats"><div><dt>{notices.length}</dt><dd>공지</dd></div><div><dt>{articles.length}</dt><dd>기사</dd></div><div><dt>{videos.length}</dt><dd>영상</dd></div><div><dt>{weekly.filter((i) => i.topic).length}</dt><dd>이번 주 사진</dd></div></dl>
+    <div><h1>일정엔 못 넣는 소식,<br/><mark>사진으로 한눈에</mark></h1><p>화보·광고·공항·차트처럼 일정이 아닌 것들을 모아요. 사진은 원문 주소에서 바로 불러오고, 누르면 원문으로 이동해요.</p></div>
+    <dl class="news-stats"><div><dt>{notices.length}</dt><dd>공지</dd></div><div><dt>{articles.length}</dt><dd>기사</dd></div><div><dt>{videos.length}</dt><dd>영상</dd></div><div><dt>{photos.filter((i) => i.publishedAt >= weekAgo).length}</dt><dd>이번 주 사진 소식</dd></div></dl>
   </div></header>
 
   <div class="news-filterbar" data-filters><div class="wrap filter-inner">
-    <div class="type-tabs" data-group="type"><button aria-pressed="true" data-v="">전체</button>{(['weverse-notice','news','youtube'] as const).map((t) => <button aria-pressed="false" data-v={t}>{label[t]} <span>{list.filter((i) => i.type === t).length}</span></button>)}</div>
-    <div class="filter-divider"></div><div class="filter-chips" data-group="topic"><button aria-pressed="true" data-v="">모든 주제</button><button aria-pressed="false" data-v="공항">공항</button><button aria-pressed="false" data-v="브랜드·화보">브랜드·화보</button></div>
-    <div class="member-filters" data-group="member"><button aria-pressed="true" data-v="">단체·전체</button>{members.map((m) => <button class={mc(m)} aria-pressed="false" data-v={m}>{m}</button>)}</div>
+    <div class="type-tabs" data-group="type"><button aria-pressed="true" data-v="">전체</button>{(['weverse-notice', 'news', 'youtube'] as const).map((t) => <button aria-pressed="false" data-v={t}>{LABEL[t]} <span>{list.filter((i) => i.type === t).length}</span></button>)}</div>
+    <div class="filter-divider"></div>
+    <div class="filter-chips" data-group="topic"><button aria-pressed="true" data-v="">모든 주제</button>{TOPICS.map((t) => <button aria-pressed="false" data-v={t}>{t} <span>{list.filter((i) => i.topic === t).length}</span></button>)}</div>
+    <div class="filter-divider"></div>
+    <div class="member-filters" data-group="member">{members.map((m) => <button class={mc(m)} aria-pressed="false" data-v={m}>{m}</button>)}</div>
   </div></div>
 
-  {featured.length > 0 && <section class="wrap news-section feed-section" data-section><div class="section-title"><div><p class="eyebrow">THIS WEEK</p><h2>이번 주 하이라이트</h2></div><span>{date(weekAgo)} – {date(new Date().toISOString())}</span></div>
-    <div class="featured-grid">{featured.map((i, n) => <a class={`featured-card feed-item ${n === 0 ? 'featured-main' : ''}`} href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
-      <div class={`featured-visual visual-${i.topic === '공항' ? 'airport' : i.type === 'youtube' ? 'video' : 'photo'}`} >{visual(i) && <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}<span class="visual-label">{i.topic ?? '공식 영상'}</span>{i.type === 'youtube' && <span class="play">▶</span>}<b>{i.topic === '공항' ? 'AIRPORT' : i.type === 'youtube' ? 'OFFICIAL VIDEO' : 'PHOTO NEWS'}</b></div>
-      <div class="featured-copy"><h3>{clean(i.title)}</h3><div class="member-row">{i.members.length ? i.members.map((m) => <span class={mc(m)}>{m}</span>) : <span>단체</span>}</div><p>{i.publisher ?? label[i.type]} · {date(i.publishedAt)} {time(i.publishedAt)}</p></div>
-    </a>)}</div>
+  {highlights.length > 0 && <section class="wrap news-section" data-section>
+    <div class="section-title"><div><p class="eyebrow">THIS WEEK</p><h2>이번 주 하이라이트</h2></div><span>{md(weekAgo)} – {md(new Date(now).toISOString())} · 가장 많이 모인 소식</span></div>
+    <div class="hl-grid">{highlights.map((i, n) => (
+      <a class={`hl-card feed-item${n === 0 ? ' hl-main' : ''}`} href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
+        <div class={`vis v-${i.topic === '공항' ? 'airport' : i.type === 'youtube' ? 'video' : `p${n % 4}`}`}>
+          {visual(i) && <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}
+          <span class="tags"><em class="t-lime">{i.topic ?? (i.type === 'youtube' ? '공식 영상' : LABEL[i.type])}</em>{(i.count ?? 1) > 1 && <em>기사 {i.count}건</em>}</span>
+          <span class="go">↗</span>
+          {n === 0 && <small class="vis-note">🖼 이미지는 원문 주소에서 바로 불러와요 · 서버 저장 없음</small>}
+        </div>
+        <div class="hl-copy"><h3>{clean(i.title)}</h3><div class="mrow" set:html={chips(i)} /><p><b>{i.publisher ?? LABEL[i.type]}</b> · {when(i.publishedAt)}</p></div>
+      </a>))}</div>
   </section>}
 
-  {photos.length > 0 && <section class="wrap news-section feed-section" data-section><div class="section-title"><div><p class="eyebrow">PHOTO</p><h2>화보·광고·공항</h2></div><span>최근 사진 소식</span></div>
-    <div class="photo-grid">{photos.slice(0, 8).map((i, n) => <a class="photo-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
-      <div class={`photo-visual visual-${i.topic === '공항' ? 'airport' : `photo-${n % 4}`}`} >{visual(i) && <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}<span>{i.topic === '공항' ? '공항' : '화보'}</span><b>{i.topic === '공항' ? 'AIRPORT' : 'PHOTO'}</b></div>
-      <div class="photo-copy"><small>{i.publisher ?? i.topic}</small><h3>{clean(i.title)}</h3><div class="member-row">{i.members.length ? i.members.map((m) => <span class={mc(m)}>{m}</span>) : <span>단체</span>}</div><p>{date(i.publishedAt)}</p></div>
-    </a>)}</div>
+  {photos.length > 0 && <section class="wrap news-section" data-section>
+    <div class="section-title"><div><p class="eyebrow">PHOTO</p><h2>화보·광고·공항</h2></div>{photos.length > 8 && <button type="button" class="link-btn" data-more-photos>사진 소식 모두 보기 →</button>}</div>
+    <div class="ph-grid">{photos.slice(0, 24).map((i, n) => (
+      <a class="ph-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')} data-extra={n >= 8 ? '' : undefined} hidden={n >= 8}>
+        <div class={`vis v-${i.topic === '공항' ? 'airport' : `p${n % 4}`}`}>
+          {visual(i) && <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}
+          <span class="tags"><em class="t-lime">{i.topic === '브랜드·화보' ? '화보' : i.topic}</em></span><span class="go">↗</span>
+          {!visual(i) && <b class="vis-word">{i.topic === '공항' ? 'AIRPORT' : i.topic === '광고' ? 'AD' : 'PHOTO'}</b>}
+        </div>
+        <div class="ph-copy"><small>{i.topic}</small><h3>{clean(i.title)}</h3><div class="mrow" set:html={chips(i)} /><p>{i.publisher ?? ''} · {md(i.publishedAt)}</p></div>
+      </a>))}</div>
   </section>}
 
-  {articles.length > 0 && <section class="wrap news-section feed-section" data-section><div class="section-title"><div><p class="eyebrow">ARTICLES</p><h2>기사</h2></div><span>비슷한 제목은 묶었어요 · {articles.length}건</span></div><div class="article-board">
-    {articleDays.slice(0, 4).map((d) => <section class="article-day" data-subsection><header><b>{Number(d.slice(5, 7))}월 {Number(d.slice(8, 10))}일</b><span>{articles.filter((i) => day(i.publishedAt) === d).length}건</span></header>
-      {articles.filter((i) => day(i.publishedAt) === d).slice(0, 6).map((i) => <a class="article-row feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}><span class="article-kind">{(i.count ?? 1) > 1 ? '묶음' : '기사'}</span><div><small>{i.publisher ?? '기사'} · {time(i.publishedAt)}</small><h3>{clean(i.title)}</h3><div class="member-row">{i.members.map((m) => <span class={mc(m)}>{m}</span>)}{(i.count ?? 1) > 1 && <em>같은 소식 {i.count}건</em>}</div></div><span class="source-label">원문</span></a>)}
-    </section>)}</div>
+  {articles.length > 0 && <section class="wrap news-section" data-section>
+    <div class="section-title"><div><p class="eyebrow">ARTICLES</p><h2>기사</h2></div><span>같은 소식은 한 줄로 묶었어요 · 기사 {articles.length}건</span></div>
+    <div class="ab">{articleDays.slice(0, 14).map((d, di) => {
+      const rows = articles.filter((i) => day(i.publishedAt) === d);
+      return (
+        <section class="ab-day" data-subsection data-day-extra={di >= SHOW_DAYS ? '' : undefined} hidden={di >= SHOW_DAYS}>
+          <header><b>{Number(d.slice(5, 7))}월 {Number(d.slice(8, 10))}일 {WD[new Date(`${d}T00:00:00Z`).getUTCDay()]}요일{d === today ? ' · 오늘' : ''}</b><span>{rows.length}건</span></header>
+          {rows.map((i) => {
+            const grouped = (i.articles?.length ?? 0) > 1;
+            return (
+              <div class="ab-row feed-item" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
+                <div class="ab-main">
+                  <a class="ab-link" href={i.url} target="_blank" rel="noopener">
+                    <small><em class={grouped ? 'k-group' : 'k-one'}>{grouped ? '묶음' : '기사'}</em>{i.publisher ?? '기사'} · {when(i.publishedAt)}{i.topic ? ` · ${i.topic}` : ''}</small>
+                    <h3>{clean(i.title)}</h3>
+                  </a>
+                  <div class="mrow" set:html={chips(i)} />
+                  {grouped && <div class="ab-meta"><span>기사 {i.count}건 · {i.publisher} 외 {outlets(i) - 1}곳</span><button type="button" class="ab-toggle" data-toggle aria-expanded="false">{outlets(i)}개 매체 펼치기 ⌄</button></div>}
+                  {grouped && <div class="ab-sub" hidden>
+                    {i.articles!.map((a) => <a class="ab-sub-row" href={a.url} target="_blank" rel="noopener"><b>{a.publisher}</b><span>{clean(a.title)}<small>{hm(a.publishedAt)}</small></span><em>원문 ↗</em></a>)}
+                    <p class="ab-note">제목이 비슷한 기사를 자동으로 묶었어요 · 본문은 저장하지 않고 원문 링크만 연결해요</p>
+                  </div>}
+                </div>
+                {visual(i) ? <a class="ab-thumb" href={i.url} target="_blank" rel="noopener"><img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.remove()" /></a> : <a class="ab-src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>}
+              </div>
+            );
+          })}
+        </section>
+      );
+    })}
+      {articleDays.length > SHOW_DAYS && <button type="button" class="ab-more" data-more-days>기사 더 보기 (소식 {articles.length - shownArticles}건 남음) ↓</button>}
+    </div>
   </section>}
 
-  {videos.length > 0 && <section class="video-zone feed-section" data-section><div class="wrap"><div class="section-title section-title-dark"><div><p class="eyebrow">VIDEO</p><h2>영상</h2></div><span>{videos.length}개 · 최신순</span></div><div class="video-grid">{videos.slice(0, 4).map((i) => <a class="video-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic="" data-members={i.members.join(',')}><div class="video-thumb">{visual(i) && <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}<span class="play">▶</span></div><h3>{clean(i.title)}</h3><p>{i.publisher ?? 'YouTube'} · {date(i.publishedAt)}</p></a>)}</div></div></section>}
+  {videos.length > 0 && <section class="video-zone" data-section><div class="wrap">
+    <div class="section-title section-title-dark"><div><p class="eyebrow">VIDEO</p><h2>영상</h2></div><span>{videos.length}개 · 최신순</span></div>
+    <div class="vd-row">{videos.slice(0, 8).map((i) => (
+      <a class="vd-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
+        <div class="vd-thumb">{visual(i) && <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}<span class="play">▶</span>{i.live ? <em class="live">● LIVE</em> : i.duration ? <em class="len">{dur(i.duration)}</em> : null}</div>
+        <h3>{clean(i.title)}</h3><p>{i.publisher ?? 'YouTube'} · {when(i.publishedAt)}</p>
+      </a>))}</div>
+    <p class="vd-note">🖼 유튜브 썸네일은 <code>img.youtube.com/vi/영상ID/hqdefault.jpg</code>를 그대로 불러와요</p>
+  </div></section>}
+
+  <section class="wrap info-grid">
+    <div class="card info"><b>사진은 이렇게 보여줘요</b><p>사진 파일은 서버에 저장하지 않고 원문 주소만 기록해요. 영상은 유튜브 썸네일 주소, 기사는 원문 페이지의 대표 이미지(og:image) 주소를 써요. 사진을 못 불러오면 색 배경과 언론사 이름으로 보여줘요.</p></div>
+    <div class="card info"><b>권리자 요청 시 즉시 삭제</b><p>제목·언론사·날짜·링크만 정리하고 기사 본문은 옮기지 않아요. 내려야 할 항목이 있으면 <a href="/report/">제보</a>로 알려주세요. 바로 반영할게요.</p></div>
+  </section>
   <p class="wrap empty-note" data-none hidden>조건에 맞는 소식이 없어요.</p>
 </main></Base>
 
-<style>
-  /* 사진: 원문 주소에서 바로 불러오되 출처 정보(referrer)는 보내지 않는다 (막는 사이트가 있음). 못 불러오면 사진만 빠지고 색 배경이 보인다 */
-  .featured-visual, .photo-visual, .video-thumb { position: relative; overflow: hidden; }
-  .cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-  .featured-visual > :not(.cover), .photo-visual > :not(.cover), .video-thumb > :not(.cover) { position: relative; z-index: 1; }
-  .featured-visual:has(.cover) b, .photo-visual:has(.cover) b { text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); color: #fff; }
-  /* 거르기: 카드에 display가 있어도 숨김 속성이 이기게 */
-  .feed-item[hidden], [data-section][hidden], [data-subsection][hidden] { display: none !important; }
-  /* 멤버 표시가 없으면 빈 줄을 만들지 않는다 */
-  .member-row:empty { display: none; }
-  /* 큰 카드가 오른쪽 두 카드 높이만큼 늘어나도 사진 바로 아래에 제목 */
-  .featured-card { align-content: start; }
-  .featured-copy { padding: 2px 4px 0; }
-  .photo-copy { padding: 10px 3px 0; }
-  .photo-copy > small { display: block; color: var(--sub); font-size: 11px; }
+<style is:global>
+  .news .vis { position: relative; overflow: hidden; border-radius: 14px; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; color: #fff; }
+  .news .vis.v-airport { background: linear-gradient(135deg, #7a3a22, #f59a6a); }
+  .news .vis.v-video { background: linear-gradient(135deg, #1e3a8a, #93c5fd); }
+  .news .vis.v-p0 { background: linear-gradient(135deg, #3f6212, #c5f03a); }
+  .news .vis.v-p1 { background: linear-gradient(135deg, #6d28d9, #f0abfc); }
+  .news .vis.v-p2 { background: linear-gradient(135deg, #0f766e, #99f6e4); }
+  .news .vis.v-p3 { background: linear-gradient(135deg, #9a3412, #fdba74); }
+  .news .cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
+  .news .vis > :not(.cover) { position: relative; z-index: 1; }
+  .news .tags { display: flex; gap: 5px; }
+  .news .tags em { font-style: normal; font-size: 11px; font-weight: 800; background: rgba(255, 255, 255, 0.92); color: #111; border-radius: 999px; padding: 3px 9px; }
+  .news .tags em.t-lime { background: var(--accent); color: var(--accent-ink); }
+  .news .go { position: absolute !important; top: 12px; right: 12px; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #111; display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+  .news .vis-note { align-self: stretch; background: rgba(0, 0, 0, 0.55); border-radius: 8px; padding: 6px 10px; font-size: 11.5px; }
+  .news .vis-word { font-size: 11px; letter-spacing: 0.18em; opacity: 0.9; }
+  .news .mrow { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
+  .news .mrow:empty { display: none; }
+  .news .mchip { position: relative; font-size: 11px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 2px 8px 2px 18px; }
+  .news .mchip::before { content: ''; position: absolute; left: 7px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: var(--mc, #8ca9ff); }
+  .news .mc-0 { --mc: #8ca9ff; } .news .mc-1 { --mc: #f59a6a; } .news .mc-2 { --mc: #facc15; } .news .mc-3 { --mc: #34d399; } .news .mc-4 { --mc: #f472b6; } .news .mc-5 { --mc: #a78bfa; } .news .mc-6 { --mc: #60a5fa; }
+  .news .member-filters button::before { background: var(--mc, #8ca9ff) !important; }
+  .news .feed-item { color: inherit; text-decoration: none; }
+  .news .feed-item[hidden], .news [data-section][hidden], .news [data-subsection][hidden] { display: none !important; }
+
+  .hl-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr; grid-template-rows: auto auto; gap: 20px; }
+  .hl-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .hl-card .vis { height: 160px; }
+  .hl-main { grid-row: 1 / span 2; }
+  .hl-main .vis { height: 360px; }
+  .hl-copy h3 { margin: 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+  .hl-main .hl-copy h3 { font-size: 24px; letter-spacing: -0.02em; }
+  .hl-copy p { margin: 0; font-size: 12px; color: var(--sub); }
+  .hl-copy p b { color: var(--text); }
+
+  .ph-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px 16px; }
+  .ph-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .ph-card .vis { height: 230px; }
+  .ph-copy small { color: var(--sub); font-size: 11.5px; }
+  .ph-copy h3 { margin: 2px 0 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+  .ph-copy p { margin: 2px 0 0; color: var(--sub); font-size: 12px; }
+  .link-btn { font: inherit; font-size: 13px; font-weight: 700; background: none; border: 0; cursor: pointer; color: var(--text); }
+
+  .ab { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--card); }
+  .ab-day > header { display: flex; justify-content: space-between; align-items: center; height: 42px; padding: 0 20px; background: var(--line-soft); font-size: 12.5px; color: var(--sub); }
+  .ab-day > header b { color: var(--text); }
+  .ab-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--line-soft); align-items: start; }
+  .ab-link { color: inherit; text-decoration: none; display: block; }
+  .ab-link:hover h3 { text-decoration: underline; }
+  .ab-link small { display: flex; align-items: center; gap: 6px; color: var(--sub); font-size: 12px; }
+  .ab-link small em { font-style: normal; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 2px 7px; }
+  .k-one { background: var(--line-soft); color: var(--text); }
+  .k-group { background: var(--accent); color: var(--accent-ink); }
+  .ab-link h3 { margin: 6px 0 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+  .ab-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 12px; color: var(--sub); }
+  .ab-toggle { font: inherit; font-size: 12px; font-weight: 700; border: 0; background: var(--dark); color: #fff; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+  .ab-sub { margin-top: 10px; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; background: var(--bg); }
+  .ab-sub-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line-soft); text-decoration: none; color: inherit; font-size: 13px; }
+  .ab-sub-row:first-child { border-top: 0; }
+  .ab-sub-row span { display: flex; flex-direction: column; overflow-wrap: anywhere; }
+  .ab-sub-row small { color: var(--faint); font-size: 11px; }
+  .ab-sub-row em { font-style: normal; font-weight: 800; font-size: 12px; }
+  .ab-note { margin: 0; padding: 8px 14px; font-size: 11.5px; color: var(--faint); border-top: 1px solid var(--line-soft); }
+  .ab-thumb { position: relative; display: block; width: 112px; height: 72px; border-radius: 10px; overflow: hidden; background: var(--line-soft); }
+  .ab-src { font-size: 12px; font-weight: 800; color: var(--text); text-decoration: none; padding-top: 4px; }
+  .ab-more { display: block; width: 100%; border: 0; border-top: 1px solid var(--line-soft); background: var(--card); font: inherit; font-size: 13px; font-weight: 700; padding: 14px; cursor: pointer; }
+
+  .video-zone { background: #111; color: #fff; padding: 8px 0 48px; margin-top: 52px; }
+  .vd-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .vd-card { display: flex; flex-direction: column; gap: 8px; color: #fff; text-decoration: none; min-width: 0; }
+  .vd-thumb { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #1f2937, #4b5563); display: grid; place-items: center; }
+  .vd-thumb .play { position: relative; z-index: 1; width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; font-size: 14px; }
+  .vd-thumb .len, .vd-thumb .live { position: absolute; z-index: 1; font-style: normal; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 2px 7px; }
+  .vd-thumb .len { right: 8px; bottom: 8px; background: rgba(0, 0, 0, 0.75); }
+  .vd-thumb .live { left: 8px; top: 8px; background: #ef4444; }
+  .vd-card h3 { margin: 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+  .vd-card p { margin: 0; color: #a3a3a3; font-size: 12px; }
+  .vd-note { color: #a3a3a3; font-size: 12px; margin: 18px 0 0; }
+  .vd-note code { background: #222; border-radius: 4px; padding: 1px 6px; }
+
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-top: 32px; padding-bottom: 48px; }
+  .info { padding: 18px 20px; }
+  .info b { font-size: 14px; }
+  .info p { color: var(--sub); font-size: 13px; line-height: 1.6; margin: 8px 0 0; }
+
+  @media (max-width: 900px) {
+    .hl-grid { grid-template-columns: 1fr 1fr; }
+    .hl-main { grid-column: 1 / -1; grid-row: auto; }
+    .hl-main .vis { height: 260px; }
+    .ph-grid, .vd-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .info-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .hl-grid { grid-template-columns: 1fr; }
+    .ph-card .vis { height: 170px; }
+    .ab-row { grid-template-columns: minmax(0, 1fr); }
+    .ab-thumb { display: none; }
+    .ab-sub-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .ab-sub-row b { grid-column: 1 / -1; }
+  }
 </style>
 
 <script>
-const root=document.querySelector<HTMLElement>('[data-news]'),box=document.querySelector<HTMLElement>('[data-filters]');
-if(root&&box){const state:Record<string,string>={type:'',topic:'',member:''};const apply=()=>{let shown=0;for(const item of root.querySelectorAll<HTMLElement>('.feed-item')){const ok=(!state.type||item.dataset.type===state.type)&&(!state.topic||item.dataset.topic===state.topic)&&(!state.member||(item.dataset.members??'').split(',').includes(state.member));item.hidden=!ok;if(ok)shown++}for(const section of root.querySelectorAll<HTMLElement>('[data-section]'))section.hidden=!section.querySelector('.feed-item:not([hidden])');const none=root.querySelector<HTMLElement>('[data-none]');if(none)none.hidden=shown>0};for(const group of box.querySelectorAll<HTMLElement>('[data-group]'))for(const b of group.querySelectorAll<HTMLButtonElement>('button'))b.addEventListener('click',()=>{for(const x of group.querySelectorAll('button'))x.setAttribute('aria-pressed',String(x===b));state[group.dataset.group!]=b.dataset.v??'';apply()})}
+  const root = document.querySelector<HTMLElement>('[data-news]');
+  const box = document.querySelector<HTMLElement>('[data-filters]');
+  // 기사 묶음 펼치기
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-toggle]')) b.addEventListener('click', () => {
+    const sub = b.closest('.ab-main')?.querySelector<HTMLElement>('.ab-sub');
+    if (!sub) return;
+    sub.hidden = !sub.hidden;
+    b.setAttribute('aria-expanded', String(!sub.hidden));
+    b.textContent = b.textContent!.replace(sub.hidden ? '접기 ⌃' : '펼치기 ⌄', sub.hidden ? '펼치기 ⌄' : '접기 ⌃');
+  });
+  // 기사 더 보기 · 사진 모두 보기
+  document.querySelector('[data-more-days]')?.addEventListener('click', (e) => { for (const d of document.querySelectorAll<HTMLElement>('[data-day-extra]')) d.hidden = false; (e.currentTarget as HTMLElement).remove(); });
+  document.querySelector('[data-more-photos]')?.addEventListener('click', (e) => { for (const d of document.querySelectorAll<HTMLElement>('[data-extra]')) d.hidden = false; (e.currentTarget as HTMLElement).remove(); });
+  // 종류·주제·멤버 거르기 (멤버는 여러 명 골라도 됨)
+  if (root && box) {
+    const state: Record<string, string> = { type: '', topic: '' };
+    const picked = new Set<string>();
+    const apply = () => {
+      let shown = 0;
+      for (const item of root.querySelectorAll<HTMLElement>('.feed-item')) {
+        if (item.dataset.extra !== undefined && !picked.size && !state.type && !state.topic) continue;
+        const ms = (item.dataset.members ?? '').split(',');
+        const ok = (!state.type || item.dataset.type === state.type) && (!state.topic || item.dataset.topic === state.topic) && (!picked.size || ms.some((m) => picked.has(m)));
+        item.hidden = !ok;
+        if (ok) shown++;
+      }
+      for (const s of root.querySelectorAll<HTMLElement>('[data-subsection]:not([data-day-extra])')) s.hidden = !s.querySelector('.feed-item:not([hidden])');
+      for (const s of root.querySelectorAll<HTMLElement>('[data-section]')) s.hidden = !s.querySelector('.feed-item:not([hidden])');
+      const none = root.querySelector<HTMLElement>('[data-none]');
+      if (none) none.hidden = shown > 0;
+    };
+    for (const group of box.querySelectorAll<HTMLElement>('[data-group]')) {
+      for (const b of group.querySelectorAll<HTMLButtonElement>('button')) b.addEventListener('click', () => {
+        if (group.dataset.group === 'member') {
+          picked.has(b.dataset.v!) ? picked.delete(b.dataset.v!) : picked.add(b.dataset.v!);
+          b.setAttribute('aria-pressed', String(picked.has(b.dataset.v!)));
+        } else {
+          for (const x of group.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+          state[group.dataset.group!] = b.dataset.v ?? '';
+        }
+        apply();
+      });
+    }
+  }
 </script>

@@ -113,7 +113,12 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
     const first = [...c.articles].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))[0];
     const resolved = c.articles.find((a) => a.originalUrl) ?? first;
     const pictured = c.articles.find((a) => a.image);
-    return { title: first.title, url: resolved.originalUrl ?? first.link, image: pictured?.image, publishedAt: first.publishedAt, publisher: first.source, count: c.articles.length };
+    // 매체별 기사 (같은 매체는 하나만, 시간순, 최대 8개): 소식 화면에서 묶음을 펼쳐 볼 때
+    const seenPub = new Set<string>();
+    const articles = [...c.articles].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))
+      .filter((a) => (seenPub.has(a.source) ? false : (seenPub.add(a.source), true))).slice(0, 8)
+      .map((a) => ({ title: a.title, url: a.originalUrl ?? a.link, publisher: a.source, publishedAt: a.publishedAt }));
+    return { title: first.title, url: resolved.originalUrl ?? first.link, image: pictured?.image, publishedAt: first.publishedAt, publisher: first.source, count: c.articles.length, articles };
   });
   // 모아보기 태그
   const tagger = new Tagger({ videoTitles: archiveVideos.map((v) => v.title), tracked });

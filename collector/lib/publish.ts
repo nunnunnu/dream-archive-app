@@ -29,6 +29,11 @@ export interface FeedItem {
   topic?: FeedTopic;
   /** 같은 소식 기사 수 (기사일 때) */
   count?: number;
+  /** 같은 소식으로 묶인 매체별 기사 (펼쳐 보기용, 시간순) */
+  articles?: { title: string; url: string; publisher: string; publishedAt: string }[];
+  /** 영상 길이(초)·라이브 여부 */
+  duration?: number;
+  live?: boolean;
   /** 모아보기 태그 */
   tags?: string[];
   /** 원문이 공개한 대표 이미지 주소 (이미지 파일은 저장하지 않음) */
@@ -172,16 +177,16 @@ export async function publishAll(
 /** 최근 소식 피드: 공지(60일), 같은 소식 묶음별 대표 기사(14일), 영상(30일) */
 export function buildFeed(
   notices: { title: string; url: string; postedAt: string }[],
-  articleClusters: { title: string; url: string; publishedAt: string; publisher: string; count: number; image?: string }[],
+  articleClusters: { title: string; url: string; publishedAt: string; publisher: string; count: number; image?: string; articles?: FeedItem['articles'] }[],
   videos: Video[],
   now: Date,
   posts: { title: string; link?: string; label?: string; postedAt: string; members: string[] }[] = [],
 ): FeedItem[] {
   const items: FeedItem[] = [
     ...notices.map((n) => ({ type: 'weverse-notice' as const, title: n.title, url: n.url, publishedAt: n.postedAt, members: mentionedMembers(n.title).members })),
-    ...articleClusters.map((a) => ({ type: 'news' as const, title: a.title, url: a.url, publishedAt: a.publishedAt, publisher: a.publisher, count: a.count, members: mentionedMembers(a.title).members, image: a.image })),
+    ...articleClusters.map((a) => ({ type: 'news' as const, title: a.title, url: a.url, publishedAt: a.publishedAt, publisher: a.publisher, count: a.count, members: mentionedMembers(a.title).members, image: a.image, ...(a.articles && a.articles.length > 1 ? { articles: a.articles } : {}) })),
     ...posts.filter((p) => p.link).map((p) => ({ type: 'sns' as const, title: p.title.replace(/^\s*\[[^\]]{1,40}\]\s*/, ''), url: p.link!, publishedAt: p.postedAt, publisher: p.label, members: p.members })),
-    ...videos.filter((v) => REGISTERED.has(v.channel) || v.guest).map((v) => ({ type: 'youtube' as const, title: v.title, url: v.url, publishedAt: v.publishedAt, publisher: v.channel, members: v.who.members })),
+    ...videos.filter((v) => REGISTERED.has(v.channel) || v.guest).map((v) => ({ type: 'youtube' as const, title: v.title, url: v.url, publishedAt: v.publishedAt, publisher: v.channel, members: v.who.members, ...(v.duration ? { duration: v.duration } : {}), ...(/🔴|\bLIVE\b|라이브/i.test(v.title) ? { live: true } : {}) })),
   ];
   for (const it of items) { const t = topicOf(it.title); if (t) it.topic = t; }
   // 부정적인 기사(논란·가십)는 올리지 않는다
