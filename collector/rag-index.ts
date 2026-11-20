@@ -144,8 +144,11 @@ for (let i = 0; i < todo.length; i += 100) {
   const out = (await res.json()) as { data: { embedding: number[] }[]; usage: { total_tokens: number } };
   tokens += out.usage.total_tokens;
   const rows = batch.map((c, j) => ({ ...c, embedding: `[${out.data[j].embedding.join(',')}]`, updated_at: new Date().toISOString() }));
-  const up = await fetch(`${url}/rest/v1/rag_chunks`, { method: 'POST', headers: { ...sb, 'content-type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows) });
-  if (!up.ok) throw new Error(`넣기 실패 ${up.status}: ${(await up.text()).slice(0, 200)}`);
+  // 벡터 색인(HNSW)이 있는 테이블이라 한 번에 많이 넣으면 DB 시간 초과(57014) → 20개씩
+  for (let k = 0; k < rows.length; k += 20) {
+    const up = await fetch(`${url}/rest/v1/rag_chunks`, { method: 'POST', headers: { ...sb, 'content-type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(rows.slice(k, k + 20)) });
+    if (!up.ok) throw new Error(`넣기 실패 ${up.status}: ${(await up.text()).slice(0, 200)}`);
+  }
   process.stdout.write(`\r임베딩 ${Math.min(i + 100, todo.length)}/${todo.length}`);
 }
 } finally {
