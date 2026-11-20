@@ -41,7 +41,8 @@ export class AiHttpError extends Error {
 }
 
 const clean = (t: string) => t.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
-const retryable = (e: unknown) => !(e instanceof AiHttpError) || e.status === 408 || e.status === 409 || e.status === 429 || e.status >= 500;
+// 413: 요청 하나가 Groq 무료 등급의 분당 토큰 한도보다 큼 → 기다려도 안 되니 OpenAI로
+const retryable = (e: unknown) => !(e instanceof AiHttpError) || e.status === 408 || e.status === 409 || e.status === 413 || e.status === 429 || e.status >= 500;
 const usageCost = (model: string, input: number, output: number, cached = 0) => {
   const p = PRICES[model] ?? { input: 0, output: 0 };
   return ((input - cached) * p.input + cached * p.input * 0.1 + output * p.output) / 1_000_000;

@@ -362,6 +362,6 @@ export async function callModel(opts: { model?: string; effort?: 'minimal' | 'lo
     : opts.model === 'gpt-5.4-nano'
       ? (process.env.GROQ_RERANK_MODEL ?? 'openai/gpt-oss-120b')
       : undefined;
-  const res = await callAi(process.env, { instructions: dropLone(opts.instructions), input: dropLone(opts.input), schema: opts.schema, effort: opts.effort, maxOutputTokens: 8000, primaryModel, fallbackModel: opts.model ?? process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini' });
+  const res = await callAi(process.env, { instructions: dropLone(opts.instructions), input: dropLone(opts.input), schema: opts.schema, effort: opts.effort, maxOutputTokens: 8000, primaryModel, fallbackModel: opts.model?.startsWith('gpt-') ? opts.model : (process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini') });
   return { value: res.value, usage: res.usage };
 }

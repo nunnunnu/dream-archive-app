@@ -45,8 +45,11 @@ const budget = await new Budget(repo, new Date()).load();
 const questions = set.questions.filter((q) => !only || only.includes(q.id));
 const rows: { id: string; cat: string; q: string; pass: boolean; fails: string[]; answer: string; sources: AskResult['sources']; unverified: string[]; costUsd: number; query: AskResult['query']; recall?: { candidates: boolean; final: boolean } }[] = [];
 // 3개씩 동시에
-for (let i = 0; i < questions.length; i += 3) {
-  const batch = questions.slice(i, i + 3);
+// --gap=60: 문항 사이를 60초 띄우고 한 문항씩 (Groq 무료 분당 한도 안에서 재려고)
+const GAP = Number(process.argv.find((a) => a.startsWith('--gap='))?.split('=')[1] ?? 0);
+for (let i = 0; i < questions.length; i += GAP ? 1 : 3) {
+  const batch = questions.slice(i, i + (GAP ? 1 : 3));
+  if (GAP && i > 0) await new Promise((r) => setTimeout(r, GAP * 1000));
   const results = await Promise.all(batch.map((q) => askQuestion(q.q, { repo, budget, today: set.today, model, history: q.history, retrieval }).catch((e) => ({ error: (e as Error).message }) as const)));
   batch.forEach((q, j) => {
     const r = results[j];
