@@ -33,6 +33,12 @@ const PRICES: Record<string, { input: number; output: number }> = {
   'gpt-5-mini': { input: 0.25, output: 2.0 },
 };
 const PRICE_PER_M = PRICES[LLM_MODEL] ?? { input: 0, output: 0 };
+/** 비용: 프롬프트 캐시로 읽힌 입력은 10% 가격 (OpenAI cached input) */
+type UsageLike = { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } | null } | null | undefined;
+export const costOf = (u: UsageLike, p: { input: number; output: number }) => {
+  const input = u?.input_tokens ?? 0, cached = u?.input_tokens_details?.cached_tokens ?? 0, output = u?.output_tokens ?? 0;
+  return ((input - cached) * p.input + cached * p.input * 0.1 + output * p.output) / 1_000_000;
+};
 
 let client: OpenAI | null = null;
 // 응답이 끊겨도 실행 전체가 멈추지 않게: 한 번 호출에 최대 3분, 실패하면 2번까지 다시
@@ -206,7 +212,7 @@ async function callJson<T>(instructions: string, input: string, schemaName: stri
     usage: {
       input: inputTokens,
       output: outputTokens,
-      costUsd: (inputTokens * PRICE_PER_M.input + outputTokens * PRICE_PER_M.output) / 1_000_000,
+      costUsd: costOf(res.usage, PRICE_PER_M),
     },
   };
 }
@@ -310,7 +316,7 @@ export async function transcribeImages(tiles: string[], noticeTitle: string): Pr
   const outputTokens = res.usage?.output_tokens ?? 0;
   return {
     value: res.output_text.trim(),
-    usage: { input: inputTokens, output: outputTokens, costUsd: (inputTokens * PRICE_PER_M.input + outputTokens * PRICE_PER_M.output) / 1_000_000 },
+    usage: { input: inputTokens, output: outputTokens, costUsd: costOf(res.usage, PRICE_PER_M) },
   };
 }
 
@@ -428,5 +434,5 @@ export async function callModel(opts: { model?: string; effort?: 'minimal' | 'lo
   const price = PRICES[model] ?? { input: 0, output: 0 };
   const input = res.usage?.input_tokens ?? 0;
   const output = res.usage?.output_tokens ?? 0;
-  return { value: res.output_text, usage: { input, output, costUsd: (input * price.input + output * price.output) / 1_000_000 } };
+  return { value: res.output_text, usage: { input, output, costUsd: costOf(res.usage, price) } };
 }

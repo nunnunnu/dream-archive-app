@@ -91,7 +91,8 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
     model,
     effort: 'low',
     instructions: [
-      `너는 ${data.groupName} 팬의 질문을 검색 조건으로 바꾼다. 오늘은 ${today} (${weekday}요일, 한국 시간).`,
+      // 지시문은 매번 같게 (OpenAI 프롬프트 캐시 할인), 오늘 날짜는 입력 맨 앞에
+      `너는 ${data.groupName} 팬의 질문을 검색 조건으로 바꾼다. 오늘 날짜(한국 시간)는 입력 맨 앞 "오늘:" 줄에 있다.`,
       '- 기간: "다음주"는 다음 월요일~일요일, "이번주"는 이번 월요일~일요일, "내일"·"모레"는 그 날. 기간 말이 없으면 null.',
       `- 프로그램: 줄임말을 정식 이름으로 (${programs.map((p) => `${p.short ?? p.names[0]}=${p.names[0]}`).join(', ')}).`,
       `- 멤버: ${data.members.join(', ')} 중 질문에 나온 사람. 없으면 빈 목록.`,
@@ -103,7 +104,7 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
       '- search_queries: 의미 검색에 쓸 문장 2~3개. 질문을 자료에 적혀 있을 법한 말로 다시 쓴다 (멤버·작품의 한글·영어 표기, 영상 종류 Cover·Dance Practice·Behind·EP 같은 말, 같은 뜻의 다른 표현 포함).',
       '- keywords: 일정·공지·기사에서 찾을 낱말 2~6개 (작품 이름, 사녹·사전녹화·본인확인·준비물·티켓·OTT 같은 말). 비슷한 표기도 함께 (예: 사녹 → 사전녹화).',
     ].join('\n'),
-    input: `${historyText}지금 질문: ${question}`,
+    input: `오늘: ${today} (${weekday}요일)\n${historyText}지금 질문: ${question}`,
     schema: {
       name: 'ask_query',
       schema: {
@@ -283,10 +284,10 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
     model,
     effort: 'low',
     instructions: [
-      `너는 ${data.groupName} 팬을 돕는 일정 도우미다. 오늘은 ${today} (${weekday}요일, 한국 시간). 이번주는 ${new Date(thisMonday).toISOString().slice(0, 10)}(월)~${new Date(thisMonday + 6 * dayMs).toISOString().slice(0, 10)}(일).`,
+      `너는 ${data.groupName} 팬을 돕는 일정 도우미다. 오늘 날짜와 이번주 범위(한국 시간)는 입력 맨 앞 "오늘:" 줄에 있다.`,
       ...(data.rules?.answer ?? []),
     ].join('\n'),
-    input: `${historyText}질문: ${question}\n\n자료:\n${context}`,
+    input: `오늘: ${today} (${weekday}요일). 이번주는 ${new Date(thisMonday).toISOString().slice(0, 10)}(월)~${new Date(thisMonday + 6 * dayMs).toISOString().slice(0, 10)}(일).\n${historyText}질문: ${question}\n\n자료:\n${context}`,
   });
   opts.onCost?.(answer.usage.costUsd + vectorCost + rerankCost);
 

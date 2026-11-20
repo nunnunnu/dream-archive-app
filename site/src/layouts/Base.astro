@@ -8,11 +8,12 @@ const mark = cfg.group.parentNames.reduce((n, p) => n.replace(new RegExp(`^${p}\
 
 interface Props {
   title: string;
-  current: 'schedule' | 'archive' | 'series' | 'ask' | 'report';
+  current: 'schedule' | 'news' | 'archive' | 'series' | 'ask' | 'report';
 }
 const { title, current } = Astro.props;
 const nav = [
   { id: 'schedule', href: '/', label: '일정' },
+  { id: 'news', href: '/news/', label: '소식' },
   { id: 'archive', href: '/archive/', label: '아카이브' },
   { id: 'series', href: '/series/', label: '시리즈' },
   { id: 'ask', href: '/ask/', label: '물어보기' },

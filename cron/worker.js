@@ -1,7 +1,7 @@
 /**
  * 드림아카이브 수집 시계: GitHub 자체 예약은 제때 안 돌아서(몇 시간씩 빠짐) Cloudflare 예약 작업이 직접 실행을 요청한다.
  *   매시 정각 → full (기사·유튜브·빈칸 채우기·RAG 색인)
- *   15·30·45분 → fast (위버스 하이라이트·공지, 사이트 제보)
+ *   30분 → fast (위버스 공지, 사이트 제보)
  *   3시간마다 50분 → backfill (과거 기사 채우기, 다 채우면 금방 끝남)
  * 비밀값: GH_DISPATCH_TOKEN (dream-archive-app 저장소 Actions: Read and write 만 있는 토큰)
  */

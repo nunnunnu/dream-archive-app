@@ -17,14 +17,16 @@ export const NEWS_QUERIES: NewsQuery[] = [
   ...GROUP.nameVariants.slice(0, 4).map((q) => ({ q, days: 2 })),
   ...MEMBERS.map((m) => ({ q: `${GROUP.parentNames[0]} ${m.name}`, days: 2, member: m.name })),
   // 출국 소식: 제목에 목적이 적혀 있는 경우가 많다 ("재민, 밀라노 패션위크 참석차 출국") → 질문 "왜 출국해?"에 쓴다
-  { q: `${GROUP.name} 출국`, days: 2 },
-  ...MEMBERS.map((m) => ({ q: `${GROUP.parentNames[0]} ${m.name} 출국`, days: 2, member: m.name })),
+  // 공항 소식(출국·입국·귀국): 멤버를 OR로 묶어 한 번에 (구글 뉴스 요청 수를 줄인다). member: '*' = 멤버 한 명만 나와도 관련 기사
+  { q: `${GROUP.name} (출국 OR 입국 OR 귀국)`, days: 2 },
+  { q: `${GROUP.parentNames[0]} (${MEMBERS.map((m) => m.name).join(' OR ')}) 출국`, days: 2, member: '*' },
+  { q: `${GROUP.parentNames[0]} (${MEMBERS.map((m) => m.name).join(' OR ')}) (입국 OR 귀국)`, days: 2, member: '*' },
 ];
 
 /** 제목에 멤버가 둘 이상 나오면(예: "뱀뱀·재민·천러… '아이돌스 테이블'") 그룹 이름이 없어도 관련 기사 */
 const titleHasMembers = (title: string, member?: string) => {
   const names = MEMBERS.filter((m) => m.aliases.some((a) => title.includes(a))).map((m) => m.name);
-  return names.length >= 2 || (member !== undefined && names.includes(member));
+  return names.length >= 2 || (member === '*' && names.length >= 1) || (member !== undefined && names.includes(member));
 };
 
 /** 같은 상위 그룹의 다른 소식(NCT 127 등)과 구분해 이 그룹(또는 멤버) 기사만 */

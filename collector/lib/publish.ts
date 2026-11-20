@@ -7,6 +7,7 @@
  *  - calendar/*.ics     캘린더 구독 파일 (전체, 단체, 멤버별)
  *  - meta.json          만든 시각·개수
  */
+import { topicOf, type FeedTopic } from './topics.ts';
 import { toKst } from './timezones.ts';
 import { PERIOD_KINDS, type PendingItem, type PublicEvent, type ReviewItem, type RumorItem } from './consolidate.ts';
 import { readJson } from './store.ts';
@@ -23,6 +24,8 @@ export interface FeedItem {
   publishedAt: string;
   publisher?: string;
   members: string[];
+  /** 소식 주제 (공항·브랜드·화보) */
+  topic?: FeedTopic;
   /** 같은 소식 기사 수 (기사일 때) */
   count?: number;
   /** 모아보기 태그 */
@@ -177,5 +180,6 @@ export function buildFeed(
     ...posts.filter((p) => p.link).map((p) => ({ type: 'sns' as const, title: p.title.replace(/^\s*\[[^\]]{1,40}\]\s*/, ''), url: p.link!, publishedAt: p.postedAt, publisher: p.label, members: p.members })),
     ...videos.filter((v) => REGISTERED.has(v.channel) || v.guest).map((v) => ({ type: 'youtube' as const, title: v.title, url: v.url, publishedAt: v.publishedAt, publisher: v.channel, members: v.who.members })),
   ];
+  for (const it of items) { const t = topicOf(it.title); if (t) it.topic = t; }
   return items.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }

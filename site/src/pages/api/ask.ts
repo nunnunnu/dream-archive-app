@@ -23,7 +23,7 @@ interface KV {
   get<T>(key: string, type: 'json'): Promise<T | null>;
   put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
 }
-interface Env { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string; OPENAI_API_KEY?: string; ASK_MODEL?: string; ASK_DAILY_LIMIT?: string; ASK_ALLOW_NO_KV?: string; REPORTS?: KV }
+interface Env { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string; OPENAI_API_KEY?: string; ASK_MODEL?: string; ASK_DAILY_LIMIT?: string; ASK_MONTHLY_BUDGET_KRW?: string; ASK_ALLOW_NO_KV?: string; REPORTS?: KV }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 const PRICES: Record<string, { input: number; output: number }> = { 'gpt-5-nano': { input: 0.05, output: 0.4 }, 'gpt-5-mini': { input: 0.25, output: 2.0 } };
@@ -40,10 +40,12 @@ const openai = (key: string): AskCall => async (o) => {
     }),
   });
   if (!res.ok) throw new Error(`AI 요청 실패 ${res.status}`);
-  const r = (await res.json()) as { output?: { type: string; content?: { type: string; text?: string }[] }[]; usage?: { input_tokens: number; output_tokens: number } };
+  const r = (await res.json()) as { output?: { type: string; content?: { type: string; text?: string }[] }[]; usage?: { input_tokens: number; output_tokens: number; input_tokens_details?: { cached_tokens?: number } } };
   const value = (r.output ?? []).filter((x) => x.type === 'message').flatMap((x) => x.content ?? []).filter((c) => c.type === 'output_text').map((c) => c.text ?? '').join('');
   const p = PRICES[o.model] ?? PRICES['gpt-5-mini'];
-  return { value, usage: { costUsd: ((r.usage?.input_tokens ?? 0) * p.input + (r.usage?.output_tokens ?? 0) * p.output) / 1e6 } };
+  // 프롬프트 캐시로 읽힌 입력은 10% 가격
+  const cached = r.usage?.input_tokens_details?.cached_tokens ?? 0;
+  return { value, usage: { costUsd: (((r.usage?.input_tokens ?? 0) - cached) * p.input + cached * p.input * 0.1 + (r.usage?.output_tokens ?? 0) * p.output) / 1e6 } };
 };
 
 async function sha(text: string) {
@@ -56,6 +58,15 @@ const maskPersonal = (t: string) => t
   .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '(이메일)')
   .replace(/\b01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}\b/g, '(전화번호)')
   .replace(/\d[\d-\s]{9,}\d/g, '(숫자)');
+
+/** 최근 질문 목록(공개)에 남기기: 키는 시각을 거꾸로 써서 최신순, 90일 보관. 비용·재사용 여부도 (질문당 비용 기록) */
+async function logQuestion(kv: KV, now: Date, q: string, a: string, sources: { title: string; url: string }[], costUsd: number, cached: boolean) {
+  const id = String(9_999_999_999_999 - now.getTime()).padStart(13, '0');
+  await kv.put(`asklog:${id}`, JSON.stringify({
+    q: maskPersonal(q), a: maskPersonal(a).slice(0, 1500), at: now.toISOString(),
+    sources: sources.slice(0, 4).map((x) => ({ title: x.title, url: x.url })), costKrw: Math.round(costUsd * 1400 * 100) / 100, cached,
+  }), { expirationTtl: 90 * 86400 }).catch(() => {});
+}
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = (locals.runtime?.env ?? {}) as Env;
@@ -74,7 +85,25 @@ export const POST: APIRoute = async ({ request, locals }) => {
   // 횟수 제한 (IP는 해시로만, 1시간 뒤 사라짐)
   const now = new Date();
   const kstDay = new Date(now.getTime() + 9 * 3600e3).toISOString().slice(0, 10);
+  const month = kstDay.slice(0, 7);
+  const history = Array.isArray(body.history)
+    ? body.history.slice(-2).map((t) => ({ q: String((t as { q?: unknown }).q ?? '').slice(0, 200), a: String((t as { a?: unknown }).a ?? '').slice(0, 600) })).filter((t) => t.q && t.a)
+    : [];
+  // 같은 질문 답 재사용: 같은 날·같은 질문 자료 버전·이어지는 질문이 아닐 때 (AI를 부르지 않아 0원, 하루 횟수에도 안 셈)
+  const dataVer = env.REPORTS ? (await env.REPORTS.get('ask:index:version')) ?? '' : '';
+  const cacheKey = `askcache:${kstDay}:${dataVer}:${await sha(question.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ''))}`;
+  if (env.REPORTS && !history.length) {
+    const hit = await env.REPORTS.get(cacheKey);
+    if (hit) {
+      const c = JSON.parse(hit) as { answer: string; sources: unknown; unverified: unknown; dataAt: string | null };
+      await logQuestion(env.REPORTS, now, question, c.answer, c.sources as { title: string; url: string }[], 0, true);
+      return json({ ok: true, id: crypto.randomUUID(), ...c, cached: true });
+    }
+  }
   if (env.REPORTS) {
+    // 월 상한: 이번 달 물어보기 비용이 정한 금액(기본 3,000원)을 넘으면 멈춘다 (수집 AI 상한 7,000원과 합쳐 월 1만원)
+    const spentUsd = Number((await env.REPORTS.get(`askcost:${month}`)) ?? 0);
+    if (spentUsd * 1400 >= Number(env.ASK_MONTHLY_BUDGET_KRW ?? 3000)) return json({ ok: false, error: '이번 달 질문 한도가 찼어요. 다음 달에 다시 물어봐 주세요' }, 429);
     const ip = await sha(request.headers.get('cf-connecting-ip') ?? 'unknown');
     const hourKey = `ask:ip:${ip}:${now.toISOString().slice(0, 13)}`;
     const dayKey = `ask:day:${kstDay}`;
@@ -90,23 +119,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const index = env.REPORTS ? await loadIndex(env.REPORTS) : null;
   if (!index) return json({ ok: false, error: '질문 자료를 준비 중이에요' }, 503);
   try {
-    const history = Array.isArray(body.history)
-      ? body.history.slice(-2).map((t) => ({ q: String((t as { q?: unknown }).q ?? '').slice(0, 200), a: String((t as { a?: unknown }).a ?? '').slice(0, 600) })).filter((t) => t.q && t.a)
-      : [];
     // Supabase 비밀 키가 있으면 하이브리드(낱말 + pgvector 의미 검색), 없으면 낱말 검색만
-    const r = await askCore(question, index, openai(env.OPENAI_API_KEY), { model: env.ASK_MODEL ?? 'gpt-5-mini', history, vector: supabaseVector(env) });
-    // 최근 질문 목록 (공개): 전화번호·이메일·긴 숫자는 가리고, IP 등은 남기지 않는다. 키는 시각을 거꾸로 써서 목록이 최신순으로 나오게, 90일 뒤 사라짐
+    let costUsd = 0;
+    const r = await askCore(question, index, openai(env.OPENAI_API_KEY), { model: env.ASK_MODEL ?? 'gpt-5-mini', history, vector: supabaseVector(env), onCost: (usd) => { costUsd += usd; } });
+    const result = { answer: r.answer, sources: r.sources, unverified: r.unverified, dataAt: index.generatedAt ?? null };
     if (env.REPORTS) {
-      const id = String(9_999_999_999_999 - now.getTime()).padStart(13, '0');
-      await env.REPORTS.put(`asklog:${id}`, JSON.stringify({
-        q: maskPersonal(question), a: maskPersonal(r.answer).slice(0, 1500), at: now.toISOString(),
-        sources: r.sources.slice(0, 4).map((x) => ({ title: x.title, url: x.url })),
-      }), { expirationTtl: 90 * 86400 }).catch(() => {});
+      // 이번 달 물어보기 비용 쌓기 (월 상한·질문당 비용 기록), 같은 질문 재사용 저장(그날만), 최근 질문 목록
+      const prev = Number((await env.REPORTS.get(`askcost:${month}`)) ?? 0);
+      await Promise.all([
+        env.REPORTS.put(`askcost:${month}`, String(prev + costUsd), { expirationTtl: 400 * 86400 }),
+        history.length ? Promise.resolve() : env.REPORTS.put(cacheKey, JSON.stringify(result), { expirationTtl: 86400 }),
+        logQuestion(env.REPORTS, now, question, r.answer, r.sources, costUsd, false),
+      ]).catch(() => {});
     }
-    return json({
-      ok: true, id: crypto.randomUUID(), answer: r.answer, sources: r.sources, unverified: r.unverified,
-      dataAt: index.generatedAt ?? null,
-    });
+    return json({ ok: true, id: crypto.randomUUID(), ...result });
   } catch {
     return json({ ok: false, error: '답을 만들지 못했어요. 잠시 뒤에 다시 시도해 주세요' }, 502);
   }

@@ -8,6 +8,7 @@
  *  - 날짜를 모르는 확정 소식은 "날짜 미정" 목록으로 보낸다.
  *  - 같은 날 올라온 유튜브 영상이 있으면 그 공개 시각으로 빈 시간을 채운다.
  */
+import { BRAND_RE } from './topics.ts';
 import { BROADCASTER_PREFIX_RE, stripBroadcaster } from './broadcasters.ts';
 import { showKey } from './tracked.ts';
 import { createHash } from 'node:crypto';
@@ -710,6 +711,8 @@ export function consolidate(
   // 확정된 일정의 단계 이름에 남은 "(추측: …)"은 지운다
   for (const e of events) e.step = e.step.replace(GUESS_RE, '').trim();
 
+  // 광고 모델·화보·브랜드 소식은 일정이 아니라 소식 (소식 화면에서 보여 줌). 실제로 가는 행사(팝업·사인회 등)는 남긴다
+  for (let i = events.length - 1; i >= 0; i--) if (events[i].kind !== '행사' && BRAND_RE.test(`${events[i].title} ${events[i].step}`)) events.splice(i, 1);
   markFlows(events);
   for (const e of events) e.calendars = calendarsOf(e);
   events.sort((a, b) => `${a.date} ${a.time ?? '99:99'}`.localeCompare(`${b.date} ${b.time ?? '99:99'}`));

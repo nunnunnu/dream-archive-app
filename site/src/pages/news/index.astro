@@ -1,0 +1,89 @@
+---
+/**
+ * 소식: 위버스 공지·기사·공식 영상을 최신순으로. 일정이 아닌 소식(광고 모델·화보, 공항)도 여기서 본다.
+ * 데이터는 수집기가 만든 feed.json (Supabase 공개 버킷). 최근 60일, 종류·주제·멤버로 거르기(브라우저에서).
+ */
+import Base from '../../layouts/Base.astro';
+import { loadPublic } from '../../lib/data';
+import '../../styles/news.css';
+
+interface FeedItem { type: 'weverse-notice' | 'news' | 'youtube' | 'sns'; title: string; url: string; publishedAt: string; publisher?: string; count?: number; members: string[]; topic?: '공항' | '브랜드·화보' }
+const { items } = await loadPublic<{ items: FeedItem[] }>(Astro.locals, 'feed.json', { items: [] });
+const since = new Date(Date.now() - 60 * 864e5).toISOString();
+const list = items.filter((i) => i.publishedAt >= since).slice(0, 400);
+const TYPE_LABEL: Record<FeedItem['type'], string> = { 'weverse-notice': '공지', news: '기사', youtube: '영상', sns: 'SNS' };
+const members = [...new Set(list.flatMap((i) => i.members))].filter((m) => m !== '단체');
+const kst = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600e3).toISOString();
+const dayOf = (iso: string) => kst(iso).slice(0, 10);
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const days = [...new Set(list.map((i) => dayOf(i.publishedAt)))];
+// 기사 제목 끝의 " - 언론사"와 영상 해시태그는 떼고 보여 준다
+const clean = (t: string) => t.replace(/\s+-\s+[^-]{1,20}$/, '').replace(/\s+#\S+/g, '').trim() || t;
+---
+<Base title="소식" current="news">
+  <main class="wrap news">
+    <p class="eyebrow">NEWS</p>
+    <div class="section-head"><h2>소식</h2><span class="note">공지·기사·공식 영상 최신순 · 일정이 아닌 소식(광고·화보, 공항)도 여기서 · 최근 60일</span></div>
+
+    <div class="nf" data-filters>
+      <div class="nf-row" data-group="type">
+        <button type="button" aria-pressed="true" data-v="">전체</button>
+        {(['weverse-notice', 'news', 'youtube'] as const).map((t) => <button type="button" aria-pressed="false" data-v={t}>{TYPE_LABEL[t]} <span>{list.filter((i) => i.type === t).length}</span></button>)}
+      </div>
+      <div class="nf-row" data-group="topic">
+        <button type="button" aria-pressed="true" data-v="">모든 주제</button>
+        {(['공항', '브랜드·화보'] as const).map((t) => <button type="button" aria-pressed="false" data-v={t}>{t} <span>{list.filter((i) => i.topic === t).length}</span></button>)}
+      </div>
+      {members.length > 0 && <div class="nf-row" data-group="member">
+        <button type="button" aria-pressed="true" data-v="">모든 멤버</button>
+        {members.map((m) => <button type="button" aria-pressed="false" data-v={m}>{m}</button>)}
+      </div>}
+    </div>
+
+    {list.length === 0 && <p class="empty-note">최근 소식이 없어요.</p>}
+    {days.map((d) => (
+      <section class="nday" data-day>
+        <h3>{d.slice(5, 7)}.{d.slice(8, 10)} <span>{WD[new Date(`${d}T00:00:00Z`).getUTCDay()]}</span></h3>
+        <div class="card nlist">
+          {list.filter((i) => dayOf(i.publishedAt) === d).map((i) => (
+            <a class="nrow" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
+              <span class={`nt t-${i.type}`}>{TYPE_LABEL[i.type]}</span>
+              <span class="nb">
+                <b>{clean(i.title)}</b>
+                <small>{kst(i.publishedAt).slice(11, 16)}{i.publisher ? ` · ${i.publisher}` : ''}{(i.count ?? 1) > 1 ? ` · 같은 소식 ${i.count}건` : ''}{i.topic ? ` · ${i.topic}` : ''}</small>
+              </span>
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
+    <p class="empty-note" data-none hidden>조건에 맞는 소식이 없어요.</p>
+  </main>
+</Base>
+
+<script>
+  // 종류·주제·멤버 거르기 (브라우저에서)
+  const box = document.querySelector<HTMLElement>('[data-filters]');
+  if (box) {
+    const state: Record<string, string> = { type: '', topic: '', member: '' };
+    const apply = () => {
+      let shown = 0;
+      for (const row of document.querySelectorAll<HTMLElement>('.nrow')) {
+        const ok = (!state.type || row.dataset.type === state.type) && (!state.topic || row.dataset.topic === state.topic)
+          && (!state.member || (row.dataset.members ?? '').split(',').includes(state.member));
+        row.hidden = !ok;
+        if (ok) shown++;
+      }
+      for (const day of document.querySelectorAll<HTMLElement>('[data-day]')) day.hidden = ![...day.querySelectorAll<HTMLElement>('.nrow')].some((r) => !r.hidden);
+      const none = document.querySelector<HTMLElement>('[data-none]');
+      if (none) none.hidden = shown > 0;
+    };
+    for (const group of box.querySelectorAll<HTMLElement>('[data-group]')) {
+      for (const b of group.querySelectorAll<HTMLButtonElement>('button')) b.addEventListener('click', () => {
+        for (const x of group.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+        state[group.dataset.group!] = b.dataset.v ?? '';
+        apply();
+      });
+    }
+  }
+</script>
