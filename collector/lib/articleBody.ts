@@ -42,20 +42,31 @@ export async function pageDate(page: Page): Promise<string | undefined> {
   return undefined;
 }
 
-export async function openArticle(page: Page, googleLink: string): Promise<{ url: string; text: string; publishedAt?: string } | null> {
+/** 링크 미리보기용 대표 이미지. 파일을 내려받지 않고 공개 주소만 저장한다. */
+async function pageImage(page: Page): Promise<string | undefined> {
+  for (const sel of ['meta[property="og:image"]', 'meta[name="twitter:image"]', 'meta[property="twitter:image"]']) {
+    const value = await page.locator(sel).first().getAttribute('content', { timeout: 1000 }).catch(() => null);
+    if (!value) continue;
+    try { return new URL(value, page.url()).toString(); } catch { /* 잘못된 주소는 건너뛴다 */ }
+  }
+  return undefined;
+}
+
+export async function openArticle(page: Page, googleLink: string): Promise<{ url: string; text: string; publishedAt?: string; image?: string } | null> {
   await page.goto(googleLink, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await page.waitForURL((u) => !u.hostname.endsWith('news.google.com'), { timeout: 20_000 }).catch(() => {});
   if (new URL(page.url()).hostname.endsWith('news.google.com')) return null;
   await page.waitForTimeout(1500);
   const publishedAt = await pageDate(page);
+  const image = await pageImage(page);
   for (const sel of BODY_SELECTORS) {
     const loc = page.locator(sel).first();
     if (!(await loc.count())) continue;
     const text = (await loc.innerText().catch(() => '')).trim();
-    if (text.length > 200) return { url: page.url(), text, publishedAt };
+    if (text.length > 200) return { url: page.url(), text, publishedAt, image };
   }
   const text = (await page.locator('body').innerText().catch(() => '')).trim();
-  return text ? { url: page.url(), text, publishedAt } : null;
+  return text ? { url: page.url(), text, publishedAt, image } : null;
 }
 
 /**

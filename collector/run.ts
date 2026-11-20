@@ -111,7 +111,9 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   const archiveVideos = await loadRecentVideos(now, 12);
   const clusters = clusterArticles(await repo.listArticles(new Date(now.getTime() - 365 * 24 * 3600 * 1000).toISOString())).map((c) => {
     const first = [...c.articles].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))[0];
-    return { title: first.title, url: first.link, publishedAt: first.publishedAt, publisher: first.source, count: c.articles.length };
+    const resolved = c.articles.find((a) => a.originalUrl) ?? first;
+    const pictured = c.articles.find((a) => a.image);
+    return { title: first.title, url: resolved.originalUrl ?? first.link, image: pictured?.image, publishedAt: first.publishedAt, publisher: first.source, count: c.articles.length };
   });
   // 모아보기 태그
   const tagger = new Tagger({ videoTitles: archiveVideos.map((v) => v.title), tracked });

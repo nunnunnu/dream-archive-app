@@ -2,35 +2,76 @@
 import Base from '../../layouts/Base.astro';
 import { loadPublic } from '../../lib/data';
 import '../../styles/news.css';
-interface FeedItem { type:'weverse-notice'|'news'|'youtube'|'sns'; title:string; url:string; publishedAt:string; publisher?:string; count?:number; members:string[]; topic?:'공항'|'브랜드·화보' }
-const { items } = await loadPublic<{items:FeedItem[]}>(Astro.locals,'feed.json',{items:[]});
-const list=items.filter(i=>i.publishedAt>=new Date(Date.now()-60*864e5).toISOString()).slice(0,1200);
-const labels={ 'weverse-notice':'공지',news:'기사',youtube:'영상',sns:'SNS' } as const;
-const members=[...new Set(list.flatMap(i=>i.members))].filter(m=>m!=='단체');
-const kst=(iso:string)=>new Date(new Date(iso).getTime()+9*3600e3).toISOString();
-const day=(iso:string)=>kst(iso).slice(0,10), date=(iso:string)=>{const d=kst(iso);return `${Number(d.slice(5,7))}.${d.slice(8,10)}`}, time=(iso:string)=>kst(iso).slice(11,16);
-const clean=(t:string)=>t.replace(/\s+-\s+[^-]{1,20}$/,'').replace(/\s+#\S+/g,'').trim()||t;
-const yt=(url:string)=>{try{const u=new URL(url);return u.hostname==='youtu.be'?u.pathname.slice(1):u.searchParams.get('v')}catch{return null}};
-const notices=list.filter(i=>i.type==='weverse-notice'), articles=list.filter(i=>i.type==='news'), videos=list.filter(i=>i.type==='youtube'), photos=list.filter(i=>i.topic);
-const weekAgo=new Date(Date.now()-7*864e5).toISOString(), weekly=list.filter(i=>i.publishedAt>=weekAgo);
-const featured=[...photos.filter(i=>i.publishedAt>=weekAgo).slice(0,2),...videos.filter(i=>i.publishedAt>=weekAgo).slice(0,1),...articles.filter(i=>i.publishedAt>=weekAgo).slice(0,1)].slice(0,3);
-const articleDays=[...new Set(articles.slice(0,90).map(i=>day(i.publishedAt)))];
-const mc=(m:string)=>`member-${members.indexOf(m)%7}`;
+
+interface FeedItem {
+  type: 'weverse-notice' | 'news' | 'youtube' | 'sns'; title: string; url: string; publishedAt: string;
+  publisher?: string; count?: number; members: string[]; topic?: '공항' | '브랜드·화보'; image?: string;
+}
+const { items } = await loadPublic<{ items: FeedItem[] }>(Astro.locals, 'feed.json', { items: [] });
+const list = items.filter((i) => i.publishedAt >= new Date(Date.now() - 60 * 864e5).toISOString()).slice(0, 1200);
+const label = { 'weverse-notice': '공지', news: '기사', youtube: '영상', sns: 'SNS' } as const;
+const members = [...new Set(list.flatMap((i) => i.members))].filter((m) => m !== '단체');
+const kst = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600e3).toISOString();
+const day = (iso: string) => kst(iso).slice(0, 10);
+const date = (iso: string) => { const d = kst(iso); return `${Number(d.slice(5, 7))}.${d.slice(8, 10)}`; };
+const time = (iso: string) => kst(iso).slice(11, 16);
+const clean = (t: string) => t.replace(/\s+-\s+[^-]{1,20}$/, '').replace(/\s+#\S+/g, '').trim() || t;
+const yt = (url: string) => { try { const u = new URL(url); return u.hostname === 'youtu.be' ? u.pathname.slice(1) : u.searchParams.get('v'); } catch { return null; } };
+const visual = (i: FeedItem) => i.image ?? (i.type === 'youtube' && yt(i.url) ? `https://img.youtube.com/vi/${yt(i.url)}/hqdefault.jpg` : null);
+const notices = list.filter((i) => i.type === 'weverse-notice');
+const articles = list.filter((i) => i.type === 'news');
+const videos = list.filter((i) => i.type === 'youtube');
+const photos = list.filter((i) => i.topic);
+const weekAgo = new Date(Date.now() - 7 * 864e5).toISOString();
+const weekly = list.filter((i) => i.publishedAt >= weekAgo);
+const featured = [...photos.filter((i) => i.publishedAt >= weekAgo).slice(0, 2), ...videos.filter((i) => i.publishedAt >= weekAgo).slice(0, 1)].slice(0, 3);
+const articleDays = [...new Set(articles.slice(0, 90).map((i) => day(i.publishedAt)))];
+const mc = (m: string) => `member-${members.indexOf(m) % 7}`;
+const bg = (i: FeedItem) => visual(i) ? `background-image:linear-gradient(180deg,transparent 45%,rgba(0,0,0,.25)),url("${visual(i)}")` : undefined;
 ---
 <Base title="소식" current="news"><main class="news" data-news>
-  <header class="news-hero wrap"><p class="eyebrow">NEWS · 소식</p><div class="news-intro"><div><h1>일정엔 못 넣는 소식,<br/><mark>사진으로 한눈에</mark></h1><p>화보·광고·공항·차트처럼 일정이 아닌 것들을 모아요. 사진은 원문 주소에서 바로 불러오고, 눌러서 원문으로 이동해요.</p></div><dl class="news-stats"><div><dt>{notices.length}</dt><dd>공지</dd></div><div><dt>{articles.length}</dt><dd>기사</dd></div><div><dt>{videos.length}</dt><dd>영상</dd></div><div><dt>{weekly.filter(i=>i.topic).length}</dt><dd>이번 주 사진</dd></div></dl></div></header>
+  <header class="news-hero wrap"><p class="eyebrow">NEWS · 소식</p><div class="news-intro">
+    <div><h1>일정엔 못 넣는 소식,<br/><mark>사진으로 한눈에</mark></h1><p>화보·광고·공항·차트처럼 일정이 아닌 것들을 모아요. 사진은 원문 주소에서 바로 불러오고, 눌러서 원문으로 이동해요.</p></div>
+    <dl class="news-stats"><div><dt>{notices.length}</dt><dd>공지</dd></div><div><dt>{articles.length}</dt><dd>기사</dd></div><div><dt>{videos.length}</dt><dd>영상</dd></div><div><dt>{weekly.filter((i) => i.topic).length}</dt><dd>이번 주 사진</dd></div></dl>
+  </div></header>
+
   <div class="news-filterbar" data-filters><div class="wrap filter-inner">
-    <div class="type-tabs" data-group="type"><button aria-pressed="true" data-v="">전체</button>{(['weverse-notice','news','youtube'] as const).map(t=><button aria-pressed="false" data-v={t}>{labels[t]} <span>{list.filter(i=>i.type===t).length}</span></button>)}</div><div class="filter-divider"></div>
-    <div class="filter-chips" data-group="topic"><button aria-pressed="true" data-v="">모든 주제</button><button aria-pressed="false" data-v="공항">공항 <span>{photos.filter(i=>i.topic==='공항').length}</span></button><button aria-pressed="false" data-v="브랜드·화보">브랜드·화보 <span>{photos.filter(i=>i.topic==='브랜드·화보').length}</span></button></div>
-    <div class="member-filters" data-group="member"><button aria-pressed="true" data-v="">단체·전체</button>{members.map(m=><button class={mc(m)} aria-pressed="false" data-v={m}>{m}</button>)}</div>
+    <div class="type-tabs" data-group="type"><button aria-pressed="true" data-v="">전체</button>{(['weverse-notice','news','youtube'] as const).map((t) => <button aria-pressed="false" data-v={t}>{label[t]} <span>{list.filter((i) => i.type === t).length}</span></button>)}</div>
+    <div class="filter-divider"></div><div class="filter-chips" data-group="topic"><button aria-pressed="true" data-v="">모든 주제</button><button aria-pressed="false" data-v="공항">공항</button><button aria-pressed="false" data-v="브랜드·화보">브랜드·화보</button></div>
+    <div class="member-filters" data-group="member"><button aria-pressed="true" data-v="">단체·전체</button>{members.map((m) => <button class={mc(m)} aria-pressed="false" data-v={m}>{m}</button>)}</div>
   </div></div>
-  {featured.length>0&&<section class="wrap news-section feed-section" data-section><div class="section-title"><div><p class="eyebrow">THIS WEEK</p><h2>이번 주 하이라이트</h2></div><span>{date(weekAgo)} – {date(new Date().toISOString())} · 최근 소식</span></div><div class="featured-grid">{featured.map((i,n)=>{const id=i.type==='youtube'?yt(i.url):null;return <a class={`featured-card feed-item ${n===0?'featured-main':''} visual-${i.topic==='공항'?'airport':i.type==='youtube'?'video':'photo'}`} href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic??''} data-members={i.members.join(',')}><div class="featured-visual" style={id?`background-image:linear-gradient(180deg,transparent 30%,rgba(0,0,0,.6)),url(https://img.youtube.com/vi/${id}/hqdefault.jpg)`:undefined}><span class="visual-label">{i.topic??(i.type==='youtube'?'공식 영상':labels[i.type])}</span>{i.type==='youtube'&&<span class="play">▶</span>}<b>{i.topic==='공항'?'AIRPORT':i.type==='youtube'?'OFFICIAL VIDEO':'PHOTO NEWS'}</b></div><div class="featured-copy"><h3>{clean(i.title)}</h3><div class="member-row">{i.members.length?i.members.map(m=><span class={mc(m)}>{m}</span>):<span>단체</span>}</div><p>{i.publisher??labels[i.type]} · {date(i.publishedAt)} {time(i.publishedAt)}</p></div></a>})}</div></section>}
-  {photos.length>0&&<section class="wrap news-section feed-section" data-section><div class="section-title"><div><p class="eyebrow">PHOTO</p><h2>화보·광고·공항</h2></div><span>최근 사진 소식</span></div><div class="photo-grid">{photos.slice(0,8).map((i,n)=><a class={`photo-card feed-item visual-${i.topic==='공항'?'airport':`photo-${n%4}`}`} href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic??''} data-members={i.members.join(',')}><div class="photo-visual"><span>{i.topic==='공항'?'공항':'화보'}</span><b>{i.topic==='공항'?'AIRPORT':'PHOTO'}</b></div><small>{i.publisher??i.topic}</small><h3>{clean(i.title)}</h3><div class="member-row">{i.members.length?i.members.map(m=><span class={mc(m)}>{m}</span>):<span>단체</span>}</div><p>{i.publisher??labels[i.type]} · {date(i.publishedAt)}</p></a>)}</div></section>}
-  {articles.length>0&&<section class="wrap news-section feed-section" data-section><div class="section-title"><div><p class="eyebrow">ARTICLES</p><h2>기사</h2></div><span>비슷한 제목은 한 줄로 묶었어요 · 기사 {articles.length}건</span></div><div class="article-board">{articleDays.slice(0,8).map(d=><section class="article-day" data-subsection><header><b>{Number(d.slice(5,7))}월 {Number(d.slice(8,10))}일</b><span>{articles.filter(i=>day(i.publishedAt)===d).length}건</span></header>{articles.filter(i=>day(i.publishedAt)===d).slice(0,8).map(i=><a class="article-row feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic??''} data-members={i.members.join(',')}><span class="article-kind">{(i.count??1)>1?'묶음':'기사'}</span><div><small>{i.publisher??'기사'} · {time(i.publishedAt)}</small><h3>{clean(i.title)}</h3><div class="member-row">{i.members.map(m=><span class={mc(m)}>{m}</span>)}{(i.count??1)>1&&<em>같은 소식 {i.count}건</em>}</div></div><span class="source-label">원문</span></a>)}</section>)}</div></section>}
-  {videos.length>0&&<section class="video-zone feed-section" data-section><div class="wrap"><div class="section-title section-title-dark"><div><p class="eyebrow">VIDEO</p><h2>영상</h2></div><span>{videos.length}개 · 최신순</span></div><div class="video-grid">{videos.slice(0,4).map((i,n)=>{const id=yt(i.url);return <a class={`video-card feed-item visual-video-${n}`} href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic="" data-members={i.members.join(',')}><div class="video-thumb" style={id?`background-image:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.45)),url(https://img.youtube.com/vi/${id}/hqdefault.jpg)`:undefined}><span class="play">▶</span></div><h3>{clean(i.title)}</h3><p>{i.publisher??'YouTube'} · {date(i.publishedAt)}</p></a>})}</div><p class="video-note">유튜브 썸네일은 원본 주소에서 그대로 불러와요.</p></div></section>}
+
+  {featured.length > 0 && <section class="wrap news-section feed-section" data-section><div class="section-title"><div><p class="eyebrow">THIS WEEK</p><h2>이번 주 하이라이트</h2></div><span>{date(weekAgo)} – {date(new Date().toISOString())}</span></div>
+    <div class="featured-grid">{featured.map((i, n) => <a class={`featured-card feed-item ${n === 0 ? 'featured-main' : ''}`} href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
+      <div class={`featured-visual visual-${i.topic === '공항' ? 'airport' : i.type === 'youtube' ? 'video' : 'photo'}`} style={bg(i)}><span class="visual-label">{i.topic ?? '공식 영상'}</span>{i.type === 'youtube' && <span class="play">▶</span>}<b>{i.topic === '공항' ? 'AIRPORT' : i.type === 'youtube' ? 'OFFICIAL VIDEO' : 'PHOTO NEWS'}</b></div>
+      <div class="featured-copy"><h3>{clean(i.title)}</h3><div class="member-row">{i.members.length ? i.members.map((m) => <span class={mc(m)}>{m}</span>) : <span>단체</span>}</div><p>{i.publisher ?? label[i.type]} · {date(i.publishedAt)} {time(i.publishedAt)}</p></div>
+    </a>)}</div>
+  </section>}
+
+  {photos.length > 0 && <section class="wrap news-section feed-section" data-section><div class="section-title"><div><p class="eyebrow">PHOTO</p><h2>화보·광고·공항</h2></div><span>최근 사진 소식</span></div>
+    <div class="photo-grid">{photos.slice(0, 8).map((i, n) => <a class="photo-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
+      <div class={`photo-visual visual-${i.topic === '공항' ? 'airport' : `photo-${n % 4}`}`} style={bg(i)}><span>{i.topic === '공항' ? '공항' : '화보'}</span><b>{i.image ? 'ORIGINAL PHOTO' : i.topic === '공항' ? 'AIRPORT' : 'PHOTO'}</b></div>
+      <div class="photo-copy"><small>{i.publisher ?? i.topic}</small><h3>{clean(i.title)}</h3><div class="member-row">{i.members.length ? i.members.map((m) => <span class={mc(m)}>{m}</span>) : <span>단체</span>}</div><p>{date(i.publishedAt)}</p></div>
+    </a>)}</div>
+  </section>}
+
+  {articles.length > 0 && <section class="wrap news-section feed-section" data-section><div class="section-title"><div><p class="eyebrow">ARTICLES</p><h2>기사</h2></div><span>비슷한 제목은 묶었어요 · {articles.length}건</span></div><div class="article-board">
+    {articleDays.slice(0, 4).map((d) => <section class="article-day" data-subsection><header><b>{Number(d.slice(5, 7))}월 {Number(d.slice(8, 10))}일</b><span>{articles.filter((i) => day(i.publishedAt) === d).length}건</span></header>
+      {articles.filter((i) => day(i.publishedAt) === d).slice(0, 6).map((i) => <a class="article-row feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}><span class="article-kind">{(i.count ?? 1) > 1 ? '묶음' : '기사'}</span><div><small>{i.publisher ?? '기사'} · {time(i.publishedAt)}</small><h3>{clean(i.title)}</h3><div class="member-row">{i.members.map((m) => <span class={mc(m)}>{m}</span>)}{(i.count ?? 1) > 1 && <em>같은 소식 {i.count}건</em>}</div></div><span class="source-label">원문</span></a>)}
+    </section>)}</div>
+  </section>}
+
+  {videos.length > 0 && <section class="video-zone feed-section" data-section><div class="wrap"><div class="section-title section-title-dark"><div><p class="eyebrow">VIDEO</p><h2>영상</h2></div><span>{videos.length}개 · 최신순</span></div><div class="video-grid">{videos.slice(0, 4).map((i) => <a class="video-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic="" data-members={i.members.join(',')}><div class="video-thumb" style={bg(i)}><span class="play">▶</span></div><h3>{clean(i.title)}</h3><p>{i.publisher ?? 'YouTube'} · {date(i.publishedAt)}</p></a>)}</div></div></section>}
   <p class="wrap empty-note" data-none hidden>조건에 맞는 소식이 없어요.</p>
 </main></Base>
+
+<style>
+  .featured-copy { padding: 2px 4px 0; }
+  .photo-copy { padding: 10px 3px 0; }
+  .photo-copy > small { display: block; color: var(--sub); font-size: 11px; }
+</style>
+
 <script>
 const root=document.querySelector<HTMLElement>('[data-news]'),box=document.querySelector<HTMLElement>('[data-filters]');
-if(root&&box){const state:Record<string,string>={type:'',topic:'',member:''};const apply=()=>{let shown=0;for(const item of root.querySelectorAll<HTMLElement>('.feed-item')){const ok=(!state.type||item.dataset.type===state.type)&&(!state.topic||item.dataset.topic===state.topic)&&(!state.member||(item.dataset.members??'').split(',').includes(state.member));item.hidden=!ok;if(ok)shown++}for(const sub of root.querySelectorAll<HTMLElement>('[data-subsection]'))sub.hidden=!sub.querySelector('.feed-item:not([hidden])');for(const section of root.querySelectorAll<HTMLElement>('[data-section]'))section.hidden=!section.querySelector('.feed-item:not([hidden])');const none=root.querySelector<HTMLElement>('[data-none]');if(none)none.hidden=shown>0};for(const group of box.querySelectorAll<HTMLElement>('[data-group]'))for(const b of group.querySelectorAll<HTMLButtonElement>('button'))b.addEventListener('click',()=>{for(const x of group.querySelectorAll('button'))x.setAttribute('aria-pressed',String(x===b));state[group.dataset.group!]=b.dataset.v??'';apply()})}
+if(root&&box){const state:Record<string,string>={type:'',topic:'',member:''};const apply=()=>{let shown=0;for(const item of root.querySelectorAll<HTMLElement>('.feed-item')){const ok=(!state.type||item.dataset.type===state.type)&&(!state.topic||item.dataset.topic===state.topic)&&(!state.member||(item.dataset.members??'').split(',').includes(state.member));item.hidden=!ok;if(ok)shown++}for(const section of root.querySelectorAll<HTMLElement>('[data-section]'))section.hidden=!section.querySelector('.feed-item:not([hidden])');const none=root.querySelector<HTMLElement>('[data-none]');if(none)none.hidden=shown>0};for(const group of box.querySelectorAll<HTMLElement>('[data-group]'))for(const b of group.querySelectorAll<HTMLButtonElement>('button'))b.addEventListener('click',()=>{for(const x of group.querySelectorAll('button'))x.setAttribute('aria-pressed',String(x===b));state[group.dataset.group!]=b.dataset.v??'';apply()})}
 </script>

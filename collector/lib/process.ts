@@ -12,6 +12,7 @@ import { noticeSource } from './noticeImages.ts';
 import { fillVideoDetails, isAppearance, isArchiveClip, loadRecentVideos } from './youtube.ts';
 import { GROUP_NAME_RE } from './group.ts';
 import { isHidden } from './members.ts';
+import { topicOf } from './topics.ts';
 import type { ArticleRecord, Repo } from './repo.ts';
 import { createHash } from 'node:crypto';
 
@@ -97,6 +98,9 @@ export async function processArticles(
         if (opened) {
           body = opened.text;
           url = opened.url;
+          rep.originalUrl = opened.url;
+          rep.image = opened.image;
+          rep.imageCheckedAt = now.toISOString();
           if (opened.publishedAt) rep.pagePublishedAt = opened.publishedAt;
           await repo.putBody('article', rep.guid, body);
         } else if (rep === reps.at(-1) || reps.length === 1) {
@@ -142,6 +146,25 @@ export async function processArticles(
   });
   await Promise.all(workers);
   if (queue.length) log.push(`이번 실행 한도로 남은 기사 묶음 ${queue.length}개는 다음 실행 때 처리`);
+
+  // 일정이 아니라서 AI 해석에서 빠지는 화보·공항 기사도 카드 사진과 정상 원문 링크만 확인한다.
+  // 막힌 사이트는 우회하지 않고, 실행마다 최근 항목 몇 개만 재시도한다.
+  const visual = articles
+    .filter((a) => topicOf(a.title) && (!a.imageCheckedAt || Date.now() - Date.parse(a.imageCheckedAt) > 7 * 864e5))
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+    .slice(0, 8);
+  if (visual.length) {
+    const page = await newPage();
+    try {
+      for (const article of visual) {
+        const opened = await openArticle(page, article.link).catch(() => null);
+        article.imageCheckedAt = now.toISOString();
+        if (!opened) continue;
+        article.originalUrl = opened.url;
+        article.image = opened.image;
+      }
+    } finally { await page.close(); }
+  }
 
   // 묶음 번호(clusterId)와 처리 상태를 저장
   await repo.putArticles(articles);

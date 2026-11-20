@@ -50,6 +50,10 @@ export interface ArticleRecord {
   /** 본문 처리 상태 */
   status?: 'pending' | 'skipped' | 'processed' | 'failed';
   note?: string;
+  /** Google News 중계가 아닌 실제 언론사 주소와 대표 이미지 (파일은 저장하지 않음) */
+  originalUrl?: string;
+  image?: string;
+  imageCheckedAt?: string;
 }
 
 export type DocType = 'notice' | 'article' | 'submission' | 'video' | 'post' | 'notice-image';
