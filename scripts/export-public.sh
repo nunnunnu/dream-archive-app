@@ -14,7 +14,12 @@ if [ "${SKIP_WORKFLOW:-}" = 1 ]; then grep -v '^\.github/workflows/' "$ROOT/tmp/
 [ -d "$OUT/.git" ] || git clone -q https://github.com/nunnunnu/dream-archive-app.git "$OUT"
 # 공개 레포의 기존 파일 중 위 목록에 없는 것은 지운다 (.git 제외)
 ( cd "$OUT" && git ls-files ) | while read -r f; do grep -qxF "$f" "$ROOT/tmp/public-files.txt" || rm -f "$OUT/$f"; done
-rsync -a --files-from="$ROOT/tmp/public-files.txt" "$ROOT/" "$OUT/"
+# 작업 폴더가 아니라 마지막 커밋 내용으로 내보낸다 (커밋 안 한 수정, 특히 다른 도구가 작업 중인 파일이 공개 레포에 섞이지 않게)
+SNAP="$ROOT/tmp/export-snapshot"
+rm -rf "$SNAP" && mkdir -p "$SNAP"
+git -C "$ROOT" archive HEAD | tar -x -C "$SNAP"
+git -C "$ROOT" -c core.quotePath=false ls-tree -r --name-only HEAD | grep -xFf "$ROOT/tmp/public-files.txt" > "$ROOT/tmp/public-files-head.txt" || true
+rsync -a --files-from="$ROOT/tmp/public-files-head.txt" "$SNAP/" "$OUT/"
 # 설정에서 더쿠 항목 빼기
 python3 - "$OUT" <<'PY'
 import json, sys

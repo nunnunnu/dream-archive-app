@@ -69,7 +69,7 @@ const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span c
     <div class="hl-grid">{highlights.map((i, n) => (
       <a class={`hl-card feed-item${n === 0 ? ' hl-main' : ''}`} href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
         <div class={`vis v-${i.topic === '공항' ? 'airport' : i.type === 'youtube' ? 'video' : `p${n % 4}`}`}>
-          {visual(i) && <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}
+          {visual(i) && (i.type === 'youtube' ? <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /> : <><img class="cover-bg" src={visual(i)!} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /><img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.previousElementSibling?.remove(); this.remove()" /></>)}
           <span class="tags"><em class="t-lime">{i.topic ?? (i.type === 'youtube' ? '공식 영상' : LABEL[i.type])}</em>{(i.count ?? 1) > 1 && <em>기사 {i.count}건</em>}</span>
           <span class="go">↗</span>
           {n === 0 && <small class="vis-note">🖼 이미지는 원문 주소에서 바로 불러와요 · 서버 저장 없음</small>}
@@ -83,7 +83,7 @@ const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span c
     <div class="ph-grid">{photos.slice(0, 24).map((i, n) => (
       <a class="ph-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')} data-extra={n >= 8 ? '' : undefined} hidden={n >= 8}>
         <div class={`vis v-${i.topic === '공항' ? 'airport' : `p${n % 4}`}`}>
-          {visual(i) && <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}
+          {visual(i) && (i.type === 'youtube' ? <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /> : <><img class="cover-bg" src={visual(i)!} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /><img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.previousElementSibling?.remove(); this.remove()" /></>)}
           <span class="tags"><em class="t-lime">{i.topic === '브랜드·화보' ? '화보' : i.topic}</em></span><span class="go">↗</span>
           {!visual(i) && <b class="vis-word">{i.topic === '공항' ? 'AIRPORT' : i.topic === '광고' ? 'AD' : 'PHOTO'}</b>}
         </div>
@@ -114,7 +114,7 @@ const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span c
                     <p class="ab-note">제목이 비슷한 기사를 자동으로 묶었어요 · 본문은 저장하지 않고 원문 링크만 연결해요</p>
                   </div>}
                 </div>
-                {visual(i) ? <a class="ab-thumb" href={i.url} target="_blank" rel="noopener"><img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.remove()" /></a> : <a class="ab-src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>}
+                {visual(i) ? <a class="ab-thumb" href={i.url} target="_blank" rel="noopener"><img class="cover-bg" src={visual(i)!} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" /><img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.remove()" /></a> : <a class="ab-src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>}
               </div>
             );
           })}
@@ -129,7 +129,7 @@ const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span c
     <div class="section-title section-title-dark"><div><p class="eyebrow">VIDEO</p><h2>영상</h2></div><span>{videos.length}개 · 최신순</span></div>
     <div class="vd-row">{videos.slice(0, 8).map((i) => (
       <a class="vd-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
-        <div class="vd-thumb">{visual(i) && <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}<span class="play">▶</span>{i.live ? <em class="live">● LIVE</em> : i.duration ? <em class="len">{dur(i.duration)}</em> : null}</div>
+        <div class="vd-thumb">{visual(i) && (i.type === 'youtube' ? <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /> : <><img class="cover-bg" src={visual(i)!} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /><img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.previousElementSibling?.remove(); this.remove()" /></>)}<span class="play">▶</span>{i.live ? <em class="live">● LIVE</em> : i.duration ? <em class="len">{dur(i.duration)}</em> : null}</div>
         <h3>{clean(i.title)}</h3><p>{i.publisher ?? 'YouTube'} · {when(i.publishedAt)}</p>
       </a>))}</div>
     <p class="vd-note">🖼 유튜브 썸네일은 <code>img.youtube.com/vi/영상ID/hqdefault.jpg</code>를 그대로 불러와요</p>
@@ -150,8 +150,13 @@ const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span c
   .news .vis.v-p1 { background: linear-gradient(135deg, #6d28d9, #f0abfc); }
   .news .vis.v-p2 { background: linear-gradient(135deg, #0f766e, #99f6e4); }
   .news .vis.v-p3 { background: linear-gradient(135deg, #9a3412, #fdba74); }
-  .news .cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; }
-  .news .vis > :not(.cover) { position: relative; z-index: 1; }
+  /* 사진: 잘라서 채우지 않고 비율 그대로(contain), 남는 곳은 같은 사진을 흐리게 깐 배경 */
+  .news .cover, .news .cover-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .news .cover { object-fit: contain; z-index: 1; }
+  .news .cover-bg { object-fit: cover; z-index: 0; filter: blur(18px) brightness(0.75); transform: scale(1.2); }
+  /* 유튜브 썸네일(위아래 검은 띠가 든 4:3)도 비율 그대로, 배경은 검은색이라 띠가 티 나지 않는다 */
+  .news .vis.v-video:has(.cover), .news .vd-thumb:has(.cover) { background: #000; }
+  .news .vis > :not(.cover):not(.cover-bg) { position: relative; z-index: 2; }
   .news .tags { display: flex; gap: 5px; }
   .news .tags em { font-style: normal; font-size: 11px; font-weight: 800; background: rgba(255, 255, 255, 0.92); color: #111; border-radius: 999px; padding: 3px 9px; }
   .news .tags em.t-lime { background: var(--accent); color: var(--accent-ink); }
@@ -213,8 +218,8 @@ const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span c
   .vd-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
   .vd-card { display: flex; flex-direction: column; gap: 8px; color: #fff; text-decoration: none; min-width: 0; }
   .vd-thumb { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #1f2937, #4b5563); display: grid; place-items: center; }
-  .vd-thumb .play { position: relative; z-index: 1; width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; font-size: 14px; }
-  .vd-thumb .len, .vd-thumb .live { position: absolute; z-index: 1; font-style: normal; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 2px 7px; }
+  .vd-thumb .play { position: relative; z-index: 2; width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; font-size: 14px; }
+  .vd-thumb .len, .vd-thumb .live { position: absolute; z-index: 2; font-style: normal; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 2px 7px; }
   .vd-thumb .len { right: 8px; bottom: 8px; background: rgba(0, 0, 0, 0.75); }
   .vd-thumb .live { left: 8px; top: 8px; background: #ef4444; }
   .vd-card h3 { margin: 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }

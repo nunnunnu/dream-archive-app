@@ -230,13 +230,6 @@
         "guest": true
       }
     ],
-    "reportChannels": [
-      {
-        "id": "UC64aGo-8uz1dndBAB3VtL2w",
-        "name": "집대성"
-      }
-    ],
-    "_reportChannels설명": "제보 URL에서 YouTube API로 채널 ID를 직접 확인해 자동 검증을 허용하는 외부 채널",
     "_설명": "filter: 그룹 이름이 제목에 있는 영상만. guest: 방송사·제작사 채널이라 영상이 출연 콘텐츠일 수 있음 (소속사·공식 채널은 false)",
     "stageChannels": [
       "KBS WORLD TV",
