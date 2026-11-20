@@ -6,7 +6,7 @@
  */
 import type { APIRoute } from 'astro';
 import { askCore, supabaseVector, type AskCall, type AskData } from '../../../../collector/lib/ask-core.ts';
-import { callAi, hasAiKey, primaryModel } from '../../../../collector/lib/ai-provider.ts';
+import { callAi, hasAiKey } from '../../../../collector/lib/ai-provider.ts';
 import { categoryOf, maskPersonal, questionKey, sha, type KV as SharedKV } from '../../lib/ask-shared';
 
 /** 질문 자료 묶음(공지·기사 원문 포함)은 수집기가 KV에 올린다 (npm run publish:site). 버전이 같으면 다시 읽지 않는다 */
@@ -33,7 +33,8 @@ const ai = (env: Env): AskCall => async (o) => {
     : o.model === 'gpt-5.4-nano'
       ? (env.GROQ_RERANK_MODEL ?? 'openai/gpt-oss-120b')
       : undefined;
-  const r = await callAi(env, { instructions: o.instructions, input: o.input, schema: o.schema, effort: o.effort, maxOutputTokens: 6000, primaryModel, fallbackModel: o.model.startsWith('gpt-') ? o.model : (env.OPENAI_FALLBACK_MODEL ?? 'gpt-5-mini') });
+  // 질문 해석·리랭킹만 Groq 무료 모델, 답변(gpt-로 시작하는 모델)은 OpenAI로 바로 (평가: Groq 답변 25/39 → OpenAI 31/39)
+  const r = await callAi(primaryModel ? env : { ...env, GROQ_API_KEY: undefined }, { instructions: o.instructions, input: o.input, schema: o.schema, effort: o.effort, maxOutputTokens: 6000, primaryModel, fallbackModel: o.model.startsWith('gpt-') ? o.model : (env.OPENAI_FALLBACK_MODEL ?? 'gpt-5-mini') });
   return { value: r.value, usage: { costUsd: r.usage.costUsd } };
 };
 
@@ -121,7 +122,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Supabase 비밀 키가 있으면 하이브리드(낱말 + pgvector 의미 검색), 없으면 낱말 검색만
     let costUsd = 0;
-    const r = await askCore(question, index, ai(env), { model: env.ASK_MODEL ?? primaryModel(env), history, vector: supabaseVector(env), onCost: (usd) => { costUsd += usd; } });
+    const r = await askCore(question, index, ai(env), { model: env.ASK_MODEL ?? 'gpt-5-mini', history, vector: supabaseVector(env), onCost: (usd) => { costUsd += usd; } });
     const result: Result = { answer: r.answer, sources: r.sources, unverified: r.unverified, dataAt: index.generatedAt ?? null, events: r.events ?? [], notFound: Boolean(r.notFound), at: now.toISOString() };
     const id = crypto.randomUUID();
     if (kv) {

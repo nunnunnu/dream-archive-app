@@ -9,7 +9,6 @@ import type { Budget } from './budget.ts';
 import type { PublicEvent } from './consolidate.ts';
 import { GROUP } from './group.ts';
 import { callModel } from './llm.ts';
-import { primaryModel } from './ai-provider.ts';
 import type { JsonRepo } from './repo.ts';
 import { ROOT } from './store.ts';
 
@@ -80,7 +79,7 @@ let cached: AskData | null = null;
 export async function askQuestion(question: string, opts: { repo: JsonRepo; budget?: Budget; today?: string; model?: string; log?: (s: string) => void; history?: { q: string; a: string }[]; retrieval?: 'keyword' | 'hybrid' }): Promise<AskResult> {
   cached ??= await loadAskData(opts.repo);
   return askCore(question, cached, (o) => callModel(o), {
-    today: opts.today, model: opts.model ?? process.env.ASK_MODEL ?? primaryModel(process.env), log: opts.log, history: opts.history,
+    today: opts.today, model: opts.model ?? process.env.ASK_MODEL ?? 'gpt-5-mini', log: opts.log, history: opts.history,
     vector: opts.retrieval === 'keyword' ? undefined : supabaseVector(process.env), onCost: (usd) => opts.budget?.record(usd),
   });
 }

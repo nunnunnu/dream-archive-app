@@ -362,6 +362,8 @@ export async function callModel(opts: { model?: string; effort?: 'minimal' | 'lo
     : opts.model === 'gpt-5.4-nano'
       ? (process.env.GROQ_RERANK_MODEL ?? 'openai/gpt-oss-120b')
       : undefined;
-  const res = await callAi(process.env, { instructions: dropLone(opts.instructions), input: dropLone(opts.input), schema: opts.schema, effort: opts.effort, maxOutputTokens: 8000, primaryModel, fallbackModel: opts.model?.startsWith('gpt-') ? opts.model : (process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini') });
+  // Groq 모델로 바꿔 부르는 단계(질문 해석·리랭킹·요약)만 Groq, gpt- 모델을 직접 고른 호출(물어보기 답변)은 OpenAI로 바로
+  const env = primaryModel || !opts.model?.startsWith('gpt-') ? process.env : { ...process.env, GROQ_API_KEY: undefined };
+  const res = await callAi(env, { instructions: dropLone(opts.instructions), input: dropLone(opts.input), schema: opts.schema, effort: opts.effort, maxOutputTokens: 8000, primaryModel, fallbackModel: opts.model?.startsWith('gpt-') ? opts.model : (process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini') });
   return { value: res.value, usage: res.usage };
 }
