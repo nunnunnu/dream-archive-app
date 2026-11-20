@@ -34,7 +34,7 @@ const nav = [
   <body>
     <header class="site-head">
       <div class="wrap">
-        <a class="brand" href="/"><span class="brand-mark">{mark}</span>{groupName} <small>아카이브</small></a>
+        <a class="brand" href="/" aria-label={`${groupName} 아카이브`}><span class="brand-mark">{mark}</span><span class="brand-name">{groupName}</span> <small>아카이브</small></a>
         <nav class="nav" aria-label="주요 메뉴">
           {nav.map((n) => <a href={n.href} aria-current={n.id === current ? 'page' : undefined}>{n.label}</a>)}
           <a class="report-btn" href="/report/" aria-current={current === 'report' ? 'page' : undefined}>제보</a>

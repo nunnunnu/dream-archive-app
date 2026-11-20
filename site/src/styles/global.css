@@ -93,3 +93,7 @@ button { font: inherit; color: inherit; }
   .nav a { font-size: 13px; }
   .nav a.report-btn { padding: 5px 10px; font-size: 12px; }
 }
+@media (max-width: 420px) {
+  .brand-name { display: none; }
+  .nav { gap: 10px; }
+}
