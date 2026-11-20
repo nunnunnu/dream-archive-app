@@ -87,14 +87,17 @@ export async function queueReports(repo: Repo, reports: Record<string, Report>, 
   return queued;
 }
 
-const ownChannels = new Set(GROUP.youtube.channels.map((c) => c.name));
+const verifiedChannels = new Set([
+  ...GROUP.youtube.channels.map((c) => c.name),
+  ...(GROUP.youtube.reportChannels ?? []).map((c) => c.name),
+]);
 export function isOfficialReportSource(ext: ExtractionRecord): boolean {
   try {
     const host = new URL(ext.source.url).hostname.replace(/^www\./, '');
     if (host === 'weverse.io' || host.endsWith('.weverse.io')) return true;
     if (host === 'youtube.com' || host === 'youtu.be') {
       // fetchYouTube가 저장한 제목은 "채널명: 영상명" 형식이다.
-      return [...ownChannels].some((name) => ext.source.title.startsWith(`${name}:`));
+      return [...verifiedChannels].some((name) => ext.source.title.startsWith(`${name}:`));
     }
   } catch { /* 잘못된 URL은 공식 출처가 아니다. */ }
   return false;

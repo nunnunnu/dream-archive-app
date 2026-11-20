@@ -20,6 +20,8 @@
  *       npm run collect -- --backfill                              (위버스 공지 과거 자료 채우기)
  *       npm run collect -- --publish-only                          (수집·AI 없이 합치기·내보내기만)
  */
+import { assignStories } from './lib/stories.ts';
+import { leadsWithGroup } from './lib/publish.ts';
 import { stripBroadcaster } from './lib/broadcasters.ts';
 import { chromium } from 'playwright';
 import { Budget } from './lib/budget.ts';
@@ -109,8 +111,20 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   const tracked = await syncTracked(repo, events, today, now);
   const notices = (await repo.listNotices()).filter((n) => !isHidden(n.title));
   const archiveVideos = await loadRecentVideos(now, 12);
-  const clusters = clusterArticles(await repo.listArticles(new Date(now.getTime() - 365 * 24 * 3600 * 1000).toISOString())).map((c) => {
-    const first = [...c.articles].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))[0];
+  const yearArticles = await repo.listArticles(new Date(now.getTime() - 365 * 24 * 3600 * 1000).toISOString());
+  // 최근 7일은 AI가 정한 "같은 소식"으로 묶음끼리 다시 합친다 (제목 글자만으론 못 묶는 경우: 표현이 다르거나 영어 기사)
+  const stories = await assignStories(repo, yearArticles, now, budget);
+  const merged = new Map<string, ReturnType<typeof clusterArticles>[number]>();
+  for (const c of clusterArticles(yearArticles)) {
+    const votes = c.articles.map((a) => stories.get(a.guid)).filter(Boolean) as string[];
+    const key = votes.length ? votes.sort((x, y) => votes.filter((v) => v === y).length - votes.filter((v) => v === x).length)[0] : c.id;
+    const m = merged.get(key);
+    if (m) m.articles.push(...c.articles); else merged.set(key, { ...c, articles: [...c.articles] });
+  }
+  const clusters = [...merged.values()].map((c) => {
+    // 대표 기사: 드림·멤버가 제목 앞에 오는 기사 중 가장 먼저 나온 것 (없으면 가장 먼저 나온 기사)
+    const byTime = [...c.articles].sort((a, b) => a.publishedAt.localeCompare(b.publishedAt));
+    const first = byTime.find((a) => leadsWithGroup(a.title)) ?? byTime[0];
     const resolved = c.articles.find((a) => a.originalUrl) ?? first;
     const pictured = c.articles.find((a) => a.image);
     // 매체별 기사 (같은 매체는 하나만, 시간순, 최대 8개): 소식 화면에서 묶음을 펼쳐 볼 때

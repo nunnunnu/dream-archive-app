@@ -7,6 +7,7 @@
  *  - calendar/*.ics     캘린더 구독 파일 (전체, 단체, 멤버별)
  *  - meta.json          만든 시각·개수
  */
+import { GROUP_NAME_RE, PARENT_RE } from './group.ts';
 import { isNegative } from './topics.ts';
 import { topicOf, type FeedTopic } from './topics.ts';
 import { toKst } from './timezones.ts';
@@ -31,6 +32,8 @@ export interface FeedItem {
   count?: number;
   /** 같은 소식으로 묶인 매체별 기사 (펼쳐 보기용, 시간순) */
   articles?: { title: string; url: string; publisher: string; publishedAt: string }[];
+  /** 다른 가수가 주인공일 수 있는 기사 (제목 첫 주어에 그룹·멤버 이름이 없음): 사진을 쓰지 않고 하이라이트·사진 칸에서 뺀다 */
+  shared?: boolean;
   /** 영상 길이(초)·라이브 여부 */
   duration?: number;
   live?: boolean;
@@ -175,6 +178,13 @@ export async function publishAll(
 }
 
 /** 최근 소식 피드: 공지(60일), 같은 소식 묶음별 대표 기사(14일), 영상(30일) */
+/** 제목의 첫 주어(첫 쉼표·가운뎃점·말줄임·따옴표 앞)에 그룹·멤버 이름이 있나 */
+const MEMBER_ALIAS_RE = new RegExp(MEMBERS.flatMap((m) => m.aliases).map((a) => a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'i');
+export const leadsWithGroup = (title: string) => {
+  const head = title.replace(/^\s*\[[^\]]*\]\s*/, '').split(/[,，…·|]|\.{2,}|\s-\s/)[0];
+  return GROUP_NAME_RE.test(head) || MEMBER_ALIAS_RE.test(head) || (PARENT_RE.test(head) && MEMBER_ALIAS_RE.test(title));
+};
+
 export function buildFeed(
   notices: { title: string; url: string; postedAt: string }[],
   articleClusters: { title: string; url: string; publishedAt: string; publisher: string; count: number; image?: string; articles?: FeedItem['articles'] }[],
@@ -189,6 +199,8 @@ export function buildFeed(
     ...videos.filter((v) => REGISTERED.has(v.channel) || v.guest).map((v) => ({ type: 'youtube' as const, title: v.title, url: v.url, publishedAt: v.publishedAt, publisher: v.channel, members: v.who.members, ...(v.duration ? { duration: v.duration } : {}), ...(/🔴|\bLIVE\b|라이브/i.test(v.title) ? { live: true } : {}) })),
   ];
   for (const it of items) { const t = topicOf(it.title); if (t) it.topic = t; }
+  // 다른 가수 이름이 앞에 나오는 기사("아일릿, 한터차트 미국 1위…NCT DREAM …")는 대표 사진이 다른 가수일 수 있다 → 사진 빼고 표시
+  for (const it of items) if (it.type === 'news' && !leadsWithGroup(it.title)) { it.shared = true; delete it.image; }
   // 부정적인 기사(논란·가십)는 올리지 않는다
   return items.filter((it) => it.type !== 'news' || !isNegative(it.title)).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
