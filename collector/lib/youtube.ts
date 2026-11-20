@@ -394,9 +394,9 @@ export async function fillVideoDetails(videos: Video[]): Promise<void> {
   const byFile = new Map<string, Video[]>();
   for (const v of need) byFile.set(monthFile(v.publishedAt), [...(byFile.get(monthFile(v.publishedAt)) ?? []), v]);
   for (const [file, list] of byFile) {
-    const stored = await readJson<Record<string, Video>>(file, {});
+    const stored = await readVideoMonth(file);
     for (const v of list) if (stored[v.videoId]) stored[v.videoId].description = v.description;
-    await writeJson(file, stored);
+    await writeVideoMonth(file, stored);
   }
 }
 
@@ -431,7 +431,7 @@ export async function refreshVideoTimes(now: Date): Promise<string[]> {
   if (!updates.size) return log;
   // 월별 파일에 반영 (공개 달이 바뀌면 파일도 옮긴다)
   const files = new Map<string, Record<string, Video>>();
-  const load = async (f: string) => files.get(f) ?? files.set(f, await readJson<Record<string, Video>>(f, {})).get(f)!;
+  const load = async (f: string) => files.get(f) ?? files.set(f, await readVideoMonth(f)).get(f)!;
   for (const v of recent) {
     const patch = updates.get(v.videoId);
     if (!patch) continue;
@@ -440,7 +440,7 @@ export async function refreshVideoTimes(now: Date): Promise<string[]> {
     delete from[v.videoId];
     (await load(monthFile(next.publishedAt)))[v.videoId] = next;
   }
-  for (const [f, d] of files) await writeJson(f, Object.fromEntries(Object.entries(d).sort(([, a], [, b]) => b.publishedAt.localeCompare(a.publishedAt))));
+  for (const [f, d] of files) await writeVideoMonth(f, d);
   return log;
 }
 

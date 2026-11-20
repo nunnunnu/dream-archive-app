@@ -21,7 +21,7 @@ export async function loadAskData(repo: JsonRepo, opts: { articleDays?: number }
   for (const n of await repo.listNotices()) {
     const body = await repo.getBody('notice', n.id);
     if (!body) continue;
-    const image = (await repo.getBody('notice-image' as never, n.id)) ?? '';
+    const image = (await repo.getBody('notice-image', n.id)) ?? '';
     const posted = kst(new Date(n.postedAt)).toISOString();
     docs.push({ kind: 'notice', title: n.title, date: posted.slice(0, 10), time: posted.slice(11, 16), url: n.url, text: image ? `${body}\n${image}` : body });
   }

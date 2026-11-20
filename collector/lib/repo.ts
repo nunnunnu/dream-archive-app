@@ -52,7 +52,7 @@ export interface ArticleRecord {
   note?: string;
 }
 
-export type DocType = 'notice' | 'article' | 'submission' | 'video' | 'post';
+export type DocType = 'notice' | 'article' | 'submission' | 'video' | 'post' | 'notice-image';
 
 export interface ExtractionRecord {
   docType: DocType;

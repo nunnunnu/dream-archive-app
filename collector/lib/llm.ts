@@ -1,22 +1,22 @@
 /**
- * AI(OpenAI)로 문서(위버스 공지·기사 본문·제보 글)에서 일정 뽑기 + 원문 대조 검증
+ * AI(Groq 무료 우선, OpenAI 예비)로 문서에서 일정 뽑기 + 원문 대조 검증
  *
  * 해석은 AI가, 검증은 규칙이:
  *  - AI가 낸 근거 문장(evidence)이 원문에 있어야 한다
  *  - 날짜의 "일" 숫자, 시간의 "시" 숫자가 근거에 있어야 확정. 없으면 "확인 필요"
  *  - 기사가 지난 일을 다시 언급한 것(기사 날짜보다 이틀 이상 전)은 일정으로 쓰지 않는다
  *
- * 키: 프로젝트 루트 .env 의 OPENAI_API_KEY
+ * 키: 프로젝트 루트 .env 의 GROQ_API_KEY, 예비 OPENAI_API_KEY
  */
 import './env.ts';
-import OpenAI from 'openai';
+import { callAi, hasAiKey, primaryModel } from './ai-provider.ts';
 import { GROUP, GROUP_NAME_RE } from './group.ts';
 import { MEMBERS, mentionedMembers } from './members.ts';
 import type { EventKind } from './scheduleParser.ts';
 import { kstDate, toKstParts } from './time.ts';
 
 /** 쓸 모델. 비교에서 가장 정확했던 gpt-5-mini가 기본. LLM_MODEL 환경변수로 바꾼다. */
-export const LLM_MODEL = process.env.LLM_MODEL ?? 'gpt-5-mini';
+export const LLM_MODEL = process.env.LLM_MODEL ?? primaryModel(process.env);
 /** 추론 정도. LLM_EFFORT 환경변수로 바꾼다 (low / medium …) */
 export const LLM_EFFORT = (process.env.LLM_EFFORT ?? 'medium') as 'low' | 'medium' | 'high';
 /** 프롬프트를 바꾸면 올린다 (저장해 둔 AI 결과를 다시 만들기 위해). 공지와 기사는 따로 센다. */
@@ -26,24 +26,7 @@ export const VIDEO_PROMPT_VERSION = 5; // 결방 안내 추가는 새 기사에�
 /** @deprecated 공지 버전. 예전 코드 호환용 */
 export const PROMPT_VERSION = NOTICE_PROMPT_VERSION;
 
-/** OpenAI 공식 가격 (100만 토큰당 USD, 2026-11 확인) */
-const PRICES: Record<string, { input: number; output: number }> = {
-  'gpt-5-nano': { input: 0.05, output: 0.4 },
-  'gpt-5.4-nano': { input: 0.2, output: 1.25 },
-  'gpt-5-mini': { input: 0.25, output: 2.0 },
-};
-const PRICE_PER_M = PRICES[LLM_MODEL] ?? { input: 0, output: 0 };
-/** 비용: 프롬프트 캐시로 읽힌 입력은 10% 가격 (OpenAI cached input) */
-type UsageLike = { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } | null } | null | undefined;
-export const costOf = (u: UsageLike, p: { input: number; output: number }) => {
-  const input = u?.input_tokens ?? 0, cached = u?.input_tokens_details?.cached_tokens ?? 0, output = u?.output_tokens ?? 0;
-  return ((input - cached) * p.input + cached * p.input * 0.1 + output * p.output) / 1_000_000;
-};
-
-let client: OpenAI | null = null;
-// 응답이 끊겨도 실행 전체가 멈추지 않게: 한 번 호출에 최대 3분, 실패하면 2번까지 다시
-const getClient = () => (client ??= new OpenAI({ timeout: 180_000, maxRetries: 2 }));
-export const hasLlmKey = () => Boolean(process.env.OPENAI_API_KEY);
+export const hasLlmKey = () => hasAiKey(process.env);
 
 export const KINDS: EventKind[] = ['신청', '당첨 발표', '본인 확인', '녹화', '방송', '발매', '투표', '판매', '행사', '모임', '기타'];
 const MEMBER_NAMES = MEMBERS.map((m) => m.name);
@@ -194,27 +177,8 @@ export interface LlmResult<T> {
 }
 
 async function callJson<T>(instructions: string, input: string, schemaName: string, schema: object): Promise<LlmResult<T>> {
-  const res = await getClient().responses.create({
-    model: LLM_MODEL,
-    reasoning: { effort: LLM_EFFORT },
-    max_output_tokens: 16000,
-    input: [
-      { role: 'system', content: instructions },
-      { role: 'user', content: input },
-    ],
-    text: { format: { type: 'json_schema', name: schemaName, schema: schema as Record<string, unknown>, strict: true } },
-  });
-  if (res.status === 'incomplete') throw new Error(`AI 응답이 잘림: ${res.incomplete_details?.reason}`);
-  const inputTokens = res.usage?.input_tokens ?? 0;
-  const outputTokens = res.usage?.output_tokens ?? 0;
-  return {
-    value: JSON.parse(res.output_text) as T,
-    usage: {
-      input: inputTokens,
-      output: outputTokens,
-      costUsd: costOf(res.usage, PRICE_PER_M),
-    },
-  };
+  const res = await callAi(process.env, { instructions, input, schema: { name: schemaName, schema }, effort: LLM_EFFORT, maxOutputTokens: 16000, fallbackModel: process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini' });
+  return { value: JSON.parse(res.value) as T, usage: res.usage };
 }
 
 const kstStamp = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 16).replace('T', ' ');
@@ -290,34 +254,9 @@ export async function extractVideoEvents(v: { title: string; description?: strin
  * 옮겨 적은 글은 공지 본문 뒤에 붙여 공지 해석에 쓰고, 근거 문장 대조도 이 글을 기준으로 한다.
  */
 export async function transcribeImages(tiles: string[], noticeTitle: string): Promise<LlmResult<string>> {
-  const res = await getClient().responses.create({
-    model: LLM_MODEL,
-    reasoning: { effort: 'low' },
-    max_output_tokens: 12000,
-    input: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text:
-              `위버스 공지 "${noticeTitle}"의 본문 이미지를 위에서부터 순서대로 자른 조각 ${tiles.length}장이다.\n` +
-              '이미지 속 글을 빠짐없이 그대로 옮겨 적어라. 요약·설명·번역하지 말 것.\n' +
-              '조각 경계에서 같은 줄이 두 번 보이면 한 번만 적는다. 표는 한 줄에 "항목: 내용"으로 적는다.\n' +
-              '날짜·시간·장소·대상 같은 숫자와 이름은 보이는 그대로 적는다. 글이 없는 사진이면 "(글 없음)"이라고만 적는다.',
-          },
-          ...tiles.map((b) => ({ type: 'input_image' as const, image_url: `data:image/jpeg;base64,${b}`, detail: 'high' as const })),
-        ],
-      },
-    ],
-  });
-  if (res.status === 'incomplete') throw new Error(`AI 응답이 잘림: ${res.incomplete_details?.reason}`);
-  const inputTokens = res.usage?.input_tokens ?? 0;
-  const outputTokens = res.usage?.output_tokens ?? 0;
-  return {
-    value: res.output_text.trim(),
-    usage: { input: inputTokens, output: outputTokens, costUsd: costOf(res.usage, PRICE_PER_M) },
-  };
+  const input = `위버스 공지 "${noticeTitle}"의 본문 이미지를 위에서부터 순서대로 자른 조각 ${tiles.length}장이다.\n이미지 속 글을 빠짐없이 그대로 옮겨 적어라. 요약·설명·번역하지 말 것.\n조각 경계에서 같은 줄이 두 번 보이면 한 번만 적는다. 표는 한 줄에 "항목: 내용"으로 적는다.\n날짜·시간·장소·대상 같은 숫자와 이름은 보이는 그대로 적는다. 글이 없는 사진이면 "(글 없음)"이라고만 적는다.`;
+  const res = await callAi(process.env, { instructions: '이미지의 글을 정확히 전사한다.', input, images: tiles.map((b) => `data:image/jpeg;base64,${b}`), effort: 'low', maxOutputTokens: 12000, fallbackModel: process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini' });
+  return { value: res.value.trim(), usage: res.usage };
 }
 
 // ── 검증 ────────────────────────────────────────────────────────
@@ -418,21 +357,6 @@ export function checkAgainstSource(
 /** 질문 에이전트 등에서 쓰는 범용 호출: 모델·노력 수준을 골라 JSON 또는 글로 받는다 */
 const dropLone = (t: string) => t.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
 export async function callModel(opts: { model?: string; effort?: 'minimal' | 'low' | 'medium' | 'high'; instructions: string; input: string; schema?: { name: string; schema: object } }): Promise<LlmResult<string>> {
-  const model = opts.model ?? LLM_MODEL;
-  const res = await getClient().responses.create({
-    model,
-    reasoning: { effort: opts.effort ?? 'low' },
-    max_output_tokens: 8000,
-    input: [
-      // 글자 수로 자른 본문에 짝 없는 문자(이모지 반쪽)가 있으면 요청 JSON이 깨진다
-      { role: 'system', content: dropLone(opts.instructions) },
-      { role: 'user', content: dropLone(opts.input) },
-    ],
-    ...(opts.schema ? { text: { format: { type: 'json_schema' as const, name: opts.schema.name, schema: opts.schema.schema as Record<string, unknown>, strict: true } } } : {}),
-  });
-  if (res.status === 'incomplete') throw new Error(`AI 응답이 잘림: ${res.incomplete_details?.reason}`);
-  const price = PRICES[model] ?? { input: 0, output: 0 };
-  const input = res.usage?.input_tokens ?? 0;
-  const output = res.usage?.output_tokens ?? 0;
-  return { value: res.output_text, usage: { input, output, costUsd: costOf(res.usage, price) } };
+  const res = await callAi(process.env, { instructions: dropLone(opts.instructions), input: dropLone(opts.input), schema: opts.schema, effort: opts.effort, maxOutputTokens: 8000, fallbackModel: opts.model ?? process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini' });
+  return { value: res.value, usage: res.usage };
 }

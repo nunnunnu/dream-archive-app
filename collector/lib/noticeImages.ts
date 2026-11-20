@@ -10,17 +10,15 @@ import type { Page } from 'playwright';
 import type { Budget } from './budget.ts';
 import { hasLlmKey, transcribeImages } from './llm.ts';
 import type { NoticeRecord, Repo } from './repo.ts';
-import { readRaw, writeRaw } from './store.ts';
 
 const WIDTH = 1414;
 const TILE = 1600;
 const MAX_TILES = 16;
-const imgPath = (id: string) => `notice-image/${id}.txt`;
 
 /** 공지 해석에 쓰는 글과 그 해시 (이미지 글이 있으면 본문 뒤에 붙인다) */
 export async function noticeSource(repo: Repo, n: NoticeRecord): Promise<{ body: string | null; hash: string }> {
   const body = await repo.getBody('notice', n.id);
-  const img = await readRaw(imgPath(n.id));
+  const img = await repo.getBody('notice-image', n.id);
   if (!img) return { body, hash: n.bodyHash };
   return { body: `${body ?? ''}\n\n[이미지 속 글]\n${img}`, hash: createHash('sha256').update(`${n.bodyHash}|${img}`).digest('hex').slice(0, 16) };
 }
@@ -45,7 +43,7 @@ export async function captureTiles(page: Page, url: string, referer = 'https://w
 export async function transcribeNoticeImages(repo: Repo, page: Page, budget: Budget, notices: NoticeRecord[]): Promise<string[]> {
   const log: string[] = [];
   for (const n of notices) {
-    if (!n.images?.length || (await readRaw(imgPath(n.id))) !== null) continue;
+    if (!n.images?.length || (await repo.getBody('notice-image', n.id)) !== null) continue;
     if (!hasLlmKey() || !budget.canSpend()) break;
     try {
       const parts: string[] = [];
@@ -55,7 +53,7 @@ export async function transcribeNoticeImages(repo: Repo, page: Page, budget: Bud
         budget.record(r.usage.costUsd);
         parts.push(r.value);
       }
-      await writeRaw(imgPath(n.id), parts.join('\n\n'));
+      await repo.putBody('notice-image', n.id, parts.join('\n\n'));
       log.push(`공지 ${n.id} 이미지 ${n.images.length}장 읽음 (${parts.join('').length}자)`);
     } catch (err) {
       log.push(`공지 ${n.id} 이미지 읽기 실패: ${(err as Error).message.slice(0, 80)}`);
