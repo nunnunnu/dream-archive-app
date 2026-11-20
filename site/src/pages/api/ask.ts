@@ -1,11 +1,12 @@
 /**
  * 팬 질문 (Astro API, Cloudflare에서 실행): POST /api/ask  { question }
- * 자료(일정·공지·기사)는 수집기가 KV에 올린 ask:index 를 쓰고, 답은 OpenAI로 만든다 (collector/lib/ask-core.ts 와 같은 규칙).
+ * 자료(일정·공지·기사)는 수집기가 KV에 올린 ask:index 를 쓰고, 답은 Groq 무료 모델 우선·OpenAI 예비로 만든다.
  * 비용 지키기: 질문 200자까지, 같은 IP는 1시간에 10번, 전체는 하루 ASK_DAILY_LIMIT번(기본 50, 질문 1번 약 5원). 횟수는 KV(REPORTS)에 센다.
  * KV가 없으면 운영에서는 받지 않는다 (로컬 시험은 ASK_ALLOW_NO_KV=1).
  */
 import type { APIRoute } from 'astro';
 import { askCore, supabaseVector, type AskCall, type AskData } from '../../../../collector/lib/ask-core.ts';
+import { callAi, hasAiKey, primaryModel } from '../../../../collector/lib/ai-provider.ts';
 import { categoryOf, maskPersonal, questionKey, sha, type KV as SharedKV } from '../../lib/ask-shared';
 
 /** 질문 자료 묶음(공지·기사 원문 포함)은 수집기가 KV에 올린다 (npm run publish:site). 버전이 같으면 다시 읽지 않는다 */
@@ -23,29 +24,12 @@ interface KV extends SharedKV {
   get(key: string): Promise<string | null>;
   get<T>(key: string, type: 'json'): Promise<T | null>;
 }
-interface Env { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string; OPENAI_API_KEY?: string; ASK_MODEL?: string; ASK_DAILY_LIMIT?: string; ASK_MONTHLY_BUDGET_KRW?: string; ASK_ALLOW_NO_KV?: string; REPORTS?: KV }
+interface Env { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string; GROQ_API_KEY?: string; GROQ_MODEL?: string; OPENAI_API_KEY?: string; OPENAI_FALLBACK_MODEL?: string; ASK_MODEL?: string; ASK_DAILY_LIMIT?: string; ASK_MONTHLY_BUDGET_KRW?: string; ASK_ALLOW_NO_KV?: string; REPORTS?: KV }
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
-const PRICES: Record<string, { input: number; output: number }> = { 'gpt-5-nano': { input: 0.05, output: 0.4 }, 'gpt-5-mini': { input: 0.25, output: 2.0 } };
-
-/** OpenAI Responses API (SDK 없이 fetch) */
-const openai = (key: string): AskCall => async (o) => {
-  const res = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model: o.model, reasoning: { effort: o.effort }, max_output_tokens: 6000,
-      input: [{ role: 'system', content: o.instructions }, { role: 'user', content: o.input }],
-      ...(o.schema ? { text: { format: { type: 'json_schema', name: o.schema.name, schema: o.schema.schema, strict: true } } } : {}),
-    }),
-  });
-  if (!res.ok) throw new Error(`AI 요청 실패 ${res.status}`);
-  const r = (await res.json()) as { output?: { type: string; content?: { type: string; text?: string }[] }[]; usage?: { input_tokens: number; output_tokens: number; input_tokens_details?: { cached_tokens?: number } } };
-  const value = (r.output ?? []).filter((x) => x.type === 'message').flatMap((x) => x.content ?? []).filter((c) => c.type === 'output_text').map((c) => c.text ?? '').join('');
-  const p = PRICES[o.model] ?? PRICES['gpt-5-mini'];
-  // 프롬프트 캐시로 읽힌 입력은 10% 가격
-  const cached = r.usage?.input_tokens_details?.cached_tokens ?? 0;
-  return { value, usage: { costUsd: (((r.usage?.input_tokens ?? 0) - cached) * p.input + cached * p.input * 0.1 + (r.usage?.output_tokens ?? 0) * p.output) / 1e6 } };
+const ai = (env: Env): AskCall => async (o) => {
+  const r = await callAi(env, { instructions: o.instructions, input: o.input, schema: o.schema, effort: o.effort, maxOutputTokens: 6000, fallbackModel: env.OPENAI_FALLBACK_MODEL ?? 'gpt-5-mini' });
+  return { value: r.value, usage: { costUsd: r.usage.costUsd } };
 };
 
 type Result = { answer: string; sources: { id: string; ids: string[]; title: string; url: string; kind?: string; date?: string }[]; unverified: string[]; dataAt: string | null; events: NonNullable<Awaited<ReturnType<typeof askCore>>['events']>; notFound: boolean; at: string };
@@ -67,7 +51,7 @@ async function logQuestion(kv: KV, now: Date, id: string, qk: string, q: string,
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = (locals.runtime?.env ?? {}) as Env;
-  if (!env.OPENAI_API_KEY) return json({ ok: false, error: '질문 기능이 아직 준비 중이에요' }, 503);
+  if (!hasAiKey(env)) return json({ ok: false, error: '질문 기능이 아직 준비 중이에요' }, 503);
   if (!env.REPORTS && env.ASK_ALLOW_NO_KV !== '1') return json({ ok: false, error: '질문 기능이 아직 준비 중이에요' }, 503);
   let body: { question?: unknown; website?: unknown; history?: unknown; public?: unknown };
   try {
@@ -132,7 +116,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Supabase 비밀 키가 있으면 하이브리드(낱말 + pgvector 의미 검색), 없으면 낱말 검색만
     let costUsd = 0;
-    const r = await askCore(question, index, openai(env.OPENAI_API_KEY), { model: env.ASK_MODEL ?? 'gpt-5-mini', history, vector: supabaseVector(env), onCost: (usd) => { costUsd += usd; } });
+    const r = await askCore(question, index, ai(env), { model: env.ASK_MODEL ?? primaryModel(env), history, vector: supabaseVector(env), onCost: (usd) => { costUsd += usd; } });
     const result: Result = { answer: r.answer, sources: r.sources, unverified: r.unverified, dataAt: index.generatedAt ?? null, events: r.events ?? [], notFound: Boolean(r.notFound), at: now.toISOString() };
     const id = crypto.randomUUID();
     if (kv) {
