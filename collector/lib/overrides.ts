@@ -14,6 +14,10 @@ export interface Overrides {
 }
 const PATH = join(ROOT, 'config', 'overrides.json');
 export const loadOverrides = (): Overrides => ({ hide: [], patch: [], ...JSON.parse(readFileSync(PATH, 'utf8')) });
+export const mergeOverrides = (base: Overrides, extra: Overrides): Overrides => ({
+  hide: [...base.hide, ...extra.hide].filter((x, i, all) => all.findIndex((y) => (x.reportId && y.reportId === x.reportId) || (!x.reportId && y.id === x.id)) === i),
+  patch: [...base.patch, ...extra.patch].filter((x, i, all) => all.findIndex((y) => (x.reportId && y.reportId === x.reportId) || (!x.reportId && y.id === x.id)) === i),
+});
 export const saveOverrides = (o: Overrides) => {
   const raw = JSON.parse(readFileSync(PATH, 'utf8'));
   writeFileSync(PATH, JSON.stringify({ ...raw, hide: o.hide, patch: o.patch }, null, 2) + '\n');

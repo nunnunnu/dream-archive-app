@@ -1,40 +1,126 @@
 ---
+/**
+ * 물어보기: 위쪽(질문·공개 안내·오늘 기준 데이터) → 대화(질문하면 나타남) → 예시 질문 → 최근 질문 + 자주 묻는 질문·답변 상태 안내.
+ * 질문한 사람 정보(아이디·IP)는 보여 주지도 저장하지도 않는다.
+ */
 import Base from '../layouts/Base.astro';
 import '../styles/ask.css';
-// 처음 화면에 보여 줄 예시 질문
-const examples = ['이번주 인가 어떻게 가?', '음중 사녹 모이는 곳 어디야?', '크래시2 어디서 볼 수 있어?', '팬사인회 언제야?', '다음주 월요일에 뭐 있어?', '이번 앨범 미공포 어디서 받아?'];
+
+// 예시 질문 (누르면 바로 물어봄)
+const TRY = [
+  { name: '오늘·이번주', cls: 'c-week', qs: ['오늘 일정 뭐 있어?', '이번주 마감인 거 알려줘', '다음주 월요일에 뭐 있어?'] },
+  { name: '사녹·방송', cls: 'c-show', qs: ['이번주 인가 어떻게 가?', '음중 사녹 모이는 곳 어디야?', '크래시2 어디서 볼 수 있어?'] },
+  { name: '예매·응모', cls: 'c-ticket', qs: ['팬사인회 언제야?', '콘서트 예매 일정 알려줘', '영상통화 팬싸 응모 방법은?'] },
+  { name: '앨범·MD', cls: 'c-album', qs: ['이번 앨범 미공포 어디서 받아?', '앨범 예약판매 언제까지야?', '팝업 MD 판매 일정은?'] },
+];
+// 자주 묻는 질문: 시기와 상관없는 질문 (누르면 물어봄)
+const FAQ = [
+  { q: '팬사인회 응모는 어떻게 해?', hint: '앨범 구매 → 응모 → 당첨 발표 순서와 최근 공지' },
+  { q: '위버스 공지는 어디서 봐?', hint: '공지 탭 위치와 최근 공지 링크' },
+  { q: '음방 사전투표는 어떤 앱이야?', hint: '방송사별 투표 앱과 최근 투표 일정' },
+  { q: '사녹 갈 때 준비물은?', hint: '신분증·당첨 확인·입장 시간 안내' },
+];
 ---
 <Base title="물어보기" current="ask">
-  <main class="wrap ask">
-    <p class="eyebrow">ASK</p>
-    <div class="section-head">
-      <h2>물어보기</h2>
-      <span class="note">수집한 공지·일정·기사로만 답해요 · 중요한 건 꼭 원문 공지를 확인하세요</span>
-    </div>
-
-    <section class="card chat" aria-live="polite">
-      <div class="chat-log" id="chat-log">
-        <div class="chat-empty" id="chat-empty">
-          <p><b>사녹·방송·예매 일정</b>을 물어보세요. 근거가 된 공지·기사 링크를 함께 보여 드려요.</p>
-          <div class="examples">{examples.map((q) => <button type="button" class="ex" data-q={q}>{q}</button>)}</div>
-        </div>
+  <section class="ask-hero">
+    <div class="wrap hero-grid">
+      <div>
+        <p class="eyebrow dark-eyebrow">ASK · 물어보기</p>
+        <h1>궁금한 일정, <em>근거와 함께</em> 알려줘요</h1>
+        <p class="lead">수집한 <b>공지·기사·일정</b>으로만 답해요. 같은 질문은 저장된 답을 바로 보여줘요.</p>
+        <form class="ask-form" data-ask-form>
+          <textarea name="question" rows="1" maxlength="200" placeholder="예) 이번주 음중 사녹 신청 언제야?" aria-label="질문"></textarea>
+          <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          <button type="submit">보내기 →</button>
+        </form>
+        <p class="hero-note">AI 요약이라 틀릴 수 있어요 · <b>중요한 건 꼭 원문 공지를 확인하세요</b></p>
+        <label class="public-box">
+          <span class="lock">🔒</span>
+          <span class="pb-text"><b data-public-title>이 질문은 '최근 질문'에 공개돼요</b><small>전화번호·이메일은 가려서 저장하고, 90일 뒤 지워요. 질문한 사람 정보는 남기지 않아요.</small></span>
+          <span class="pb-switch"><span data-public-label>공개</span><input type="checkbox" checked data-public aria-label="최근 질문에 공개" /><i></i></span>
+        </label>
       </div>
+      <aside class="data-card" data-stats>
+        <div class="dc-head"><b>오늘 기준 데이터</b><span class="dc-fresh" data-fresh></span></div>
+        <small>마지막 수집</small>
+        <p class="dc-time" data-collected>불러오는 중…</p>
+        <div class="dc-nums">
+          <div><b data-n="notices">-</b><small>공지</small></div>
+          <div><b data-n="articles">-</b><small>기사</small></div>
+          <div><b data-n="events">-</b><small>일정</small></div>
+        </div>
+        <div class="dc-chips"><span>위버스 공지</span><span>뉴스</span><span>유튜브</span><span data-n-sub>팬 제보</span></div>
+        <p class="dc-foot" data-review></p>
+      </aside>
+    </div>
+  </section>
 
-      <form class="chat-form" id="chat-form">
-        <textarea id="chat-input" name="question" rows="1" maxlength="200" placeholder="예: 이번주 음중 사녹 신청 언제야?" aria-label="질문"></textarea>
-        <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
-        <button type="submit" id="chat-send" aria-label="보내기">보내기</button>
-      </form>
-    </section>
-    <p class="ask-foot">답은 AI가 자료를 요약한 거라 틀릴 수 있어요. 👍/👎로 알려 주시면 답 품질을 고치는 데 써요. <b>질문과 답은 아래 '최근 질문'에 공개돼요</b> (전화번호·이메일 같은 숫자는 가려서 저장, 90일 보관).</p>
+  <section class="wrap convo" data-convo hidden>
+    <div class="convo-grid">
+      <div class="convo-log" data-log aria-live="polite"></div>
+      <aside class="convo-side">
+        <div class="card legend">
+          <b>답변 상태 보는 법</b>
+          <dl>
+            <div><dt><span class="badge b-ai">● AI 답변</span></dt><dd>같은 질문은 저장된 답을 먼저 보여줘요. 새로 계산하지 않아요.</dd></div>
+            <div><dt><span class="badge b-check">! 답변 확인 필요</span></dt><dd>👎가 3개 넘게 쌓이면 바뀌어요. 다음 질문부터 새로 답해요.</dd></div>
+            <div><dt><span class="badge b-old">지난 일정</span></dt><dd>날짜가 지난 일정 답은 만료돼요. 다시 물어보면 새로 답해요.</dd></div>
+          </dl>
+        </div>
+      </aside>
+    </div>
+  </section>
 
-    <section class="recent" id="recent">
-      <p class="eyebrow">RECENT</p>
-      <div class="section-head"><h2>최근 질문</h2><span class="note">다른 팬들이 물어본 것 · 최신순</span></div>
-      <div class="card recent-list" id="recent-list"><p class="recent-empty">불러오는 중…</p></div>
-      <button type="button" class="recent-more" id="recent-more" hidden>더 보기</button>
+  <main class="wrap ask-main">
+    <section>
+      <p class="eyebrow">TRY</p>
+      <div class="section-head"><h2>이런 걸 물어볼 수 있어요</h2><span class="note">누르면 바로 물어봐요</span></div>
+      <div class="try-grid">
+        {TRY.map((t) => (
+          <div class="card try">
+            <b class={`try-name ${t.cls}`}>{t.name}</b>
+            {t.qs.map((q) => <button type="button" class="try-q" data-ask={q}>{q}<span>→</span></button>)}
+          </div>
+        ))}
+      </div>
     </section>
+
+    <div class="lower-grid">
+      <section>
+        <p class="eyebrow">RECENT</p>
+        <div class="section-head"><h2>최근 질문</h2><span class="note">같은 질문은 하나로 합쳐서 보여줘요</span></div>
+        <div class="recent-list" data-recent><p class="recent-empty">불러오는 중…</p></div>
+        <button type="button" class="recent-more" data-more hidden>최근 질문 더 보기</button>
+      </section>
+      <aside>
+        <p class="eyebrow">FAQ</p>
+        <div class="section-head"><h2>자주 묻는 질문</h2></div>
+        <div class="card faq">
+          {FAQ.map((f, i) => (
+            <button type="button" class="faq-row" data-ask={f.q}><i>{i + 1}</i><span><b>{f.q}</b><small>{f.hint}</small></span></button>
+          ))}
+        </div>
+        <p class="faq-note">시기와 상관없는 질문이라 만료되지 않아요.</p>
+        <div class="card legend">
+          <b>답변 상태 보는 법</b>
+          <dl>
+            <div><dt><span class="badge b-ai">● AI 답변</span></dt><dd>같은 질문은 저장된 답을 먼저 보여줘요. 새로 계산하지 않아요.</dd></div>
+            <div><dt><span class="badge b-check">! 답변 확인 필요</span></dt><dd>👎가 3개 넘게 쌓이면 바뀌어요. 다음 질문부터 새로 답해요.</dd></div>
+            <div><dt><span class="badge b-old">지난 일정</span></dt><dd>날짜가 지난 일정 답은 만료돼요. 다시 물어보면 새로 답해요.</dd></div>
+          </dl>
+        </div>
+      </aside>
+    </div>
   </main>
+
+  <div class="sticky-ask" data-sticky hidden>
+    <form class="ask-form" data-ask-form>
+      <textarea name="question" rows="1" maxlength="200" placeholder="이어서 물어보세요" aria-label="이어서 질문"></textarea>
+      <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+      <button type="submit">보내기 →</button>
+    </form>
+    <p><span data-public-mini>🔒 이 질문은 최근 질문에 공개돼요</span><span>AI 요약이라 틀릴 수 있어요 · <b>원문 공지를 꼭 확인하세요</b></span></p>
+  </div>
 </Base>
 
 <script src="../scripts/ask.ts"></script>

@@ -5,6 +5,7 @@
  * 개인정보는 받지 않는다. 같은 IP는 1분에 20번까지.
  */
 import type { APIRoute } from 'astro';
+import { questionKey } from '../../lib/ask-shared';
 interface KV {
   get(key: string): Promise<string | null>;
   put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
@@ -48,5 +49,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
     sources,
   };
   await env.REPORTS.put(`askfb:${item.at.slice(0, 10)}:${id}`, JSON.stringify(item), { expirationTtl: 180 * 86400 });
+  // 질문별 👍/👎 개수 (최근 질문 목록 표시, 👎 3개 넘게 쌓이면 "답변 확인 필요" + 재사용 대신 새로 답함). 같은 답에는 한 번만
+  if (item.question) {
+    const once = `askvote:once:${id}`;
+    if (!(await env.REPORTS.get(once))) {
+      const vk = `askvote:${await questionKey(item.question)}:${rating}`;
+      const n = Number((await env.REPORTS.get(vk)) ?? 0) + 1;
+      await Promise.all([env.REPORTS.put(vk, String(n), { expirationTtl: 90 * 86400 }), env.REPORTS.put(once, '1', { expirationTtl: 90 * 86400 })]);
+    }
+  }
   return json({ ok: true });
 };

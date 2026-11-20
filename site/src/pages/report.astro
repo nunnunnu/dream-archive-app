@@ -6,7 +6,7 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
 <Base title="제보" current="report">
   <main class="wrap report">
     <p class="eyebrow">REPORT</p>
-    <div class="section-head"><h2>제보하기</h2><span class="note">보내 주신 제보는 확인한 뒤 반영돼요</span></div>
+    <div class="section-head"><h2>제보하기</h2><span class="note">공식 원문으로 확인되면 자동 반영돼요</span></div>
 
     <form class="card report-form" id="report-form">
       <fieldset class="types">
@@ -103,7 +103,7 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
     try {
       const res = await fetch('/api/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({ ok: false, error: '서버 응답이 없어요' }));
-      result.textContent = data.ok ? '고마워요! 확인한 뒤 반영할게요.' : `보내지 못했어요: ${data.error}`;
+      result.textContent = data.ok ? '고마워요! 공식 원문으로 확인되면 자동 반영하고, 애매한 내용은 운영자가 확인할게요.' : `보내지 못했어요: ${data.error}`;
       if (data.ok) form.reset();
     } catch {
       result.textContent = '보내지 못했어요. 이 미리보기에서는 제보 서버가 없어요 (사이트를 올리면 동작해요).';

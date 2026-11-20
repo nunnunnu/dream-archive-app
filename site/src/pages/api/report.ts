@@ -1,6 +1,7 @@
 /**
  * 제보 받기 (Astro API, Cloudflare에서 실행): POST /api/report
- * 받은 제보는 KV(REPORTS)에 '대기'로 보관만 한다. 반영은 운영자가 승인할 때 (npm run reports -- --approve <id>).
+ * 받은 제보는 KV(REPORTS)에 저장한다. 공식 원문 대조를 통과한 추가·보완 제보는 수집기가 자동 승인하고,
+ * 그 밖의 제보와 삭제 요청은 운영자가 확인한다.
  * 개인정보는 받지 않는다. 같은 IP에서 1분에 5번까지만 (IP는 해시로만 잠깐 쓴다).
  */
 import type { APIRoute } from 'astro';

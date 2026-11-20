@@ -115,4 +115,13 @@ if (account && token && ns) {
     if (!a.ok || !b.ok) throw new Error(`질문 자료 KV 올리기 실패 ${a.status}/${b.status}`);
     console.log(`질문 자료 묶음 → KV (${(index.length / 1e6).toFixed(1)}MB, 버전 ${ver})`);
   } else console.log('질문 자료 묶음: 바뀐 것 없음');
+  // 물어보기 화면의 "오늘 기준 데이터" 카드 (마지막 수집 시각·자료 수·확인 대기 수)
+  const count = (k: string) => data.docs.filter((d) => d.kind === k).length;
+  const stats = {
+    collectedAt: new Date().toISOString(), notices: count('notice'), articles: count('article'), videos: count('video'),
+    events: data.events.length, review: data.events.filter((e) => e.status === 'needs-check').length,
+    submissions: data.events.filter((e) => e.sources.some((x) => x.type === 'submission')).length,
+  };
+  const st = await kv('ask:stats', JSON.stringify(stats));
+  if (!st.ok) console.log(`물어보기 통계 KV 실패 ${st.status}`);
 } else console.log('질문 자료 묶음: Cloudflare 값이 없어 건너뜀');

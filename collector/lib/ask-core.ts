@@ -32,8 +32,12 @@ export interface AskResult {
   answer: string;
   query: { from: string | null; to: string | null; programs: string[]; members: string[]; keywords: string[] };
   /** 같은 주소는 하나로 합치고, 그 출처를 가리키는 번호들(ids)을 함께 둔다 */
-  sources: { id: string; ids: string[]; title: string; url: string }[];
+  sources: { id: string; ids: string[]; title: string; url: string; kind?: 'notice' | 'article' | 'video' | 'event' | 'list' | 'submission'; date?: string }[];
   unverified: string[];
+  /** 답이 근거로 단 일정 (화면의 핵심 정보 표·확인 대기 경고·캘린더 추가용) */
+  events?: { id: string; date: string; time: string | null; endDate: string | null; endTime: string | null; title: string; step: string; kind: string; status: string; fromSubmission: boolean; url: string; flowId?: string }[];
+  /** 근거를 하나도 못 단 답 (화면에서 "찾지 못했어요"로, 재사용 저장 안 함) */
+  notFound?: boolean;
   stats: { events: number; docs: number; chunks: number; costUsd: number; model: string; vectorHits?: number };
   /** 검색 정확도 재기용: 리랭킹 전 후보·최종 자료 주소, 일정 출처 주소 */
   retrieval?: { candidates: string[]; final: string[]; events: string[] };
@@ -329,16 +333,16 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
   }
 
   const used = [...new Set([...answer.value.matchAll(/\[([EDL])(\d+)\]/g)].map((m) => `${m[1]}${m[2]}`))].sort();
-  const raw = used.flatMap((id) => {
+  const raw = used.flatMap((id): Omit<AskResult["sources"][number], "ids">[] => {
     const i = Number(id.slice(1)) - 1;
-    if (id[0] === 'E' && scoredEvents[i]) return [{ id, title: `${scoredEvents[i].title} ${scoredEvents[i].date}`, url: scoredEvents[i].sources[0]?.url ?? '' }];
-    if (id[0] === 'D' && docBlocks[i]) return [{ id, title: docBlocks[i].d.title, url: docBlocks[i].d.url }];
-    if (id[0] === 'L' && lookupRows[i]) return [{ id, title: `${lookupRows[i].title} ${lookupRows[i].date}`, url: lookupRows[i].url }];
+    if (id[0] === 'E' && scoredEvents[i]) { const e = scoredEvents[i]; const sub = e.sources.every((x) => x.type === 'submission'); return [{ id, title: `${e.title} ${e.date}`, url: e.sources[0]?.url ?? '', kind: sub ? ('submission' as const) : ('event' as const), date: e.date }]; }
+    if (id[0] === 'D' && docBlocks[i]) return [{ id, title: docBlocks[i].d.title, url: docBlocks[i].d.url, kind: docBlocks[i].d.kind as 'notice' | 'article' | 'video', date: docBlocks[i].d.date }];
+    if (id[0] === 'L' && lookupRows[i]) return [{ id, title: `${lookupRows[i].title} ${lookupRows[i].date}`, url: lookupRows[i].url, kind: 'list' as const, date: lookupRows[i].date }];
     return [];
   });
   // 공지 제목(D)이 일정 제목(E)보다 알아보기 쉬워서 D를 먼저
   raw.sort((a, b) => (a.id[0] === b.id[0] ? 0 : a.id[0] === 'D' ? -1 : 1));
-  const byUrl = new Map<string, { id: string; ids: string[]; title: string; url: string }>();
+  const byUrl = new Map<string, AskResult['sources'][number]>();
   for (const r of raw) {
     const key = r.url || r.id;
     const hit = byUrl.get(key);
@@ -348,6 +352,11 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
   const sources = [...byUrl.values()];
   return {
     answer: answer.value, query: q, sources, unverified: [...new Set(unverified)],
+    events: used.filter((id) => id[0] === 'E').map((id) => scoredEvents[Number(id.slice(1)) - 1]).filter(Boolean).map((e) => ({
+      id: e.id, date: e.date, time: e.time, endDate: e.endDate, endTime: e.endTime, title: e.title, step: e.step, kind: e.kind, status: e.status,
+      fromSubmission: e.sources.every((x) => x.type === 'submission'), url: e.sources[0]?.url ?? '', flowId: e.flowId,
+    })),
+    notFound: used.length === 0,
     stats: { events: scoredEvents.length, docs: docBlocks.length, chunks: chunks.length, costUsd: parsed.usage.costUsd + answer.usage.costUsd + vectorCost + rerankCost, model, vectorHits },
     retrieval: { candidates: [...new Set(candidates.map((c) => c.d.url))], final: [...new Set(chunks.map((c) => c.d.url))], events: scoredEvents.flatMap((e) => e.sources.map((x) => x.url)) },
   };

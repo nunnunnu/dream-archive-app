@@ -43,7 +43,8 @@ import { orderSources } from './lib/sourceOrder.ts';
 import { addReleases, findActivities } from './lib/activities.ts';
 import { buildDiscography } from './lib/discography.ts';
 import { buildSeries } from './lib/series.ts';
-import { applyOverrides } from './lib/overrides.ts';
+import { applyOverrides, loadOverrides, mergeOverrides, type Overrides } from './lib/overrides.ts';
+import { finalizeReports, pullReports, queueReports, type Report } from './lib/reports.ts';
 import { isHidden } from './lib/members.ts';
 import { transcribeNoticeImages } from './lib/noticeImages.ts';
 // 커뮤니티(더쿠) 수집은 비공개 레포에만 있다. 파일이 없으면(공개 레포) 건너뛴다
@@ -69,6 +70,7 @@ const now = new Date();
 const p = toKstParts(now);
 const today = kstDate(p.year, p.month, p.day);
 const budget = await new Budget(repo, now).load();
+let reports: Record<string, Report> = {};
 const started = Date.now();
 let stepAt = started;
 const elapsed = (from: number) => `${((Date.now() - from) / 1000).toFixed(0)}초`;
@@ -92,7 +94,8 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   const officialItems = itemsFromOfficialVideos((await loadRecentVideos(now, 6)).filter((v) => ownChannels.has(v.channel) && (v.channel === GROUP.name || isDreamRelated(v.title))), ownChannels, GROUP_NAME_RE);
   const { events, pending, rumors, review } = consolidate([...items, ...itemsFromGuestVideos(videos, interpreted), ...officialItems, ...itemsFromTracked(await loadTracked(repo))], { today, videos: related, trustedVideoUrls, seriesVideos: videos });
   // 운영자가 승인한 삭제·보완 제보 (config/overrides.json)
-  const ov = applyOverrides(events);
+  const reportOverrides = await repo.getState<Overrides>('report-overrides', { hide: [], patch: [] });
+  const ov = applyOverrides(events, mergeOverrides(loadOverrides(), reportOverrides));
   // 비공개·삭제된 영상은 일정 출처에서 뺀다 (출처가 그것뿐이면 일정은 남기고 링크만 없앤다)
   const gone = await unavailableVideoIds();
   for (const e of events) e.sources = e.sources.filter((s) => !gone.has(s.url.match(/(?:v=|youtu\.be\/|shorts\/|live\/)([\w-]{11})/)?.[1] ?? ''));
@@ -176,6 +179,13 @@ if (process.argv.includes('--publish-only')) {
 const browser = await chromium.launch();
 const page = await browser.newPage({ locale: 'ko-KR', timezoneId: 'Asia/Seoul' });
 try {
+  const pulled = await pullReports(repo).catch((err) => {
+    console.log(`제보 가져오기 실패: ${(err as Error).message}`);
+    return { reports: {}, fetched: 0 };
+  });
+  reports = pulled.reports;
+  const queuedReports = await queueReports(repo, reports, now);
+  if (pulled.fetched || queuedReports) console.log(`사이트 제보: 가져옴 ${pulled.fetched}개 · 자동 검증 대기 ${queuedReports}개`);
   step('① 수집');
   const weverse = await collectWeverse(repo, page, now, { backfill });
   for (const l of weverse.log) console.log(l);
@@ -202,6 +212,8 @@ try {
     step('② 처리 (새 공지·제보만)');
     for (const l of await processNotices(repo, budget, now, { sinceDays: NOTICES_DAYS })) console.log(l);
     for (const l of await processSubmissions(repo, page, budget, now)) console.log(l);
+    const moderation = await finalizeReports(repo, reports, now);
+    if (moderation.approved) console.log(`제보 자동 승인 ${moderation.approved}개 · 확인 대기 ${moderation.pending}개`);
     step('③ 합치기 · 내보내기');
     await consolidateAndPublish();
   }
@@ -234,6 +246,8 @@ try {
     step(`② 처리${pass > 1 ? ' (빈칸 채우기 결과)' : ''}`);
     for (const l of await processNotices(repo, budget, now, { sinceDays: NOTICES_DAYS })) console.log(l);
     for (const l of await processSubmissions(repo, page, budget, now)) console.log(l);
+    const moderation = await finalizeReports(repo, reports, now);
+    if (moderation.approved) console.log(`제보 자동 승인 ${moderation.approved}개 · 확인 대기 ${moderation.pending}개`);
     for (const l of await processVideos(repo, budget, now)) console.log(l);
     const newPage = () => browser.newPage({ locale: 'ko-KR', timezoneId: 'Asia/Seoul' });
     for (const l of await processArticles(repo, newPage, budget, now, { windowDays: ARTICLES_DAYS, concurrency: 6 })) console.log(l);
