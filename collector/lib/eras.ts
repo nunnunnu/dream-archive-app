@@ -6,6 +6,7 @@
  *  - 외부 콘텐츠: 다른 채널 출연 영상 + 외부 출연 일정
  * 썸네일은 유튜브 썸네일 주소를 그대로 쓴다 (저장하지 않음).
  */
+import { isNegative } from './topics.ts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PublicEvent } from './consolidate.ts';
@@ -178,6 +179,7 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     const seen = new Set<string>();
     return articles
       .filter((a) => { const d = kstDate(a.publishedAt); return d >= new Date(Date.parse(from) - 21 * 864e5).toISOString().slice(0, 10) && d <= new Date(Date.parse(to) + 31 * 864e5).toISOString().slice(0, 10); })
+      .filter((a) => !isNegative(a.title))
       .filter((a) => ks.some((k) => sq(a.title).includes(k)) || keys.some((k) => sq(k).length < 3 && /^[A-Za-z0-9!?]+$/.test(k.trim()) && new RegExp(`[‘'"“<\\[]\\s*${k.trim()}\\s*[’'"”>\\]]`).test(a.title)))
       .filter((a) => (seen.has(sq(a.title).slice(0, 20)) ? false : (seen.add(sq(a.title).slice(0, 20)), true)))
       .sort((a, b) => a.publishedAt.localeCompare(b.publishedAt))

@@ -7,6 +7,7 @@
  *  - calendar/*.ics     캘린더 구독 파일 (전체, 단체, 멤버별)
  *  - meta.json          만든 시각·개수
  */
+import { isNegative } from './topics.ts';
 import { topicOf, type FeedTopic } from './topics.ts';
 import { toKst } from './timezones.ts';
 import { PERIOD_KINDS, type PendingItem, type PublicEvent, type ReviewItem, type RumorItem } from './consolidate.ts';
@@ -181,5 +182,6 @@ export function buildFeed(
     ...videos.filter((v) => REGISTERED.has(v.channel) || v.guest).map((v) => ({ type: 'youtube' as const, title: v.title, url: v.url, publishedAt: v.publishedAt, publisher: v.channel, members: v.who.members })),
   ];
   for (const it of items) { const t = topicOf(it.title); if (t) it.topic = t; }
-  return items.sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+  // 부정적인 기사(논란·가십)는 올리지 않는다
+  return items.filter((it) => it.type !== 'news' || !isNegative(it.title)).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }

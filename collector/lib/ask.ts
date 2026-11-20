@@ -1,6 +1,7 @@
 /**
  * 질문 에이전트 (Node용): 저장소에서 자료를 읽어 askCore 에 넘긴다. 사이트용 묶음(ask-index)도 여기서 만든다.
  */
+import { isNegative } from './topics.ts';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { askCore, supabaseVector, type AskData, type AskDoc, type AskResult } from './ask-core.ts';
@@ -30,6 +31,7 @@ export async function loadAskData(repo: JsonRepo, opts: { articleDays?: number }
   const titleSince = new Date(Date.now() - 180 * 864e5).toISOString();
   const seenTitle = new Set<string>();
   for (const a of await repo.listArticles(since)) {
+    if (isNegative(a.title)) continue; // 부정적인 기사(논란·가십)는 근거로 쓰지 않는다
     const body = await repo.getBody('article', a.guid);
     const key = a.title.replace(/[^\p{L}\p{N}]+/gu, '');
     if (seenTitle.has(key)) continue;

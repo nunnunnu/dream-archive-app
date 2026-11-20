@@ -7,3 +7,10 @@ export const BRAND_RE = /(?<!옥외|생일|지하철|전광판|팬\s?)광고(?!�
 export const AIRPORT_RE = /출국|입국|귀국|공항|airport/i;
 export type FeedTopic = '공항' | '브랜드·화보';
 export const topicOf = (title: string): FeedTopic | undefined => (AIRPORT_RE.test(title) ? '공항' : BRAND_RE.test(title) ? '브랜드·화보' : undefined);
+
+/**
+ * 부정적인 기사(논란·가십): 사이트(소식·활동 기사 목록·물어보기 근거)에 올리지 않는다. 저장은 해 둔다.
+ * 건강 문제로 인한 불참·활동 중단처럼 일정에 영향을 주는 소식은 팬이 알아야 해서 여기 넣지 않는다.
+ */
+export const NEGATIVE_RE = /논란|의혹|루머|열애|결별|악플|악성\s*댓글|비난|비판|저격|폭로|고소|피소|소송|법적\s*대응|사생|스토킹|협박|위협|불화|탈퇴설|학폭|갑질|표절|사과문|망언|태도\s*지적|혹평|과잉\s*경호|몸싸움|난동|성희롱|명예훼손|허위\s*사실/;
+export const isNegative = (title: string) => NEGATIVE_RE.test(title);
