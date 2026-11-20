@@ -6,7 +6,7 @@ interface Answer {
   events?: CitedEvent[]; notFound?: boolean; category?: string; askedCount?: number; cached?: boolean; cachedAt?: string; warn?: boolean;
 }
 interface Stats { collectedAt: string; notices: number; articles: number; videos: number; events: number; review: number; submissions: number }
-interface Recent { q: string; a: string; at: string; category: string; sources: Source[]; count: number; ups: number; downs: number; state: 'ai' | 'check' | 'expired' | 'notfound'; warn: boolean }
+interface Recent { qk: string | null; q: string; a: string; at: string; category: string; sources: Source[]; count: number; ups: number; downs: number; state: 'ai' | 'check' | 'expired' | 'notfound'; warn: boolean }
 
 const REASONS = ['틀린 정보', '날짜·시간 오류', '자료에 있는데 모른대요', '출처가 엉뚱해요', '답이 너무 길어요', '기타'];
 // 이어서 물어볼 질문 (카테고리별, AI 없이)
@@ -212,7 +212,7 @@ function recentCard(it: Recent) {
       <span class="rc-top"><span class="cat ${CAT_CLS[it.category] ?? 'c-etc'}">${esc(it.category)}</span>${badge}<time>${esc(when(it.at))}</time></span>
       <span class="rc-q"><b>${esc(it.q)}</b>${it.count > 1 ? `<span class="asked">${it.count}명이 물어봄</span>` : ''}</span>
       <span class="rc-sum">${esc(summary)}</span>
-      <span class="rc-foot"><span>👍 ${it.ups}${it.downs ? ` · 👎 ${it.downs}` : ''}</span>${srcLine ? `<span>근거 ${esc(srcLine)}</span>` : ''}<span class="grow"></span>
+      <span class="rc-foot">${it.qk ? `<span class="votes" data-qk="${it.qk}"><button type="button" class="vote" data-vote="up" aria-label="도움이 됐어요">👍 <b>${it.ups}</b></button><button type="button" class="vote" data-vote="down" aria-label="틀렸어요">👎 <b>${it.downs}</b></button></span>` : `<span>👍 ${it.ups}${it.downs ? ` · 👎 ${it.downs}` : ''}</span>`}${srcLine ? `<span>근거 ${esc(srcLine)}</span>` : ''}<span class="grow"></span>
         ${it.state === 'expired' || it.state === 'check' ? `<button type="button" class="btn small" data-ask="${esc(it.q)}">↻ 다시 물어보기</button>` : '<span class="rc-open">답변 보기</span>'}</span>
     </summary>
     <div class="rc-body">
@@ -234,5 +234,24 @@ async function loadRecent(more = false) {
   moreBtn.hidden = !data.next;
 }
 moreBtn.addEventListener('click', () => loadRecent(true));
+// 최근 질문 👍/👎: 질문한 사람이 아니어도 누를 수 있다 (하루 한 번, 누른 건 이 기기에 기억)
+const votedKey = (qk: string) => `askvoted:${qk}`;
+const markVoted = (box: HTMLElement, r: string) => box.querySelectorAll<HTMLButtonElement>('.vote').forEach((b) => b.classList.toggle('on', b.dataset.vote === r));
+recentBox.addEventListener('click', async (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLButtonElement>('.vote');
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation(); // 카드 펼치기와 따로
+  const box = b.closest<HTMLElement>('[data-qk]')!;
+  const qk = box.dataset.qk!;
+  let voted: string | null = null;
+  try { voted = localStorage.getItem(votedKey(qk)); } catch {}
+  if (voted) return;
+  const res = await fetch('/api/ask-vote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ qk, rating: b.dataset.vote }) }).catch(() => null);
+  const d = res ? ((await res.json()) as { ok: boolean; ups?: number; downs?: number }) : null;
+  if (d && d.ups !== undefined) { box.querySelector('[data-vote="up"] b')!.textContent = String(d.ups); box.querySelector('[data-vote="down"] b')!.textContent = String(d.downs ?? 0); }
+  if (d && (d.ok || res?.status === 409)) { try { localStorage.setItem(votedKey(qk), b.dataset.vote!); } catch {} markVoted(box, b.dataset.vote!); }
+});
+const restoreVotes = () => recentBox.querySelectorAll<HTMLElement>('[data-qk]').forEach((box) => { let v: string | null = null; try { v = localStorage.getItem(votedKey(box.dataset.qk!)); } catch {} if (v) markVoted(box, v); });
+new MutationObserver(restoreVotes).observe(recentBox, { childList: true });
 syncPublic();
 void loadRecent();

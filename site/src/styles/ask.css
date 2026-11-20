@@ -187,3 +187,10 @@
   .fr { grid-template-columns: 90px minmax(0, 1fr); }
   .public-box { align-items: flex-start; }
 }
+
+/* 최근 질문 👍/👎 (누구나) */
+.votes { display: inline-flex; gap: 6px; }
+.vote { font: inherit; font-size: 12px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 3px 10px; cursor: pointer; color: var(--text); }
+.vote b { font-weight: 800; margin-left: 2px; }
+.vote.on { background: var(--dark); color: #fff; border-color: var(--dark); }
+.vote:hover { border-color: var(--text); }

@@ -26,7 +26,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
     const [count, up, down] = l.qk ? await Promise.all([kv.get(`askcount:${l.qk}`), kv.get(`askvote:${l.qk}:up`), kv.get(`askvote:${l.qk}:down`)]) : [null, null, null];
     const ups = Number(up ?? 0), downs = Number(down ?? 0);
     return {
-      q: l.q, a: l.a, at: l.at, category: l.category ?? '기타', sources: l.sources ?? [], count: Math.max(1, Number(count ?? 1)), ups, downs,
+      qk: l.qk ?? null, q: l.q, a: l.a, at: l.at, category: l.category ?? '기타', sources: l.sources ?? [], count: Math.max(1, Number(count ?? 1)), ups, downs,
       state: l.notFound ? 'notfound' : l.until && l.until < today ? 'expired' : downs >= 3 && downs > ups ? 'check' : 'ai',
       warn: Boolean(l.warn),
     };
