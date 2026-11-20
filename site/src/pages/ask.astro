@@ -26,7 +26,14 @@ const examples = ['이번주 인가 어떻게 가?', '음중 사녹 모이는 �
         <button type="submit" id="chat-send" aria-label="보내기">보내기</button>
       </form>
     </section>
-    <p class="ask-foot">답은 AI가 자료를 요약한 거라 틀릴 수 있어요. 👍/👎로 알려 주시면 답 품질을 고치는 데 써요. 질문·답만 저장하고 개인정보는 받지 않아요.</p>
+    <p class="ask-foot">답은 AI가 자료를 요약한 거라 틀릴 수 있어요. 👍/👎로 알려 주시면 답 품질을 고치는 데 써요. <b>질문과 답은 아래 '최근 질문'에 공개돼요</b> (전화번호·이메일 같은 숫자는 가려서 저장, 90일 보관).</p>
+
+    <section class="recent" id="recent">
+      <p class="eyebrow">RECENT</p>
+      <div class="section-head"><h2>최근 질문</h2><span class="note">다른 팬들이 물어본 것 · 최신순</span></div>
+      <div class="card recent-list" id="recent-list"><p class="recent-empty">불러오는 중…</p></div>
+      <button type="button" class="recent-more" id="recent-more" hidden>더 보기</button>
+    </section>
   </main>
 </Base>
 

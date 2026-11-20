@@ -97,3 +97,27 @@ input.addEventListener('keydown', (e) => {
 });
 input.addEventListener('input', () => { input.style.height = ''; input.style.height = `${Math.min(input.scrollHeight, 120)}px`; });
 document.querySelectorAll<HTMLButtonElement>('.ex').forEach((b) => b.addEventListener('click', () => void ask(b.dataset.q!)));
+
+// ── 최근 질문 (공개 목록, 최신순) ──
+const recentList = document.getElementById('recent-list')!;
+const recentMore = document.getElementById('recent-more') as HTMLButtonElement;
+let recentCursor: string | null = null;
+const when = (iso: string) => { const d = new Date(new Date(iso).getTime() + 9 * 3600e3).toISOString(); return `${d.slice(5, 7)}.${d.slice(8, 10)} ${d.slice(11, 16)}`; };
+async function loadRecent(more = false) {
+  const res = await fetch(`/api/ask-log${more && recentCursor ? `?cursor=${encodeURIComponent(recentCursor)}` : ''}`).catch(() => null);
+  const data = res?.ok ? ((await res.json()) as { items: { q: string; a: string; at: string; sources?: { title: string; url: string }[] }[]; next: string | null }) : { items: [], next: null };
+  if (!more) recentList.innerHTML = '';
+  if (!more && !data.items.length) recentList.innerHTML = '<p class="recent-empty">아직 질문이 없어요. 첫 질문을 해 보세요.</p>';
+  for (const it of data.items) {
+    const row = el(`<details class="recent-row"><summary><span class="rq">${esc(it.q)}</span><time>${when(it.at)}</time></summary>
+      <div class="ra">${esc(it.a.replace(/\s*\[[EDL]\d+\]/g, ''))}</div>
+      ${it.sources?.length ? `<ul class="rs">${it.sources.filter((x) => x.url).map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a></li>`).join('')}</ul>` : ''}
+      <button type="button" class="ex rask">이 질문 하기</button></details>`);
+    row.querySelector('.rask')!.addEventListener('click', () => { input.value = it.q; input.focus(); form.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+    recentList.append(row);
+  }
+  recentCursor = data.next;
+  recentMore.hidden = !data.next;
+}
+recentMore.addEventListener('click', () => loadRecent(true));
+loadRecent();

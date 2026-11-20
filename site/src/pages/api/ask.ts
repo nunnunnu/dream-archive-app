@@ -51,6 +51,12 @@ async function sha(text: string) {
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 
+/** 질문에 섞인 개인정보 가리기 (전화번호·이메일·카드·계좌 같은 긴 숫자) */
+const maskPersonal = (t: string) => t
+  .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '(이메일)')
+  .replace(/\b01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}\b/g, '(전화번호)')
+  .replace(/\d[\d-\s]{9,}\d/g, '(숫자)');
+
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = (locals.runtime?.env ?? {}) as Env;
   if (!env.OPENAI_API_KEY) return json({ ok: false, error: '질문 기능이 아직 준비 중이에요' }, 503);
@@ -89,6 +95,14 @@ export const POST: APIRoute = async ({ request, locals }) => {
       : [];
     // Supabase 비밀 키가 있으면 하이브리드(낱말 + pgvector 의미 검색), 없으면 낱말 검색만
     const r = await askCore(question, index, openai(env.OPENAI_API_KEY), { model: env.ASK_MODEL ?? 'gpt-5-mini', history, vector: supabaseVector(env) });
+    // 최근 질문 목록 (공개): 전화번호·이메일·긴 숫자는 가리고, IP 등은 남기지 않는다. 키는 시각을 거꾸로 써서 목록이 최신순으로 나오게, 90일 뒤 사라짐
+    if (env.REPORTS) {
+      const id = String(9_999_999_999_999 - now.getTime()).padStart(13, '0');
+      await env.REPORTS.put(`asklog:${id}`, JSON.stringify({
+        q: maskPersonal(question), a: maskPersonal(r.answer).slice(0, 1500), at: now.toISOString(),
+        sources: r.sources.slice(0, 4).map((x) => ({ title: x.title, url: x.url })),
+      }), { expirationTtl: 90 * 86400 }).catch(() => {});
+    }
     return json({
       ok: true, id: crypto.randomUUID(), answer: r.answer, sources: r.sources, unverified: r.unverified,
       dataAt: index.generatedAt ?? null,
