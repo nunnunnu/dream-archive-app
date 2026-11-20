@@ -15,6 +15,7 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SourceRef } from './consolidate.ts';
 import type { CheckedEvent, LlmEvent } from './llm.ts';
+import { pgClean, pgSelect, pgUpsert, usePg } from './pg.ts';
 import { DATA_DIR, readJson, readRaw, writeJson, writeRaw, writeText } from './store.ts';
 import { toKstParts } from './time.ts';
 
@@ -100,23 +101,46 @@ const monthKey = (iso: string) => {
   return `${p.year}-${String(p.month).padStart(2, '0')}`;
 };
 
+const enc = encodeURIComponent;
+const now = () => new Date().toISOString();
+// DB 모드: 원문·AI 추출 결과는 처음 한 번 통째로 읽어 메모리에 둔다 (문서마다 묻으면 요청이 수백 번 오가서 느림)
+const bodyCache = new Map<string, Map<string, string>>();
+const extractionCache = new Map<string, Map<string, ExtractionRecord>>();
+async function bodiesOf(kind: string) {
+  if (!bodyCache.has(kind)) bodyCache.set(kind, new Map((await pgSelect<{ id: string; text: string }>('bodies', `select=id,text&kind=eq.${kind}`)).map((r) => [r.id, r.text])));
+  return bodyCache.get(kind)!;
+}
+async function extractionsOf(type: string) {
+  if (!extractionCache.has(type)) extractionCache.set(type, new Map((await pgSelect<{ doc_id: string; data: ExtractionRecord }>('extractions', `select=doc_id,data&doc_type=eq.${type}`)).map((r) => [r.doc_id, r.data])));
+  return extractionCache.get(type)!;
+}
+
+/**
+ * 수집 상태 저장 창구. STORE=pg 면 Supabase Postgres(db/state.sql·state2.sql), 아니면 data/state 의 JSON 파일.
+ * (이름은 예전 그대로 JsonRepo. 부르는 쪽 코드는 저장 방식을 몰라도 된다)
+ */
 export class JsonRepo implements Repo {
-  getBody(kind: DocType, id: string) {
+  async getBody(kind: DocType, id: string) {
+    if (usePg()) return (await bodiesOf(kind)).get(fileId(id)) ?? null;
     return readRaw(`${kind}/${fileId(id)}.txt`);
   }
-  putBody(kind: DocType, id: string, text: string) {
+  async putBody(kind: DocType, id: string, text: string) {
+    if (usePg()) { (await bodiesOf(kind)).set(fileId(id), text); return pgUpsert('bodies', [{ kind, id: fileId(id), text: pgClean(text), updated_at: now() }], 'kind,id'); }
     return writeRaw(`${kind}/${fileId(id)}.txt`, text);
   }
 
   async listNotices() {
+    if (usePg()) return (await pgSelect<{ data: NoticeRecord }>('notices', 'select=data')).map((r) => r.data);
     return Object.values(await readJson<Record<string, NoticeRecord>>('state/notices.json', {}));
   }
   async putNotices(notices: NoticeRecord[]) {
+    if (usePg()) return pgUpsert('notices', notices.map((n) => ({ id: n.id, posted_at: n.postedAt, title: n.title, url: n.url, data: pgClean(n), updated_at: now() })), 'id');
     const sorted = [...notices].sort((a, b) => Number(b.id) - Number(a.id));
     await writeJson('state/notices.json', Object.fromEntries(sorted.map((n) => [n.id, n])));
   }
 
   async listArticles(sinceIso: string) {
+    if (usePg()) return (await pgSelect<{ data: ArticleRecord }>('articles', `select=data&published_at=gte.${enc(sinceIso)}&order=published_at.desc,guid.asc`)).map((r) => r.data);
     const months: string[] = [];
     const d = new Date(sinceIso);
     const end = monthKey(new Date().toISOString());
@@ -130,6 +154,7 @@ export class JsonRepo implements Repo {
     return out.filter((a) => a.publishedAt >= sinceIso);
   }
   async putArticles(articles: ArticleRecord[]) {
+    if (usePg()) return pgUpsert('articles', articles.map((a) => ({ guid: a.guid, published_at: a.publishedAt, title: a.title, status: a.status ?? null, data: pgClean(a), updated_at: now() })), 'guid');
     const byMonth = new Map<string, ArticleRecord[]>();
     for (const a of articles) byMonth.set(monthKey(a.publishedAt), [...(byMonth.get(monthKey(a.publishedAt)) ?? []), a]);
     for (const [m, list] of byMonth) {
@@ -141,13 +166,17 @@ export class JsonRepo implements Repo {
     }
   }
 
-  getExtraction(docType: DocType, docId: string) {
+  async getExtraction(docType: DocType, docId: string) {
+    if (usePg()) return (await extractionsOf(docType)).get(fileId(docId)) ?? null;
     return readJson<ExtractionRecord | null>(`state/extractions/${docType}/${fileId(docId)}.json`, null);
   }
-  putExtraction(rec: ExtractionRecord) {
+  async putExtraction(rec: ExtractionRecord) {
+    if (usePg()) (await extractionsOf(rec.docType)).set(fileId(rec.docId), rec);
+    if (usePg()) return pgUpsert('extractions', [{ doc_type: rec.docType, doc_id: fileId(rec.docId), prompt_version: rec.promptVersion, content_hash: rec.contentHash, data: pgClean(rec), created_at: rec.createdAt }], 'doc_type,doc_id');
     return writeJson(`state/extractions/${rec.docType}/${fileId(rec.docId)}.json`, rec);
   }
   async listExtractions(docType: DocType) {
+    if (usePg()) return [...(await extractionsOf(docType)).values()];
     let files: string[] = [];
     try {
       files = await readdir(join(DATA_DIR, 'state', 'extractions', docType));
@@ -159,14 +188,55 @@ export class JsonRepo implements Repo {
     return out.filter(Boolean);
   }
 
-  getState<T>(key: string, fallback: T) {
-    return readJson<T>(`state/${key}.json`, fallback);
+  async getState<T>(key: string, fallback: T): Promise<T> {
+    if (!usePg()) return readJson<T>(`state/${key}.json`, fallback);
+    // 제보·출처 링크·AI 비용은 정식 테이블, 나머지는 app_state(jsonb)
+    if (key === 'usage') {
+      const rows = await pgSelect<{ bucket: string; cost_usd: string; calls: number }>('llm_usage', 'select=bucket,cost_usd,calls');
+      return (rows.length ? Object.fromEntries(rows.map((r) => [r.bucket, { costUsd: Number(r.cost_usd), calls: r.calls }])) : fallback) as T;
+    }
+    if (key === 'reports') {
+      const rows = await pgSelect<ReportRow>('reports', 'select=*');
+      return (rows.length ? Object.fromEntries(rows.map((r) => [r.id, reportFromRow(r)])) : fallback) as T;
+    }
+    if (key === 'submissions') {
+      const rows = await pgSelect<{ data: unknown }>('submissions', 'select=data&order=added_at.asc');
+      return (rows.length ? rows.map((r) => r.data) : fallback) as T;
+    }
+    const rows = await pgSelect<{ value: T }>('app_state', `select=value&key=eq.${enc(key)}`);
+    return rows.length ? rows[0].value : fallback;
   }
-  putState(key: string, value: unknown) {
-    return writeJson(`state/${key}.json`, value);
+  async putState(key: string, value: unknown) {
+    if (!usePg()) return writeJson(`state/${key}.json`, value);
+    if (key === 'usage') {
+      return pgUpsert('llm_usage', Object.entries(value as Record<string, { costUsd: number; calls: number }>).map(([bucket, u]) => ({ bucket, cost_usd: u.costUsd, calls: u.calls, updated_at: now() })), 'bucket');
+    }
+    if (key === 'reports') return pgUpsert('reports', Object.values(value as Record<string, Record<string, unknown>>).map(reportToRow), 'id');
+    if (key === 'submissions') {
+      return pgUpsert('submissions', (value as { id: string; url: string; note?: string; status?: string; addedAt?: string }[]).map((x) => ({ id: x.id, url: x.url, note: x.note ?? null, status: x.status ?? null, added_at: x.addedAt ?? now(), data: pgClean(x) })), 'id');
+    }
+    return pgUpsert('app_state', [{ key, value: pgClean(value), updated_at: now() }], 'key');
   }
 
   publish(name: string, value: unknown) {
     return typeof value === 'string' ? writeText(`public/${name}`, value) : writeJson(`public/${name}`, value);
   }
+}
+
+/** 제보 ↔ reports 테이블 행: 알려진 값은 열로, 일정 당시 모습은 스냅샷, 나머지 제안 값은 proposed_changes */
+interface ReportRow { id: string; type: string; event_id: string | null; event_snapshot: Record<string, unknown> | null; title: string | null; source_url: string | null; proposed_changes: Record<string, unknown> | null; message: string | null; status: string; review_reason: string | null; created_at: string; reviewed_at: string | null }
+function reportToRow(r: Record<string, unknown>): Record<string, unknown> {
+  const { id, type, url, message, eventId, eventTitle, status, createdAt, reviewedAt, reviewReason, ...rest } = r as Record<string, unknown> & { id: string };
+  return {
+    id, type, event_id: eventId ?? null, title: eventTitle ?? null, source_url: url ?? null, message: message ?? null,
+    event_snapshot: eventId ? pgClean({ eventTitle, date: rest.date, time: rest.time, members: rest.members }) : null,
+    proposed_changes: pgClean(rest), status: status ?? 'pending', review_reason: reviewReason ?? null,
+    created_at: createdAt ?? new Date().toISOString(), reviewed_at: reviewedAt ?? null,
+  };
+}
+function reportFromRow(r: ReportRow): Record<string, unknown> {
+  return {
+    ...(r.proposed_changes ?? {}), id: r.id, type: r.type, url: r.source_url ?? '', message: r.message ?? '', eventId: r.event_id ?? undefined, eventTitle: r.title ?? undefined,
+    status: r.status, createdAt: r.created_at, ...(r.reviewed_at ? { reviewedAt: r.reviewed_at } : {}), ...(r.review_reason ? { reviewReason: r.review_reason } : {}),
+  };
 }

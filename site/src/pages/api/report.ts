@@ -34,16 +34,23 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (!TYPES.includes(type)) return json({ ok: false, error: '제보 종류를 골라 주세요' }, 400);
   const report = {
     type,
+    title: clip(body.title, 200),
     url: clip(body.url, 500),
     message: clip(body.message, 2000),
     eventId: clip(body.eventId, 80),
     eventTitle: clip(body.eventTitle, 200),
     date: clip(body.date, 10),
     time: clip(body.time, 5),
+    endDate: clip(body.endDate, 10),
+    endTime: clip(body.endTime, 5),
+    reasonCode: clip(body.reasonCode, 40),
+    eventSnapshot: body.eventSnapshot && typeof body.eventSnapshot === 'object' ? body.eventSnapshot : null,
     members: Array.isArray(body.members) ? (body.members as unknown[]).map((m) => clip(m, 10)).slice(0, 7) : [],
   };
-  if (type === 'add' && !report.url && !report.message) return json({ ok: false, error: '링크나 내용을 적어 주세요' }, 400);
-  if (type !== 'add' && !report.eventId && !report.message) return json({ ok: false, error: '어떤 일정인지 적어 주세요' }, 400);
+  if (type === 'add' && !report.title) return json({ ok: false, error: '일정 이름을 적어 주세요' }, 400);
+  if (type === 'add' && !report.url && !report.message) return json({ ok: false, error: '근거 링크나 내용을 적어 주세요' }, 400);
+  if (type !== 'add' && !report.eventId) return json({ ok: false, error: '기존 일정을 선택해 주세요' }, 400);
+  if (type === 'delete' && !report.reasonCode) return json({ ok: false, error: '삭제 요청 이유를 골라 주세요' }, 400);
   if (report.url && !/^https?:\/\//i.test(report.url)) return json({ ok: false, error: '링크는 http로 시작해야 해요' }, 400);
 
   // 너무 잦은 제보 막기

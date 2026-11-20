@@ -34,19 +34,31 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
 
         <div class="form-divider"><span class="step-label">STEP 2</span><b>근거를 알려주세요</b></div>
 
+        <label class="field" id="title-field"><span>일정·소식 이름</span><input name="title" placeholder="예: SBS 인기가요 사전녹화" /></label>
+
         <div class="field" id="event-field" hidden>
-          <span>대상 일정</span>
-          <p class="event-box" id="event-box">일정 화면의 정보 보완·삭제 요청을 누르면 자동으로 채워져요.</p>
+          <span>기존 일정 선택</span>
+          <p class="event-box" id="event-box">일정 화면에서 들어오면 자동으로 선택돼요. 직접 찾으려면 아래에서 검색하세요.</p>
           <input type="hidden" name="eventId" />
-          <input name="eventTitle" placeholder="예: 11/14 쇼! 음악중심" />
+          <input type="hidden" name="eventTitle" />
+          <input type="hidden" name="eventSnapshot" />
+          <input id="event-search" type="search" placeholder="날짜·일정명·멤버 검색" autocomplete="off" />
+          <div class="event-results" id="event-results"></div>
         </div>
 
-        <label class="field"><span>근거 링크 <small>공식 공지·영상이면 자동 확인할 수 있어요</small></span><input name="url" type="url" placeholder="https://weverse.io/... 또는 공식 영상 주소" /></label>
+        <label class="field" id="link-field"><span>근거 링크 <small>공식 공지·영상이면 자동 확인할 수 있어요</small></span><input name="url" type="url" placeholder="https://weverse.io/... 또는 공식 영상 주소" /></label>
 
         <div class="row" id="when-fields">
           <label class="field"><span id="date-label">날짜</span><input name="date" type="date" /></label>
           <label class="field"><span id="time-label">시간</span><input name="time" type="time" /></label>
         </div>
+
+        <div class="row" id="end-fields">
+          <label class="field"><span>종료·마감 날짜 <small>선택</small></span><input name="endDate" type="date" /></label>
+          <label class="field"><span>종료·마감 시간 <small>선택</small></span><input name="endTime" type="time" /></label>
+        </div>
+
+        <label class="field" id="reason-field" hidden><span>삭제 요청 이유</span><select name="reasonCode"><option value="">이유를 골라 주세요</option><option value="duplicate">같은 일정이 중복됐어요</option><option value="unrelated">NCT DREAM 관련 일정이 아니에요</option><option value="wrong">잘못 수집된 정보예요</option><option value="cancelled">취소된 일정이에요</option><option value="other">기타</option></select></label>
 
         <div class="field"><span>멤버 <small>선택하지 않으면 단체로 확인해요</small></span>
           <div class="chips">{members.map((m) => <label class="chip-check"><input type="checkbox" name="members" value={m} />{m}</label>)}</div>
@@ -109,10 +121,17 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
   .field { display: flex; flex-direction: column; gap: 6px; }
   .field > span { font-weight: 750; font-size: 14px; }
   .field > span small { color: var(--faint); font-weight: 500; margin-left: 5px; }
-  input, textarea { width: 100%; font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: #fff; outline: none; }
-  input:focus, textarea:focus { border-color: #8db600; box-shadow: 0 0 0 3px rgba(197, 240, 58, .2); }
+  input, textarea, select { width: 100%; font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; background: #fff; outline: none; }
+  input:focus, textarea:focus, select:focus { border-color: #8db600; box-shadow: 0 0 0 3px rgba(197, 240, 58, .2); }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .event-box { margin: 0; color: var(--sub); font-size: 13px; background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+  .event-box.selected { background: var(--today); color: var(--text); font-weight: 700; }
+  .event-results { display: grid; gap: 5px; }
+  .event-results:empty { display: none; }
+  .event-result { border: 1px solid var(--line); background: #fff; border-radius: 9px; padding: 9px 11px; text-align: left; cursor: pointer; }
+  .event-result:hover { border-color: #8db600; background: #fbfff1; }
+  .event-result b { display: block; font-size: 13px; }
+  .event-result small { color: var(--sub); }
   .chip-check { border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; font-size: 13px; cursor: pointer; }
   .chip-check:has(input:checked) { background: var(--dark); color: #fff; border-color: var(--dark); }
   .chip-check input { display: none; }

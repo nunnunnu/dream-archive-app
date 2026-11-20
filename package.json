@@ -19,7 +19,8 @@
     "ask:feedback": "tsx collector/ask-feedback.ts",
     "publish:site": "tsx collector/publish-site.ts",
     "rag:index": "tsx collector/rag-index.ts",
-    "backfill:news": "tsx collector/backfill-news.ts"
+    "backfill:news": "tsx collector/backfill-news.ts",
+    "migrate:db": "tsx collector/migrate-to-db.ts"
   },
   "keywords": [],
   "author": "",

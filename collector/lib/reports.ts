@@ -12,12 +12,17 @@ import type { Overrides } from './overrides.ts';
 export interface Report {
   id: string;
   type: 'add' | 'delete' | 'fix';
+  title?: string;
   url: string;
   message: string;
   eventId: string;
   eventTitle: string;
   date: string;
   time: string;
+  endDate?: string;
+  endTime?: string;
+  reasonCode?: string;
+  eventSnapshot?: object | null;
   members: string[];
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
@@ -75,7 +80,7 @@ export async function queueReports(repo: Repo, reports: Record<string, Report>, 
   for (const r of Object.values(reports)) {
     if (r.status !== 'pending' || r.type === 'delete' || !r.url) continue;
     if (known.has(submissionId(r.url))) continue;
-    await addSubmission(repo, r.url, undefined, now, `[자동 검증 ${r.id}] ${r.message}`.trim());
+    await addSubmission(repo, r.url, undefined, now, `[자동 검증 ${r.id}] ${r.title ?? ''} ${r.message}`.trim());
     known.add(submissionId(r.url));
     queued++;
   }

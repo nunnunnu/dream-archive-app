@@ -2,6 +2,7 @@
  * 유튜브 영상 수집 (채널 RSS, 키 없이 무료)
  * 채널 RSS는 채널마다 최근 15개만 주므로 자주 돌려서 쌓는다. 과거 영상 채우기는 YouTube Data API(키 필요)가 있어야 한다.
  */
+import { monthOf, readVideoMonth, videoMonths, writeVideoMonth } from './videoStore.ts';
 import './env.ts';
 import { coreNames } from './consolidate.ts';
 import { GROUP } from './group.ts';
@@ -53,19 +54,16 @@ export const parseDuration = (iso: string) => {
 /** 저장된 영상 중 길이를 모르는 것 채우기 (50개당 할당량 1) */
 export async function fillDurations(filter: (v: Video) => boolean = () => true): Promise<number> {
   if (!process.env.YOUTUBE_API_KEY) return 0;
-  const { readdir } = await import('node:fs/promises');
-  const { DATA_DIR } = await import('./store.ts');
   let filled = 0;
-  for (const f of (await readdir(`${DATA_DIR}/state/youtube`)).filter((x) => /^20\d\d-\d\d\.json$/.test(x))) {
-    const file = `state/youtube/${f}`;
-    const stored = await readJson<Record<string, Video>>(file, {});
+  for (const ym of await videoMonths()) {
+    const stored = await readVideoMonth(ym);
     const need = Object.values(stored).filter((v) => v.duration === undefined && filter(v));
     for (let i = 0; i < need.length; i += 50) {
       const batch = need.slice(i, i + 50);
       const d = await ytGet<{ items: { id: string; contentDetails: { duration: string } }[] }>('videos', { part: 'contentDetails', id: batch.map((v) => v.videoId).join(',') });
       for (const it of d.items) if (stored[it.id]) { stored[it.id].duration = parseDuration(it.contentDetails.duration); filled++; }
     }
-    if (need.length) await writeJson(file, stored);
+    if (need.length) await writeVideoMonth(ym, stored);
   }
   return filled;
 }
@@ -133,10 +131,7 @@ export async function fetchChannel(channel: Channel, pages = 1): Promise<RawVide
   return list.filter((v) => v.videoId && !isHidden(v.title) && (!channel.filter || isDreamRelated(`${v.title}\n${v.description ?? ''}`)));
 }
 
-const monthFile = (iso: string) => {
-  const p = toKstParts(new Date(iso));
-  return `state/youtube/${p.year}-${String(p.month).padStart(2, '0')}.json`;
-};
+const monthFile = (iso: string) => monthOf(iso);
 
 /** 공식 채널(소속사·그룹) 이름: 여기 영상은 어떤 경로로 들어와도 출연 후보가 아니다 */
 const OFFICIAL_NAMES = new Set(YOUTUBE_CHANNELS.filter((c) => !c.guest).map((c) => c.name));
@@ -147,7 +142,7 @@ export async function storeVideos(list: Video[]): Promise<Video[]> {
   for (const v of list) byFile.set(monthFile(v.publishedAt), [...(byFile.get(monthFile(v.publishedAt)) ?? []), v]);
   const added: Video[] = [];
   for (const [file, vids] of byFile) {
-    const stored = await readJson<Record<string, Video>>(file, {});
+    const stored = await readVideoMonth(file);
     for (const v of vids) {
       if (stored[v.videoId]) {
         // 제목이 바뀌는 경우(프리미어 → 공개 등) 갱신
@@ -166,7 +161,7 @@ export async function storeVideos(list: Video[]): Promise<Video[]> {
       stored[v.videoId] = v;
       added.push(v);
     }
-    await writeJson(file, Object.fromEntries(Object.entries(stored).sort(([, a], [, b]) => b.publishedAt.localeCompare(a.publishedAt))));
+    await writeVideoMonth(file, stored);
   }
   return added;
 }
@@ -238,7 +233,7 @@ export async function loadRecentVideos(now: Date, months = 3): Promise<Video[]> 
     let y = p.year;
     let m = p.month - i;
     while (m < 1) { m += 12; y -= 1; }
-    out.push(...Object.values(await readJson<Record<string, Video>>(`state/youtube/${y}-${String(m).padStart(2, '0')}.json`, {})));
+    out.push(...Object.values(await readVideoMonth(`${y}-${String(m).padStart(2, '0')}`)));
   }
   return out.filter((v) => !isHidden(v.title) && !v.unavailableAt).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
@@ -501,13 +496,10 @@ export async function checkAvailability(repo: { getState<T>(k: string, f: T): Pr
   if (!process.env.YOUTUBE_API_KEY) return null;
   const state = await repo.getState<{ lastRunAt?: string }>('youtube/availability', {});
   if (!opts.force && state.lastRunAt && now.getTime() - Date.parse(state.lastRunAt) < 24 * 3600 * 1000) return null;
-  const { readdir } = await import('node:fs/promises');
-  const { DATA_DIR } = await import('./store.ts');
   let checked = 0, back = 0;
   const gone: Video[] = [];
-  for (const f of (await readdir(`${DATA_DIR}/state/youtube`)).filter((x) => /^20\d\d-\d\d\.json$/.test(x))) {
-    const file = `state/youtube/${f}`;
-    const stored = await readJson<Record<string, Video>>(file, {});
+  for (const ym of await videoMonths()) {
+    const stored = await readVideoMonth(ym);
     const ids = Object.keys(stored);
     let changed = false;
     for (let i = 0; i < ids.length; i += 50) {
@@ -522,7 +514,7 @@ export async function checkAvailability(repo: { getState<T>(k: string, f: T): Pr
       }
       checked += batch.length;
     }
-    if (changed) await writeJson(file, stored);
+    if (changed) await writeVideoMonth(ym, stored);
   }
   await repo.putState('youtube/availability', { lastRunAt: now.toISOString() });
   return { checked, gone, back };
@@ -530,12 +522,8 @@ export async function checkAvailability(repo: { getState<T>(k: string, f: T): Pr
 
 /** 볼 수 없는 영상 ID (일정 출처에서 빼려고) */
 export async function unavailableVideoIds(): Promise<Set<string>> {
-  const { readdir } = await import('node:fs/promises');
-  const { DATA_DIR } = await import('./store.ts');
   const out = new Set<string>();
-  for (const f of (await readdir(`${DATA_DIR}/state/youtube`)).filter((x) => /^20\d\d-\d\d\.json$/.test(x))) {
-    for (const v of Object.values(await readJson<Record<string, Video>>(`state/youtube/${f}`, {}))) if (v.unavailableAt) out.add(v.videoId);
-  }
+  for (const ym of await videoMonths()) for (const v of Object.values(await readVideoMonth(ym))) if (v.unavailableAt) out.add(v.videoId);
   return out;
 }
 

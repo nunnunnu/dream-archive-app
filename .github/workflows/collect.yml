@@ -3,7 +3,7 @@
 #  - 15·30·45분: 빠른 실행 (위버스 공지·제보·등록 채널 영상만)
 #  - 수집 데이터는 Supabase(사이트용 공개 버킷)·KV(질문 자료)로 올려서 배포 없이 반영
 #  - 코드를 main에 올리면: 수집 없이 사이트만 다시 배포
-# 수집 데이터(원문 포함)는 레포가 아니라 Supabase Storage 비공개 버킷에 둔다 (npm run sync).
+# 수집 상태(원문 포함)는 레포가 아니라 Supabase Postgres에 둔다 (STORE=pg, db/state.sql).
 # 같은 작업이 겹치면 덮어쓰기가 생기므로 앞 실행이 끝날 때까지 기다린다.
 name: collect
 
@@ -33,8 +33,8 @@ env:
   MODE: ${{ inputs.mode || (github.event.schedule == '15,30,45 * * * *' && 'fast') || (github.event.schedule == '50 */3 * * *' && 'backfill') || (github.event_name == 'push' && 'site') || 'full' }}
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
   SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-  # 수집 상태를 Actions 캐시에 둘 때 쓰는 암호화 키 (공개 레포 캐시는 남이 꺼내 볼 수 있어서 암호화)
-  STATE_KEY: ${{ secrets.STATE_KEY }}
+  # 수집 상태는 Supabase Postgres (db/state.sql·state2.sql). 파일 묶음(tgz)을 내려받고 올리지 않는다
+  STORE: pg
 
 jobs:
   collect:
@@ -53,18 +53,6 @@ jobs:
             site/package-lock.json
 
       - run: npm ci
-
-      # 지난 실행의 암호화 상태 (Supabase와 버전이 같으면 내려받지 않아 무료 다운로드 한도를 아낀다)
-      - name: 상태 캐시 꺼내기
-        uses: actions/cache/restore@v4
-        with:
-          path: .state-cache
-          key: state-${{ github.run_id }}
-          restore-keys: state-
-
-      - name: 수집 데이터 내려받기
-        id: pull
-        run: npm run sync -- pull
 
       - name: 브라우저 캐시
         if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill'
@@ -96,19 +84,6 @@ jobs:
           else
             npm run collect
           fi
-
-      # 수집이 중간에 실패해도 이미 처리한 것(AI 결과 등)은 잃지 않게 올린다. 내려받기에 실패했으면 올리지 않는다
-      - name: 수집 데이터 올리기
-        id: push
-        if: always() && steps.pull.outcome == 'success' && steps.collect.outcome != 'skipped'
-        run: npm run sync -- push
-
-      - name: 상태 캐시 저장
-        if: always() && steps.push.outcome == 'success'
-        uses: actions/cache/save@v4
-        with:
-          path: .state-cache
-          key: state-${{ github.run_id }}
 
       # 사이트 데이터는 Supabase 공개 버킷으로, 질문 자료(원문 포함)는 KV로 → 배포 없이 사이트에 반영
       - name: 사이트 데이터 올리기
