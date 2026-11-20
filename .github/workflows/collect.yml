@@ -1,6 +1,7 @@
 # 자동 수집 + 사이트 배포
 #  - 매시 정각: 전체 실행 (기사·유튜브 출연 탐색·빈칸 채우기 포함)
-#  - 15·30·45분: 빠른 실행 (위버스 공지·제보·등록 채널 영상만)
+#  - 30분: 빠른 실행 (위버스 공지·제보·등록 채널 영상만)
+#  - 15·45분: 새 제보가 있을 때만 빠른 실행
 #  - 수집 데이터는 Supabase(사이트용 공개 버킷)·KV(질문 자료)로 올려서 배포 없이 반영
 #  - 코드를 main에 올리면: 수집 없이 사이트만 다시 배포
 # 수집 상태(원문 포함)는 레포가 아니라 Supabase Postgres에 둔다 (STORE=pg, db/state.sql).
@@ -8,7 +9,8 @@
 name: collect
 
 on:
-  # 실행 시각은 Cloudflare 예약 작업(cron/)이 정한다: 매시 정각 full, 15·30·45분 fast, 3시간마다 backfill (workflow_dispatch)
+  # 실행 시각은 Cloudflare 예약 작업(cron/)이 정한다: 매시 정각 full, 30분 fast,
+  # 새 제보가 있을 때만 15·45분 fast, 3시간마다 backfill (workflow_dispatch)
   # GitHub 자체 예약은 제때 안 돌아서(몇 시간씩 빠짐) 6시간마다 전체 수집 한 번만 예비로
   schedule:
     - cron: '7 */6 * * *'
@@ -29,8 +31,8 @@ permissions:
   contents: read
 
 env:
-  # 실행 종류: Cloudflare 예약 작업이 보낸 mode, 없으면 GitHub 예약 시각으로 (15·30·45분 fast, 3시간 50분 backfill, 그 밖 full)
-  MODE: ${{ inputs.mode || (github.event.schedule == '15,30,45 * * * *' && 'fast') || (github.event.schedule == '50 */3 * * *' && 'backfill') || (github.event_name == 'push' && 'site') || 'full' }}
+  # 실행 종류: Cloudflare 예약 작업이 보낸 mode, 없으면 GitHub 예약은 full
+  MODE: ${{ inputs.mode || (github.event_name == 'push' && 'site') || 'full' }}
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
   SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
   # 수집 상태는 Supabase Postgres (db/state.sql·state2.sql). 파일 묶음(tgz)을 내려받고 올리지 않는다

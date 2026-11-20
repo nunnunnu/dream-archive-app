@@ -190,9 +190,13 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
   function update() {
     const type = new FormData(form).get('type');
     (document.getElementById('event-field') as HTMLElement).hidden = type === 'add';
+    (document.getElementById('title-field') as HTMLElement).hidden = type !== 'add';
+    (document.getElementById('link-field') as HTMLElement).hidden = type === 'delete';
+    (document.getElementById('reason-field') as HTMLElement).hidden = type !== 'delete';
     (document.getElementById('date-label') as HTMLElement).textContent = type === 'fix' ? '올바른 날짜' : '날짜';
     (document.getElementById('time-label') as HTMLElement).textContent = type === 'fix' ? '올바른 시간' : '시간';
     (document.getElementById('when-fields') as HTMLElement).hidden = type === 'delete';
+    (document.getElementById('end-fields') as HTMLElement).hidden = type !== 'add';
   }
   form.addEventListener('change', update);
   if (params.get('type')) setType(params.get('type')!);
@@ -200,15 +204,55 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
   if (params.get('event')) {
     (form.elements.namedItem('eventId') as HTMLInputElement).value = params.get('event')!;
     (form.elements.namedItem('eventTitle') as HTMLInputElement).value = params.get('title') ?? '';
-    (document.getElementById('event-box') as HTMLElement).textContent = `${params.get('title') ?? ''} (${params.get('event')})`;
+    const box = document.getElementById('event-box') as HTMLElement;
+    box.textContent = params.get('title') ?? '';
+    box.classList.add('selected');
   }
   update();
+
+  type EventHit = { id: string; date: string; time: string | null; endDate: string | null; endTime: string | null; title: string; step: string; members: string[] };
+  const search = document.getElementById('event-search') as HTMLInputElement;
+  const results = document.getElementById('event-results') as HTMLElement;
+  let timer: ReturnType<typeof setTimeout>;
+  const choose = (e: EventHit) => {
+    (form.elements.namedItem('eventId') as HTMLInputElement).value = e.id;
+    (form.elements.namedItem('eventTitle') as HTMLInputElement).value = `${e.date} ${e.title} · ${e.step}`;
+    (form.elements.namedItem('eventSnapshot') as HTMLInputElement).value = JSON.stringify(e);
+    const box = document.getElementById('event-box') as HTMLElement;
+    box.textContent = `${e.date}${e.time ? ` ${e.time}` : ''} · ${e.title} · ${e.step}${e.members.length ? ` · ${e.members.join('·')}` : ''}`;
+    box.classList.add('selected');
+    search.value = '';
+    results.replaceChildren();
+  };
+  search.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = search.value.trim();
+    if (q.length < 2) { results.replaceChildren(); return; }
+    timer = setTimeout(async () => {
+      const data = await fetch(`/api/events/search?q=${encodeURIComponent(q)}`).then((r) => r.json()).catch(() => ({ events: [] }));
+      results.replaceChildren(...(data.events as EventHit[]).map((e) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'event-result';
+        const title = document.createElement('b');
+        title.textContent = `${e.date}${e.time ? ` ${e.time}` : ''} · ${e.title}`;
+        const sub = document.createElement('small');
+        sub.textContent = `${e.step}${e.members.length ? ` · ${e.members.join('·')}` : ' · 단체'}`;
+        button.append(title, sub);
+        button.addEventListener('click', () => choose(e));
+        return button;
+      }));
+    }, 250);
+  });
 
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const fd = new FormData(form);
     const body = Object.fromEntries(fd.entries()) as Record<string, unknown>;
     body.members = fd.getAll('members');
+    if (typeof body.eventSnapshot === 'string' && body.eventSnapshot) {
+      try { body.eventSnapshot = JSON.parse(body.eventSnapshot); } catch { body.eventSnapshot = null; }
+    }
     const result = document.getElementById('result') as HTMLElement;
     result.textContent = '보내는 중…';
     try {

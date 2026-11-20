@@ -62,5 +62,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   await env.REPORTS.put(`report:${id}`, JSON.stringify({ id, ...report, status: 'pending', createdAt: new Date().toISOString() }));
+  // 15·45분 예약 작업은 이 값의 존재만 보고 새 제보 검증을 깨운다.
+  // 제보 내용은 넣지 않고, 새 제보가 처리 중 들어와도 구분할 수 있도록 마지막 id만 둔다.
+  await env.REPORTS.put('pending-reports', id);
   return json({ ok: true, id });
 };

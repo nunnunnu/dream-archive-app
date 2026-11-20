@@ -4,4 +4,8 @@ compatibility_date = "2025-06-01"
 workers_dev = false
 
 [triggers]
-crons = ["0,30 * * * *", "50 */3 * * *"]
+crons = ["0,15,30,45 * * * *", "50 */3 * * *"]
+
+[[kv_namespaces]]
+binding = "REPORTS"
+id = "4225a7e3871048e8999155e3d16010e1"
