@@ -1,15 +1,14 @@
 ---
 /**
- * 소식: 주제끼리 모아 각 주제 안에서 최신순 (자동으로 고른 하이라이트는 두지 않는다).
- *  - 주제(공항·화보·광고·차트): 사진 카드, 처음 8개 + 더 보기
- *  - 그 밖의 기사: 날짜별, 같은 소식은 하나로 묶고 펼치면 매체별 제목·시간·원문
- *  - 위버스 공지: 최신순 목록
- *  - 영상: 길이·LIVE 표시
- * 사진은 원문 주소에서 바로 불러온다 (서버에 저장하지 않음, referrer 없이 → 실패하면 색 배경)
+ * 소식: 올라오는 대로 최신순 한 줄 피드. 하루 단위로 묶는다 (오늘 · 어제 · 11.20 (금) …).
+ *  - 카드: 왼쪽 썸네일(잘라 채우지 않고 비율 그대로 + 흐린 배경) · 오른쪽 시간·종류·제목·멤버·출처·원문
+ *  - 같은 소식 기사는 한 카드로 묶고 펼치면 매체별 제목·시간·원문
+ *  - 거르기: 종류(화보·광고·공항·차트·기사·영상·공지·SNS/제보) + 멤버(여러 명)
+ *  - 자동으로 고른 하이라이트는 두지 않는다
+ * 사진은 원문 주소에서 바로 불러온다 (서버에 저장하지 않음, referrer 없이 → 실패하면 색 배경). 다른 가수가 주인공일 수 있는 기사는 사진을 쓰지 않는다
  */
 import Base from '../../layouts/Base.astro';
 import { loadPublic } from '../../lib/data';
-import '../../styles/news.css';
 
 type Topic = '공항' | '광고' | '브랜드·화보' | '차트';
 interface FeedItem {
@@ -18,308 +17,245 @@ interface FeedItem {
 }
 const { items } = await loadPublic<{ items: FeedItem[] }>(Astro.locals, 'feed.json', { items: [] });
 const now = Date.now();
-const list = items.filter((i) => i.publishedAt >= new Date(now - 60 * 864e5).toISOString()).slice(0, 1500);
-const weekAgo = new Date(now - 7 * 864e5).toISOString();
-const LABEL = { 'weverse-notice': '공지', news: '기사', youtube: '영상', sns: 'SNS' } as const;
-const TOPICS: Topic[] = ['공항', '브랜드·화보', '광고', '차트'];
-const members = [...new Set(list.flatMap((i) => i.members))].filter((m) => m !== '단체');
+const list = items.filter((i) => i.publishedAt >= new Date(now - 60 * 864e5).toISOString()).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 1200);
 const kst = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600e3).toISOString();
 const day = (iso: string) => kst(iso).slice(0, 10);
-const md = (iso: string) => { const d = kst(iso); return `${d.slice(5, 7)}.${d.slice(8, 10)}`; };
 const hm = (iso: string) => kst(iso).slice(11, 16);
 const today = day(new Date(now).toISOString());
-const when = (iso: string) => (day(iso) === today ? `오늘 ${hm(iso)}` : day(iso) === day(new Date(now - 864e5).toISOString()) ? `어제 ${hm(iso)}` : md(iso));
+const yesterday = day(new Date(now - 864e5).toISOString());
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const dayLabel = (d: string) => {
+  const md = `${d.slice(5, 7)}.${d.slice(8, 10)} (${WD[new Date(`${d}T00:00:00Z`).getUTCDay()]})`;
+  return d === today ? ['오늘', md] : d === yesterday ? ['어제', md] : [md, ''];
+};
 const clean = (t: string) => t.replace(/\s+-\s+[^-]{1,24}$/, '').replace(/\s+#\S+/g, '').trim() || t;
 const yt = (url: string) => { try { const u = new URL(url); return u.hostname === 'youtu.be' ? u.pathname.slice(1) : u.searchParams.get('v'); } catch { return null; } };
-const visual = (i: FeedItem) => i.image ?? (i.type === 'youtube' && yt(i.url) ? `https://img.youtube.com/vi/${yt(i.url)}/hqdefault.jpg` : null);
+const visual = (i: FeedItem) => (i.shared ? null : i.image ?? (i.type === 'youtube' && yt(i.url) ? `https://img.youtube.com/vi/${yt(i.url)}/hqdefault.jpg` : null));
 const dur = (s?: number) => (s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '');
-const mc = (m: string) => `mc-${Math.max(0, members.indexOf(m)) % 7}`;
+// 종류: 주제가 있으면 주제(화보·광고·공항·차트), 없으면 기사·영상·공지·SNS/제보
+const KIND_OF = (i: FeedItem) => i.topic === '브랜드·화보' ? '화보' : i.topic ? i.topic : i.type === 'news' ? '기사' : i.type === 'youtube' ? '영상' : i.type === 'weverse-notice' ? '공지' : i.reported ? '제보' : 'SNS';
+const KINDS = ['화보', '광고', '공항', '차트', '기사', '영상', '공지', 'SNS', '제보'];
+const kindsShown = KINDS.filter((k) => list.some((i) => KIND_OF(i) === k));
+const WORD: Record<string, string> = { 화보: 'PHOTO', 광고: 'AD', 공항: 'AIRPORT', 차트: 'CHART', 기사: 'NEWS', 영상: 'VIDEO', 공지: 'NOTICE', SNS: 'SNS', 제보: 'REPORT' };
+const memberOrder = ['런쥔', '제노', '해찬', '재민', '천러', '지성'];
+const members = [...new Set([...memberOrder.filter((m) => list.some((i) => i.members.includes(m))), ...list.flatMap((i) => i.members)])].filter((m) => m !== '단체');
+const mc = (m: string) => `m${Math.max(0, members.indexOf(m)) % 7}`;
 const outlets = (i: FeedItem) => new Set((i.articles ?? []).map((a) => a.publisher)).size;
-
-const notices = list.filter((i) => i.type === 'weverse-notice');
-// 팬 제보·공식 SNS 소식 (주제가 있으면 주제 칸에)
-const snsItems = list.filter((i) => i.type === 'sns' && !i.topic);
-// 주제가 없는 기사만 "그 밖의 기사"로 (주제 기사는 주제 칸에)
-const articles = list.filter((i) => i.type === 'news' && !i.topic);
-const videos = list.filter((i) => i.type === 'youtube');
-// 다른 가수가 주인공일 수 있는 기사(shared)는 사진 칸에서 뺀다 (소식은 모두 최신순, 자동 하이라이트는 두지 않는다)
-const photos = list.filter((i) => i.topic && i.topic !== '차트' && !i.shared);
-const TOPIC_TITLE: Record<Topic, string> = { 공항: '공항', '브랜드·화보': '화보', 광고: '광고', 차트: '차트' };
-const TOPIC_WORD: Record<Topic, string> = { 공항: 'AIRPORT', '브랜드·화보': 'PHOTO', 광고: 'AD', 차트: 'CHART' };
-const byTopic = TOPICS.map((t) => [t, list.filter((i) => i.topic === t)] as const).filter(([, l]) => l.length);
-const articleDays = [...new Set(articles.map((i) => day(i.publishedAt)))];
-const SHOW_DAYS = 3;
-const shownArticles = articles.filter((i) => articleDays.slice(0, SHOW_DAYS).includes(day(i.publishedAt))).length;
-const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span class="mchip ${mc(m)}">${m}</span>`).join('') : '');
+const days = [...new Set(list.map((i) => day(i.publishedAt)))];
+const SHOW_DAYS = 5;
+const count = (k: string) => list.filter((i) => KIND_OF(i) === k).length;
+// 크게 보이는 카드: 오늘 가장 최근 소식이 사진 있는 기사일 때만 (순서는 언제나 최신순 그대로)
+const featureIdx = list[0] && day(list[0].publishedAt) === today && visual(list[0]) && list[0].type !== 'youtube' ? 0 : -1;
 ---
-<Base title="소식" current="news"><main class="news" data-news>
-  <header class="news-hero wrap"><p class="eyebrow">NEWS · 소식</p><div class="news-intro">
-    <div><h1>일정엔 못 넣는 소식,<br/><mark>사진으로 한눈에</mark></h1><p>화보·광고·공항·차트처럼 일정이 아닌 것들을 모아요. 사진은 원문 주소에서 바로 불러오고, 누르면 원문으로 이동해요.</p></div>
-    <dl class="news-stats"><div><dt>{notices.length}</dt><dd>공지</dd></div><div><dt>{articles.length}</dt><dd>기사</dd></div><div><dt>{videos.length}</dt><dd>영상</dd></div><div><dt>{photos.filter((i) => i.publishedAt >= weekAgo).length}</dt><dd>이번 주 사진 소식</dd></div></dl>
-  </div></header>
+<Base title="소식" current="news">
+  <main class="wrap nf" data-news>
+    <header class="nf-hero">
+      <div>
+        <p class="eyebrow">NEWS · 소식</p>
+        <h1>일정엔 못 넣는 소식,<br /><mark>올라오는 대로</mark></h1>
+        <p class="lead">화보·광고·공항·기사·영상을 최신순으로 모아요. 같은 소식 기사는 한 줄로 묶고, 사진은 원문 주소에서 바로 불러와요.</p>
+      </div>
+      <dl class="nf-stats">
+        <div><dt>{count('화보') + count('광고')}</dt><dd>화보·광고</dd></div>
+        <div><dt>{count('공항')}</dt><dd>공항</dd></div>
+        <div><dt>{count('기사') + count('차트')}</dt><dd>기사</dd></div>
+        <div><dt>{count('영상')}</dt><dd>영상</dd></div>
+      </dl>
+    </header>
 
-  <div class="news-filterbar" data-filters><div class="wrap filter-inner">
-    <div class="type-tabs" data-group="type"><button aria-pressed="true" data-v="">전체</button>{(['weverse-notice', 'news', 'youtube'] as const).map((t) => <button aria-pressed="false" data-v={t}>{LABEL[t]} <span>{list.filter((i) => i.type === t).length}</span></button>)}</div>
-    <div class="filter-divider"></div>
-    <div class="filter-chips" data-group="topic"><button aria-pressed="true" data-v="">모든 주제</button>{TOPICS.map((t) => <button aria-pressed="false" data-v={t}>{t} <span>{list.filter((i) => i.topic === t).length}</span></button>)}</div>
-    <div class="filter-divider"></div>
-    <div class="member-filters" data-group="member">{members.map((m) => <button class={mc(m)} aria-pressed="false" data-v={m}>{m}</button>)}</div>
-  </div></div>
+    <div class="nf-filter" data-filters>
+      <div class="chips" data-group="kind"><button aria-pressed="true" data-v="">전체</button>{kindsShown.map((k) => <button aria-pressed="false" data-v={k}>{k}</button>)}</div>
+      <span class="div"></span>
+      <div class="chips mem" data-group="member">{members.map((m) => <button class={mc(m)} aria-pressed="false" data-v={m}>{m}</button>)}</div>
+      <span class="sort">● 최신순</span>
+    </div>
 
-  {byTopic.map(([t, items]) => (
-    <section class="wrap news-section" data-section>
-      <div class="section-title"><div><p class="eyebrow">{TOPIC_WORD[t]}</p><h2>{TOPIC_TITLE[t]}</h2></div><span>{items.length}건 · 최신순</span></div>
-      <div class="ph-grid">{items.slice(0, 32).map((i, n) => {
-        // 다른 가수가 주인공일 수 있는 기사는 사진을 쓰지 않는다
-        const img = i.shared ? null : visual(i);
-        return (
-          <a class="ph-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')} data-extra={n >= 8 ? '' : undefined} hidden={n >= 8}>
-            <div class={`vis v-${t === '공항' ? 'airport' : `p${n % 4}`}`}>
-              {img && (i.type === 'youtube' ? <img class="cover" src={img} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /> : <><img class="cover-bg" src={img} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /><img class="cover" src={img} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.previousElementSibling?.remove(); this.remove()" /></>)}
-              <span class="tags"><em class="t-lime">{TOPIC_TITLE[t]}</em>{(i.count ?? 1) > 1 && <em>기사 {i.count}건</em>}</span><span class="go">↗</span>
-              {!img && <b class="vis-word">{TOPIC_WORD[t]}</b>}
-            </div>
-            <div class="ph-copy"><h3>{clean(i.title)}</h3><div class="mrow" set:html={chips(i)} /><p>{i.publisher ?? ''} · {when(i.publishedAt)}</p></div>
-          </a>
-        );
-      })}</div>
-      {items.length > 8 && <button type="button" class="ab-more" data-more-in>{TOPIC_TITLE[t]} 더 보기 ({Math.min(items.length, 32) - 8}건) ↓</button>}
-    </section>
-  ))}
-
-  {articles.length > 0 && <section class="wrap news-section" data-section>
-    <div class="section-title"><div><p class="eyebrow">ARTICLES</p><h2>그 밖의 기사</h2></div><span>같은 소식은 한 줄로 묶었어요 · 최신순 · {articles.length}건</span></div>
-    <div class="ab">{articleDays.slice(0, 14).map((d, di) => {
-      const rows = articles.filter((i) => day(i.publishedAt) === d);
+    {days.map((d, di) => {
+      const rows = list.filter((i) => day(i.publishedAt) === d);
+      const [main, sub] = dayLabel(d);
       return (
-        <section class="ab-day" data-subsection data-day-extra={di >= SHOW_DAYS ? '' : undefined} hidden={di >= SHOW_DAYS}>
-          <header><b>{Number(d.slice(5, 7))}월 {Number(d.slice(8, 10))}일 {WD[new Date(`${d}T00:00:00Z`).getUTCDay()]}요일{d === today ? ' · 오늘' : ''}</b><span>{rows.length}건</span></header>
+        <section class="nf-day" data-day data-extra-day={di >= SHOW_DAYS ? '' : undefined} hidden={di >= SHOW_DAYS}>
+          <header><h2>{main}{sub && <small>{sub}</small>}</h2><span>{rows.length}건</span></header>
           {rows.map((i) => {
+            const k = KIND_OF(i);
+            const img = visual(i);
             const grouped = (i.articles?.length ?? 0) > 1;
+            const feat = list.indexOf(i) === featureIdx;
             return (
-              <div class="ab-row feed-item" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
-                <div class="ab-main">
-                  <a class="ab-link" href={i.url} target="_blank" rel="noopener">
-                    <small><em class={grouped ? 'k-group' : 'k-one'}>{grouped ? '묶음' : '기사'}</em>{i.publisher ?? '기사'} · {when(i.publishedAt)}{i.topic ? ` · ${i.topic}` : ''}</small>
-                    <h3>{clean(i.title)}</h3>
-                  </a>
-                  <div class="mrow" set:html={chips(i)} />
-                  {grouped && <div class="ab-meta"><span>기사 {i.count}건 · {i.publisher} 외 {outlets(i) - 1}곳</span><button type="button" class="ab-toggle" data-toggle aria-expanded="false">{outlets(i)}개 매체 펼치기 ⌄</button></div>}
-                  {grouped && <div class="ab-sub" hidden>
-                    {i.articles!.map((a) => <a class="ab-sub-row" href={a.url} target="_blank" rel="noopener"><b>{a.publisher}</b><span>{clean(a.title)}<small>{hm(a.publishedAt)}</small></span><em>원문 ↗</em></a>)}
-                    <p class="ab-note">제목이 비슷한 기사를 자동으로 묶었어요 · 본문은 저장하지 않고 원문 링크만 연결해요</p>
-                  </div>}
+              <article class={`card nf-item${feat ? ' feat' : ''}`} data-kind={k} data-members={i.members.join(',')}>
+                <a class={`thumb t-${WORD[k].toLowerCase()}${i.type === 'youtube' ? ' yt' : ''}`} href={i.url} target="_blank" rel="noopener" aria-label="원문 열기">
+                  {img && (i.type === 'youtube'
+                    ? <img class="main" src={img} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />
+                    : <><img class="bg" src={img} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /><img class="main" src={img} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.previousElementSibling?.remove(); this.remove()" /></>)}
+                  {!img && <span class="word"><b>{WORD[k]}</b><small>{i.publisher ?? ''}</small></span>}
+                  {i.type === 'youtube' && <span class="play">▶</span>}
+                  {i.live ? <em class="len live">● LIVE</em> : i.duration ? <em class="len">{dur(i.duration)}</em> : null}
+                  {i.type !== 'youtube' && <span class="go">↗</span>}
+                </a>
+                <div class="body">
+                  <p class="meta"><span class="time">{hm(i.publishedAt)}</span><span class={`badge b-${WORD[k].toLowerCase()}`}>{grouped ? `기사 ${i.count}건` : k}</span></p>
+                  <h3><a href={i.url} target="_blank" rel="noopener">{clean(i.title)}</a></h3>
+                  {i.members.length > 0 && <p class="mrow">{i.members.map((m) => <span class={`mchip ${mc(m)}`}>{m}</span>)}</p>}
+                  <p class="foot"><span>{i.publisher ?? (i.type === 'weverse-notice' ? '위버스' : '')}{grouped && ` 외 ${outlets(i) - 1}곳`}</span>
+                    {grouped ? <button type="button" class="toggle" data-toggle aria-expanded="false">{outlets(i)}개 매체 펼치기 ⌄</button> : <a class="src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>}</p>
                 </div>
-                {visual(i) ? <a class="ab-thumb" href={i.url} target="_blank" rel="noopener"><img class="cover-bg" src={visual(i)!} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" /><img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.remove()" /></a> : <a class="ab-src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>}
-              </div>
+                {grouped && <div class="outlets" hidden>
+                  {i.articles!.map((a) => <a href={a.url} target="_blank" rel="noopener"><b>{a.publisher}</b><span>{clean(a.title)}<small>{hm(a.publishedAt)}</small></span><em>원문 ↗</em></a>)}
+                  <p>제목이 비슷한 기사를 자동으로 묶었어요 · 본문은 저장하지 않고 원문 링크만 연결해요</p>
+                </div>}
+              </article>
             );
           })}
         </section>
       );
     })}
-      {articleDays.length > SHOW_DAYS && <button type="button" class="ab-more" data-more-days>기사 더 보기 (소식 {articles.length - shownArticles}건 남음) ↓</button>}
-    </div>
-  </section>}
+    <p class="empty" data-none hidden>조건에 맞는 소식이 없어요.</p>
+    {days.length > SHOW_DAYS && <div class="more-wrap"><button type="button" class="more" data-more>이전 소식 더 보기</button><small>며칠씩 더 불러와요</small></div>}
 
-  {snsItems.length > 0 && <section class="wrap news-section" data-section>
-    <div class="section-title"><div><p class="eyebrow">SNS · 제보</p><h2>SNS·팬 제보 소식</h2></div><span>{snsItems.length}건 · 최신순 · <a href="/report/?type=news">소식 알려주기 →</a></span></div>
-    <div class="ab">
-      {snsItems.slice(0, 30).map((i, n) => (
-        <div class="ab-row feed-item" data-type={i.type} data-topic="" data-members={i.members.join(',')} data-extra={n >= 6 ? '' : undefined} hidden={n >= 6}>
-          <div class="ab-main"><a class="ab-link" href={i.url} target="_blank" rel="noopener"><small><em class="k-one">{i.reported ? '제보' : 'SNS'}</em>{i.publisher ?? ''} · {when(i.publishedAt)}</small><h3>{clean(i.title)}</h3></a><div class="mrow" set:html={chips(i)} /></div>
-          <a class="ab-src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>
-        </div>
-      ))}
-      {snsItems.length > 6 && <button type="button" class="ab-more" data-more-in>더 보기 ({Math.min(snsItems.length, 30) - 6}건) ↓</button>}
-    </div>
-  </section>}
-
-  {notices.length > 0 && <section class="wrap news-section" data-section>
-    <div class="section-title"><div><p class="eyebrow">NOTICE</p><h2>위버스 공지</h2></div><span>{notices.length}건 · 최신순</span></div>
-    <div class="ab">
-      {notices.slice(0, 30).map((i, n) => (
-        <div class="ab-row feed-item" data-type={i.type} data-topic="" data-members={i.members.join(',')} data-extra={n >= 6 ? '' : undefined} hidden={n >= 6}>
-          <div class="ab-main"><a class="ab-link" href={i.url} target="_blank" rel="noopener"><small><em class="k-one">공지</em>위버스 · {when(i.publishedAt)}</small><h3>{clean(i.title)}</h3></a><div class="mrow" set:html={chips(i)} /></div>
-          <a class="ab-src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>
-        </div>
-      ))}
-      {notices.length > 6 && <button type="button" class="ab-more" data-more-in>공지 더 보기 ({Math.min(notices.length, 30) - 6}건) ↓</button>}
-    </div>
-  </section>}
-
-  {videos.length > 0 && <section class="video-zone" data-section><div class="wrap">
-    <div class="section-title section-title-dark"><div><p class="eyebrow">VIDEO</p><h2>영상</h2></div><span>{videos.length}개 · 최신순</span></div>
-    <div class="vd-row">{videos.slice(0, 8).map((i) => (
-      <a class="vd-card feed-item" href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
-        <div class="vd-thumb">{visual(i) && (i.type === 'youtube' ? <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /> : <><img class="cover-bg" src={visual(i)!} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /><img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.previousElementSibling?.remove(); this.remove()" /></>)}<span class="play">▶</span>{i.live ? <em class="live">● LIVE</em> : i.duration ? <em class="len">{dur(i.duration)}</em> : null}</div>
-        <h3>{clean(i.title)}</h3><p>{i.publisher ?? 'YouTube'} · {when(i.publishedAt)}</p>
-      </a>))}</div>
-    <p class="vd-note">🖼 유튜브 썸네일은 <code>img.youtube.com/vi/영상ID/hqdefault.jpg</code>를 그대로 불러와요</p>
-  </div></section>}
-
-  <section class="wrap info-grid">
-    <div class="card info"><b>사진은 이렇게 보여줘요</b><p>사진 파일은 서버에 저장하지 않고 원문 주소만 기록해요. 영상은 유튜브 썸네일 주소, 기사는 원문 페이지의 대표 이미지(og:image) 주소를 써요. 사진을 못 불러오면 색 배경과 언론사 이름으로 보여줘요.</p></div>
-    <div class="card info"><b>권리자 요청 시 즉시 삭제</b><p>제목·언론사·날짜·링크만 정리하고 기사 본문은 옮기지 않아요. 내려야 할 항목이 있으면 <a href="/report/">제보</a>로 알려주세요. 바로 반영할게요.</p></div>
-  </section>
-  <p class="wrap empty-note" data-none hidden>조건에 맞는 소식이 없어요.</p>
-</main></Base>
-
-<style is:global>
-  .news .vis { position: relative; overflow: hidden; border-radius: 14px; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; color: #fff; }
-  .news .vis.v-airport { background: linear-gradient(135deg, #7a3a22, #f59a6a); }
-  .news .vis.v-video { background: linear-gradient(135deg, #1e3a8a, #93c5fd); }
-  .news .vis.v-p0 { background: linear-gradient(135deg, #3f6212, #c5f03a); }
-  .news .vis.v-p1 { background: linear-gradient(135deg, #6d28d9, #f0abfc); }
-  .news .vis.v-p2 { background: linear-gradient(135deg, #0f766e, #99f6e4); }
-  .news .vis.v-p3 { background: linear-gradient(135deg, #9a3412, #fdba74); }
-  /* 사진: 잘라서 채우지 않고 비율 그대로(contain), 남는 곳은 같은 사진을 흐리게 깐 배경 */
-  .news .cover, .news .cover-bg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .news .cover { object-fit: contain; z-index: 1; }
-  .news .cover-bg { object-fit: cover; z-index: 0; filter: blur(18px) brightness(0.75); transform: scale(1.2); }
-  /* 유튜브 썸네일(위아래 검은 띠가 든 4:3)도 비율 그대로, 배경은 검은색이라 띠가 티 나지 않는다 */
-  .news .vis.v-video:has(.cover), .news .vd-thumb:has(.cover) { background: #000; }
-  .news .vis > :not(.cover):not(.cover-bg) { position: relative; z-index: 2; }
-  .news .tags { display: flex; gap: 5px; }
-  .news .tags em { font-style: normal; font-size: 11px; font-weight: 800; background: rgba(255, 255, 255, 0.92); color: #111; border-radius: 999px; padding: 3px 9px; }
-  .news .tags em.t-lime { background: var(--accent); color: var(--accent-ink); }
-  .news .go { position: absolute !important; top: 12px; right: 12px; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: #111; display: grid; place-items: center; font-size: 13px; font-weight: 800; }
-  .news .vis-note { align-self: stretch; background: rgba(0, 0, 0, 0.55); border-radius: 8px; padding: 6px 10px; font-size: 11.5px; }
-  .news .vis-word { font-size: 11px; letter-spacing: 0.18em; opacity: 0.9; }
-  .news .mrow { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0; }
-  .news .mrow:empty { display: none; }
-  .news .mchip { position: relative; font-size: 11px; border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 2px 8px 2px 18px; }
-  .news .mchip::before { content: ''; position: absolute; left: 7px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; border-radius: 50%; background: var(--mc, #8ca9ff); }
-  .news .mc-0 { --mc: #8ca9ff; } .news .mc-1 { --mc: #f59a6a; } .news .mc-2 { --mc: #facc15; } .news .mc-3 { --mc: #34d399; } .news .mc-4 { --mc: #f472b6; } .news .mc-5 { --mc: #a78bfa; } .news .mc-6 { --mc: #60a5fa; }
-  .news .member-filters button::before { background: var(--mc, #8ca9ff) !important; }
-  .news .feed-item { color: inherit; text-decoration: none; }
-  .news .feed-item[hidden], .news [data-section][hidden], .news [data-subsection][hidden] { display: none !important; }
-
-  .hl-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr; grid-template-rows: auto auto; gap: 20px; }
-  .hl-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-  .hl-card .vis { height: 160px; }
-  .hl-main { grid-row: 1 / span 2; }
-  .hl-main .vis { height: 360px; }
-  .hl-copy h3 { margin: 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
-  .hl-main .hl-copy h3 { font-size: 24px; letter-spacing: -0.02em; }
-  .hl-copy p { margin: 0; font-size: 12px; color: var(--sub); }
-  .hl-copy p b { color: var(--text); }
-
-  .ph-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px 16px; }
-  .ph-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-  .ph-card .vis { height: 230px; }
-  .ph-copy small { color: var(--sub); font-size: 11.5px; }
-  .ph-copy h3 { margin: 2px 0 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
-  .ph-copy p { margin: 2px 0 0; color: var(--sub); font-size: 12px; }
-  .link-btn { font: inherit; font-size: 13px; font-weight: 700; background: none; border: 0; cursor: pointer; color: var(--text); }
-
-  .ab { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--card); }
-  .ab-day > header { display: flex; justify-content: space-between; align-items: center; height: 42px; padding: 0 20px; background: var(--line-soft); font-size: 12.5px; color: var(--sub); }
-  .ab-day > header b { color: var(--text); }
-  .ab-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--line-soft); align-items: start; }
-  .ab-link { color: inherit; text-decoration: none; display: block; }
-  .ab-link:hover h3 { text-decoration: underline; }
-  .ab-link small { display: flex; align-items: center; gap: 6px; color: var(--sub); font-size: 12px; }
-  .ab-link small em { font-style: normal; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 2px 7px; }
-  .k-one { background: var(--line-soft); color: var(--text); }
-  .k-group { background: var(--accent); color: var(--accent-ink); }
-  .ab-link h3 { margin: 6px 0 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
-  .ab-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; font-size: 12px; color: var(--sub); }
-  .ab-toggle { font: inherit; font-size: 12px; font-weight: 700; border: 0; background: var(--dark); color: #fff; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
-  .ab-sub { margin-top: 10px; border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; background: var(--bg); }
-  .ab-sub-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line-soft); text-decoration: none; color: inherit; font-size: 13px; }
-  .ab-sub-row:first-child { border-top: 0; }
-  .ab-sub-row span { display: flex; flex-direction: column; overflow-wrap: anywhere; }
-  .ab-sub-row small { color: var(--faint); font-size: 11px; }
-  .ab-sub-row em { font-style: normal; font-weight: 800; font-size: 12px; }
-  .ab-note { margin: 0; padding: 8px 14px; font-size: 11.5px; color: var(--faint); border-top: 1px solid var(--line-soft); }
-  .ab-thumb { position: relative; display: block; width: 112px; height: 72px; border-radius: 10px; overflow: hidden; background: var(--line-soft); }
-  .ab-src { font-size: 12px; font-weight: 800; color: var(--text); text-decoration: none; padding-top: 4px; }
-  .ab-more { display: block; width: 100%; border: 0; border-top: 1px solid var(--line-soft); background: var(--card); font: inherit; font-size: 13px; font-weight: 700; padding: 14px; cursor: pointer; }
-
-  .video-zone { background: #111; color: #fff; padding: 8px 0 48px; margin-top: 52px; }
-  .vd-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-  .vd-card { display: flex; flex-direction: column; gap: 8px; color: #fff; text-decoration: none; min-width: 0; }
-  .vd-thumb { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #1f2937, #4b5563); display: grid; place-items: center; }
-  .vd-thumb .play { position: relative; z-index: 2; width: 40px; height: 40px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); display: grid; place-items: center; font-size: 14px; }
-  .vd-thumb .len, .vd-thumb .live { position: absolute; z-index: 2; font-style: normal; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 2px 7px; }
-  .vd-thumb .len { right: 8px; bottom: 8px; background: rgba(0, 0, 0, 0.75); }
-  .vd-thumb .live { left: 8px; top: 8px; background: #ef4444; }
-  .vd-card h3 { margin: 0; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
-  .vd-card p { margin: 0; color: #a3a3a3; font-size: 12px; }
-  .vd-note { color: #a3a3a3; font-size: 12px; margin: 18px 0 0; }
-  .vd-note code { background: #222; border-radius: 4px; padding: 1px 6px; }
-
-  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding-top: 32px; padding-bottom: 48px; }
-  .info { padding: 18px 20px; }
-  .info b { font-size: 14px; }
-  .info p { color: var(--sub); font-size: 13px; line-height: 1.6; margin: 8px 0 0; }
-
-  @media (max-width: 900px) {
-    .hl-grid { grid-template-columns: 1fr 1fr; }
-    .hl-main { grid-column: 1 / -1; grid-row: auto; }
-    .hl-main .vis { height: 260px; }
-    .ph-grid, .vd-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .info-grid { grid-template-columns: 1fr; }
-  }
-  @media (max-width: 560px) {
-    .hl-grid { grid-template-columns: 1fr; }
-    .ph-card .vis { height: 170px; }
-    .ab-row { grid-template-columns: minmax(0, 1fr); }
-    .ab-thumb { display: none; }
-    .ab-sub-row { grid-template-columns: minmax(0, 1fr) auto; }
-    .ab-sub-row b { grid-column: 1 / -1; }
-  }
-</style>
+    <section class="nf-info">
+      <div class="card"><b>사진은 이렇게 보여줘요</b><p>사진 파일은 서버에 저장하지 않고 원문 주소만 기록해요. 영상은 유튜브 썸네일, 기사는 원문 페이지의 대표 이미지(og:image) 주소를 써요. 못 불러오면 색 배경과 언론사 이름으로 보여줘요.</p></div>
+      <div class="card"><b>권리자 요청 시 즉시 삭제</b><p>제목·언론사·날짜·링크만 정리하고 기사 본문은 옮기지 않아요. 내려야 할 항목이 있으면 <a href="/report/">제보</a>로 알려주세요. 바로 반영할게요. 빠진 소식도 <a href="/report/?type=news">소식 알려주기</a>로 받아요.</p></div>
+    </section>
+  </main>
+</Base>
 
 <script>
-  const root = document.querySelector<HTMLElement>('[data-news]');
-  const box = document.querySelector<HTMLElement>('[data-filters]');
-  // 기사 묶음 펼치기
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-toggle]')) b.addEventListener('click', () => {
-    const sub = b.closest('.ab-main')?.querySelector<HTMLElement>('.ab-sub');
-    if (!sub) return;
-    sub.hidden = !sub.hidden;
-    b.setAttribute('aria-expanded', String(!sub.hidden));
-    b.textContent = b.textContent!.replace(sub.hidden ? '접기 ⌃' : '펼치기 ⌄', sub.hidden ? '펼치기 ⌄' : '접기 ⌃');
+  const root = document.querySelector<HTMLElement>('[data-news]')!;
+  // 같은 소식 매체 펼치기
+  for (const b of root.querySelectorAll<HTMLButtonElement>('[data-toggle]')) b.addEventListener('click', () => {
+    const box = b.closest('.nf-item')!.querySelector<HTMLElement>('.outlets')!;
+    box.hidden = !box.hidden;
+    b.setAttribute('aria-expanded', String(!box.hidden));
+    b.textContent = b.textContent!.replace(box.hidden ? '접기 ⌃' : '펼치기 ⌄', box.hidden ? '펼치기 ⌄' : '접기 ⌃');
   });
-  // 기사 더 보기 · 사진 모두 보기
-  document.querySelector('[data-more-days]')?.addEventListener('click', (e) => { for (const d of document.querySelectorAll<HTMLElement>('[data-day-extra]')) d.hidden = false; (e.currentTarget as HTMLElement).remove(); });
-  // 주제·공지 칸마다 더 보기
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-more-in]')) b.addEventListener('click', () => { for (const d of b.closest('[data-section]')!.querySelectorAll<HTMLElement>('[data-extra]')) d.hidden = false; b.remove(); });
-  // 종류·주제·멤버 거르기 (멤버는 여러 명 골라도 됨)
-  if (root && box) {
-    const state: Record<string, string> = { type: '', topic: '' };
-    const picked = new Set<string>();
-    const apply = () => {
-      let shown = 0;
-      for (const item of root.querySelectorAll<HTMLElement>('.feed-item')) {
-        if (item.dataset.extra !== undefined && !picked.size && !state.type && !state.topic) continue;
-        const ms = (item.dataset.members ?? '').split(',');
-        const ok = (!state.type || item.dataset.type === state.type) && (!state.topic || item.dataset.topic === state.topic) && (!picked.size || ms.some((m) => picked.has(m)));
-        item.hidden = !ok;
-        if (ok) shown++;
+  // 이전 소식 더 보기: 5일씩
+  root.querySelector('[data-more]')?.addEventListener('click', (e) => {
+    const rest = [...root.querySelectorAll<HTMLElement>('[data-extra-day]')];
+    for (const d of rest.slice(0, 5)) { d.hidden = false; delete d.dataset.extraDay; }
+    if (rest.length <= 5) (e.currentTarget as HTMLElement).parentElement!.remove();
+    apply();
+  });
+  // 거르기: 종류 하나 + 멤버 여러 명 (거를 때는 지난 날도 함께 본다)
+  let kind = '';
+  const picked = new Set<string>();
+  function apply() {
+    let shown = 0;
+    for (const dayBox of root.querySelectorAll<HTMLElement>('[data-day]')) {
+      if (dayBox.dataset.extraDay !== undefined && !kind && !picked.size) { dayBox.hidden = true; continue; }
+      let n = 0;
+      for (const it of dayBox.querySelectorAll<HTMLElement>('.nf-item')) {
+        const ms = (it.dataset.members ?? '').split(',');
+        const ok = (!kind || it.dataset.kind === kind) && (!picked.size || ms.some((m) => picked.has(m)));
+        it.hidden = !ok;
+        if (ok) n++;
       }
-      for (const s of root.querySelectorAll<HTMLElement>('[data-subsection]:not([data-day-extra])')) s.hidden = !s.querySelector('.feed-item:not([hidden])');
-      for (const s of root.querySelectorAll<HTMLElement>('[data-section]')) s.hidden = !s.querySelector('.feed-item:not([hidden])');
-      const none = root.querySelector<HTMLElement>('[data-none]');
-      if (none) none.hidden = shown > 0;
-    };
-    for (const group of box.querySelectorAll<HTMLElement>('[data-group]')) {
-      for (const b of group.querySelectorAll<HTMLButtonElement>('button')) b.addEventListener('click', () => {
-        if (group.dataset.group === 'member') {
-          picked.has(b.dataset.v!) ? picked.delete(b.dataset.v!) : picked.add(b.dataset.v!);
-          b.setAttribute('aria-pressed', String(picked.has(b.dataset.v!)));
-        } else {
-          for (const x of group.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
-          state[group.dataset.group!] = b.dataset.v ?? '';
-        }
-        apply();
-      });
+      dayBox.hidden = n === 0;
+      shown += n;
     }
-    // 멤버 문서에서 넘어오면 (?member=제노) 그 멤버로 거른다
-    const want = new URLSearchParams(location.search).get('member');
-    const btn = want ? box.querySelector<HTMLButtonElement>(`[data-group="member"] button[data-v="${CSS.escape(want)}"]`) : null;
-    if (btn) btn.click();
+    (root.querySelector('[data-none]') as HTMLElement).hidden = shown > 0;
   }
+  for (const group of root.querySelectorAll<HTMLElement>('[data-group]')) {
+    for (const b of group.querySelectorAll<HTMLButtonElement>('button')) b.addEventListener('click', () => {
+      if (group.dataset.group === 'member') {
+        picked.has(b.dataset.v!) ? picked.delete(b.dataset.v!) : picked.add(b.dataset.v!);
+        b.setAttribute('aria-pressed', String(picked.has(b.dataset.v!)));
+      } else {
+        for (const x of group.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b));
+        kind = b.dataset.v ?? '';
+      }
+      apply();
+    });
+  }
+  // 멤버 문서에서 넘어오면 (?member=제노) 그 멤버로 거른다
+  const want = new URLSearchParams(location.search).get('member');
+  if (want) root.querySelector<HTMLButtonElement>(`[data-group="member"] button[data-v="${CSS.escape(want)}"]`)?.click();
 </script>
+
+<style>
+  .nf { padding-bottom: 56px; }
+  .nf-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 32px; padding: 28px 0 18px; }
+  .nf-hero .eyebrow { margin-top: 0; }
+  .nf-hero h1 { margin: 6px 0 10px; font-size: clamp(32px, 4.6vw, 48px); line-height: 1.05; letter-spacing: -.05em; }
+  .nf-hero mark { background: linear-gradient(transparent 62%, var(--accent) 0); color: inherit; }
+  .lead { margin: 0; max-width: 560px; color: var(--sub); font-size: 14.5px; line-height: 1.6; }
+  .nf-stats { display: flex; gap: 26px; margin: 0; flex: none; }
+  .nf-stats dt { font-size: 24px; font-weight: 900; letter-spacing: -.04em; }
+  .nf-stats dd { margin: 2px 0 0; color: var(--sub); font-size: 11.5px; }
+  .nf-filter { position: sticky; top: 58px; z-index: 6; display: flex; align-items: center; gap: 10px; padding: 10px 0; margin-bottom: 6px; background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+  .nf-filter::-webkit-scrollbar { display: none; }
+  .chips { display: flex; gap: 6px; flex: none; }
+  .chips button { font: inherit; font-size: 13px; font-weight: 750; white-space: nowrap; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 12px; cursor: pointer; }
+  .chips button[aria-pressed='true'] { background: var(--dark); border-color: var(--dark); color: #fff; }
+  .mem button { position: relative; padding-left: 22px; }
+  .mem button::before { content: ''; position: absolute; left: 9px; top: 50%; width: 7px; height: 7px; border-radius: 50%; transform: translateY(-50%); background: var(--mc); }
+  .div { width: 1px; height: 22px; background: var(--line); flex: none; }
+  .sort { margin-left: auto; flex: none; color: #5d7a00; font-size: 12px; font-weight: 700; }
+  .m0 { --mc: #6c8ef5; } .m1 { --mc: #f08a5d; } .m2 { --mc: #f2c23a; } .m3 { --mc: #ec67a6; } .m4 { --mc: #3fd3a6; } .m5 { --mc: #9a7cf0; } .m6 { --mc: #8ca9ff; }
+  .nf-day { margin-top: 22px; }
+  .nf-day > header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .nf-day h2 { margin: 0; font-size: 20px; letter-spacing: -.03em; display: flex; align-items: baseline; gap: 8px; }
+  .nf-day h2 small { color: var(--sub); font-size: 13px; font-weight: 600; }
+  .nf-day > header span { color: var(--faint); font-size: 12px; }
+  .nf-item { display: grid; grid-template-columns: 220px minmax(0, 1fr); margin-bottom: 10px; overflow: hidden; padding: 0; border-radius: 16px; }
+  .nf-item.feat { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+  .thumb { position: relative; display: block; min-height: 124px; overflow: hidden; background: linear-gradient(140deg, #26340d, #a7cf3a); text-decoration: none; }
+  .feat .thumb { min-height: 260px; }
+  .t-airport { background: linear-gradient(140deg, #6a2d1d, #ff9a69); } .t-ad { background: linear-gradient(140deg, #6b4a06, #f2c23a); } .t-photo { background: linear-gradient(140deg, #4a1430, #ec67a6); }
+  .t-chart { background: linear-gradient(140deg, #2b2b2b, #9a9a9a); } .t-video { background: #000; } .t-notice { background: linear-gradient(140deg, #0d3b2c, #3fd3a6); } .t-sns, .t-report { background: linear-gradient(140deg, #22285c, #6c8ef5); }
+  .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .thumb .bg { object-fit: cover; filter: blur(18px) brightness(.72); transform: scale(1.25); }
+  .thumb .main { object-fit: contain; }
+  .thumb.yt { background: #000; }
+  .word { position: absolute; left: 14px; bottom: 12px; display: flex; flex-direction: column; color: #fff; }
+  .word b { font-size: 13px; letter-spacing: .16em; }
+  .word small { opacity: .8; font-size: 11px; }
+  .play { position: absolute; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; background: rgba(255,255,255,.92); color: #111; display: grid; place-items: center; font-size: 13px; padding-left: 2px; }
+  .len { position: absolute; right: 8px; bottom: 8px; background: rgba(0,0,0,.78); color: #fff; font-style: normal; font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 5px; }
+  .len.live { background: #e0245e; }
+  .go { position: absolute; right: 10px; top: 10px; width: 26px; height: 26px; border-radius: 50%; background: #fff; color: #111; display: grid; place-items: center; font-size: 12px; font-weight: 800; }
+  .body { padding: 14px 18px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .feat .body { padding: 22px; justify-content: center; }
+  .meta { margin: 0; display: flex; align-items: center; gap: 8px; }
+  .time { color: var(--sub); font-size: 12px; font-weight: 700; }
+  .badge { font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 6px; background: var(--line-soft); }
+  .b-photo, .b-news { background: var(--accent); color: var(--accent-ink); } .b-ad { background: #fff1c2; color: #7a5600; } .b-airport { background: #ffe2d6; color: #a1401c; }
+  .b-video { background: var(--dark); color: #fff; } .b-notice { background: #d7f5ea; color: #0d6b4c; } .b-report, .b-sns { background: #e2e8ff; color: #2b4ac8; } .b-chart { background: #ececec; }
+  .body h3 { margin: 0; font-size: 15.5px; line-height: 1.4; letter-spacing: -.02em; }
+  .feat .body h3 { font-size: 21px; }
+  .body h3 a { color: inherit; text-decoration: none; }
+  .body h3 a:hover { text-decoration: underline; }
+  .mrow { margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+  .mchip { position: relative; padding: 2px 8px 2px 18px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; background: #fff; }
+  .mchip::before { content: ''; position: absolute; left: 7px; top: 50%; width: 6px; height: 6px; border-radius: 50%; transform: translateY(-50%); background: var(--mc); }
+  .foot { margin: auto 0 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 4px; color: var(--sub); font-size: 12px; }
+  .src { color: var(--text); font-weight: 800; text-decoration: none; font-size: 12px; }
+  .toggle { border: 0; background: var(--dark); color: #fff; font: inherit; font-size: 11.5px; font-weight: 800; border-radius: 999px; padding: 6px 11px; cursor: pointer; white-space: nowrap; }
+  .outlets { grid-column: 1 / -1; border-top: 1px solid var(--line-soft); background: color-mix(in srgb, var(--bg) 50%, white); }
+  .outlets a { display: grid; grid-template-columns: 110px minmax(0, 1fr) auto; gap: 12px; padding: 10px 18px; border-top: 1px solid var(--line-soft); color: inherit; text-decoration: none; font-size: 13px; }
+  .outlets a:first-child { border-top: 0; }
+  .outlets b { font-size: 12.5px; }
+  .outlets span { display: flex; flex-direction: column; min-width: 0; }
+  .outlets small { color: var(--faint); font-size: 11px; }
+  .outlets em { font-style: normal; font-weight: 800; font-size: 12px; }
+  .outlets p { margin: 0; padding: 8px 18px 12px; color: var(--faint); font-size: 11.5px; }
+  .more-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 20px; }
+  .more { border: 0; background: var(--dark); color: #fff; font: inherit; font-weight: 800; font-size: 13.5px; border-radius: 999px; padding: 11px 22px; cursor: pointer; }
+  .more-wrap small { color: var(--faint); font-size: 11.5px; }
+  .empty { color: var(--sub); text-align: center; padding: 40px 0; }
+  .nf-info { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 32px; }
+  .nf-info .card { padding: 16px 18px; }
+  .nf-info b { font-size: 14px; }
+  .nf-info p { margin: 6px 0 0; color: var(--sub); font-size: 12.5px; line-height: 1.6; }
+  @media (max-width: 760px) {
+    .nf-hero { flex-direction: column; align-items: flex-start; gap: 14px; }
+    .nf-item, .nf-item.feat { grid-template-columns: 120px minmax(0, 1fr); }
+    .thumb, .feat .thumb { min-height: 100px; }
+    .feat .body { padding: 14px; }
+    .feat .body h3 { font-size: 16px; }
+    .body { padding: 12px 14px; }
+    .body h3 { font-size: 14.5px; }
+    .outlets a { grid-template-columns: 76px minmax(0, 1fr); }
+    .outlets em { display: none; }
+    .nf-info { grid-template-columns: 1fr; }
+  }
+</style>
