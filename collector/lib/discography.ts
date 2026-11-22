@@ -17,7 +17,8 @@ export function buildDiscography(videos: Video[]): Release[] {
   for (const v of videos) {
     if (!OWN.has(v.channel)) continue;
     const t = v.title.normalize('NFKC');
-    const m = t.match(/[‘']((?:[^’']|['’](?=[A-Za-z]))+)[’']\s*MV\b/);
+    // 곡 이름이 작은따옴표로 끝나는 경우('Ridin'' MV)도 읽는다
+    const m = t.match(/[‘']((?:[^’']|['’](?=[A-Za-z]))+['’]?)[’']\s*MV\b/);
     if (!m) continue;
     if (/teaser|behind|reaction|commentary|performance|dance|remix|re:works|track\s*video|lyric|chinese\s*ver|\(feat\./i.test(t)) continue;
     // 그룹(또는 유닛)이 부른 곡만: 제목 앞부분이 그룹·유닛 이름

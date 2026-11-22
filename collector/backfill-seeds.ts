@@ -22,9 +22,10 @@ const arg = (n: string, d: string) => process.argv.find((a) => a.startsWith(`--$
 const only = arg('only', '');
 const deadline = Date.now() + Number(arg('minutes', '40')) * 60_000;
 
-interface Seed { name: string; keywords: string[]; query?: string; from: string; to: string }
+interface Seed { name: string; keywords: string[]; query?: string; member?: string; from: string; to: string }
 const { items } = JSON.parse(readFileSync(join(ROOT, 'config', 'archive-seeds.json'), 'utf8')) as { items: Seed[] };
-const seeds = items.filter((s) => !only || s.name.includes(only));
+const membersOnly = process.argv.includes('--members');
+const seeds = items.filter((s) => (!only || s.name.includes(only)) && (!membersOnly || s.member));
 
 const repo = new JsonRepo();
 const now = new Date();
@@ -36,7 +37,7 @@ const related = (t: string) => isDreamRelated(t) || members.some((a) => t.includ
 
 let earliest = now.toISOString();
 for (const s of seeds) {
-  const q = s.query ?? `"${GROUP.nameVariants[0]}" (${s.keywords.map((k) => `"${k}"`).join(' OR ')})`;
+  const q = s.query ?? `"${s.member ?? GROUP.nameVariants[0]}" (${s.keywords.map((k) => `"${k}"`).join(' OR ')})`;
   const r = await searchGoogleNews(`${q} after:${s.from} before:${s.to}`).catch((e) => { console.log(`검색 실패 ${s.name}: ${(e as Error).message.slice(0, 80)}`); return null; });
   if (!r) { if (googleNewsBlocked()) break; continue; }
   const batch: ArticleRecord[] = [];

@@ -1,23 +1,336 @@
 {
   "_설명": "아카이브에 빠진 활동을 채우기 위한 이름 검색 목록 (나무위키 NCT DREAM 문서 2026-11-22 기준 목록과 비교해서 빠진 것). backfill-seeds.ts가 그 기간 기사를 이름으로 찾아 넣으면, 일정 → 활동 페이지는 평소처럼 자동으로 묶인다. 사실 자체를 여기 적지 않는다",
   "items": [
-    { "name": "RELOAD (Ridin')", "keywords": ["Ridin", "RELOAD", "라이딘"], "from": "2020-04-15", "to": "2020-07-15" },
-    { "name": "THE DREAM (일본 미니 1집)", "keywords": ["THE DREAM"], "query": "\"NCT DREAM\" \"THE DREAM\" 일본", "from": "2020-01-05", "to": "2020-03-01" },
-    { "name": "Trigger The Fever", "keywords": ["Trigger The Fever", "트리거 더 피버"], "from": "2017-02-20", "to": "2017-04-30" },
-    { "name": "Fireflies", "keywords": ["Fireflies", "파이어플라이즈", "스카우트"], "from": "2019-06-25", "to": "2019-08-31" },
-    { "name": "무대로 (Déjà Vu)", "keywords": ["무대로", "Deja Vu", "Déjà Vu"], "from": "2020-10-01", "to": "2020-11-30" },
-    { "name": "Dreaming (NCT Universe)", "keywords": ["Dreaming"], "from": "2021-12-01", "to": "2022-01-31" },
-    { "name": "Up to You", "keywords": ["Up to You"], "from": "2019-11-10", "to": "2019-12-31" },
-    { "name": "Love Me Right (SMTOWN)", "keywords": ["Love Me Right"], "from": "2025-02-01", "to": "2025-03-31" },
-    { "name": "NCT DREAM SHOW (첫 단독 콘서트)", "keywords": ["NCT DREAM SHOW", "드림쇼", "단독 콘서트"], "from": "2018-09-01", "to": "2018-12-31" },
-    { "name": "Beyond the Dream Show", "keywords": ["Beyond the Dream Show", "비욘드 라이브", "Beyond LIVE"], "from": "2020-04-20", "to": "2020-05-31" },
-    { "name": "THE DREAM SHOW2 : In A DREAM", "keywords": ["THE DREAM SHOW2", "THE DREAM SHOW 2", "드림쇼2", "드림쇼 2", "In A DREAM"], "from": "2022-07-15", "to": "2023-05-31" },
-    { "name": "THE DREAM SHOW2 : In YOUR DREAM", "keywords": ["In YOUR DREAM", "THE DREAM SHOW2", "드림쇼2", "드림쇼 2"], "from": "2023-05-01", "to": "2023-07-31" },
-    { "name": "WINTER DREAM (2019 팬미팅)", "keywords": ["WINTER DREAM", "팬미팅"], "from": "2019-11-25", "to": "2019-12-31" },
-    { "name": "DREAM LAND (7주년 팬미팅)", "keywords": ["DREAM LAND", "드림랜드", "팬미팅"], "from": "2023-06-15", "to": "2023-08-10" },
-    { "name": "DREAMIES' Wonderland (일본 팬미팅)", "keywords": ["Wonderland", "원더랜드", "팬미팅"], "from": "2024-12-15", "to": "2025-02-28" },
-    { "name": "NCT LIFE : DREAM in Wonderland", "keywords": ["NCT LIFE", "DREAM in Wonderland", "엔시티 라이프"], "from": "2020-06-15", "to": "2020-10-15" },
-    { "name": "부퀘스트", "keywords": ["부퀘스트", "BOO QUEST"], "from": "2020-08-15", "to": "2021-10-15" },
-    { "name": "소년멘탈캠프", "keywords": ["소년멘탈캠프", "멘탈캠프"], "from": "2021-05-01", "to": "2021-07-15" }
-  ]
+    {
+      "name": "RELOAD (Ridin')",
+      "keywords": [
+        "Ridin",
+        "RELOAD",
+        "라이딘"
+      ],
+      "from": "2020-04-15",
+      "to": "2020-07-15"
+    },
+    {
+      "name": "THE DREAM (일본 미니 1집)",
+      "keywords": [
+        "THE DREAM"
+      ],
+      "query": "\"NCT DREAM\" \"THE DREAM\" 일본",
+      "from": "2020-01-05",
+      "to": "2020-03-01"
+    },
+    {
+      "name": "Trigger The Fever",
+      "keywords": [
+        "Trigger The Fever",
+        "트리거 더 피버"
+      ],
+      "from": "2017-02-20",
+      "to": "2017-04-30"
+    },
+    {
+      "name": "Fireflies",
+      "keywords": [
+        "Fireflies",
+        "파이어플라이즈",
+        "스카우트"
+      ],
+      "from": "2019-06-25",
+      "to": "2019-08-31"
+    },
+    {
+      "name": "무대로 (Déjà Vu)",
+      "keywords": [
+        "무대로",
+        "Deja Vu",
+        "Déjà Vu"
+      ],
+      "from": "2020-10-01",
+      "to": "2020-11-30"
+    },
+    {
+      "name": "Dreaming (NCT Universe)",
+      "keywords": [
+        "Dreaming"
+      ],
+      "from": "2021-12-01",
+      "to": "2022-01-31"
+    },
+    {
+      "name": "Up to You",
+      "keywords": [
+        "Up to You"
+      ],
+      "from": "2019-11-10",
+      "to": "2019-12-31"
+    },
+    {
+      "name": "Love Me Right (SMTOWN)",
+      "keywords": [
+        "Love Me Right"
+      ],
+      "from": "2025-02-01",
+      "to": "2025-03-31"
+    },
+    {
+      "name": "NCT DREAM SHOW (첫 단독 콘서트)",
+      "keywords": [
+        "NCT DREAM SHOW",
+        "드림쇼",
+        "단독 콘서트"
+      ],
+      "from": "2018-09-01",
+      "to": "2018-12-31"
+    },
+    {
+      "name": "Beyond the Dream Show",
+      "keywords": [
+        "Beyond the Dream Show",
+        "비욘드 라이브",
+        "Beyond LIVE"
+      ],
+      "from": "2020-04-20",
+      "to": "2020-05-31"
+    },
+    {
+      "name": "THE DREAM SHOW2 : In A DREAM",
+      "keywords": [
+        "THE DREAM SHOW2",
+        "THE DREAM SHOW 2",
+        "드림쇼2",
+        "드림쇼 2",
+        "In A DREAM"
+      ],
+      "from": "2022-07-15",
+      "to": "2023-05-31"
+    },
+    {
+      "name": "THE DREAM SHOW2 : In YOUR DREAM",
+      "keywords": [
+        "In YOUR DREAM",
+        "THE DREAM SHOW2",
+        "드림쇼2",
+        "드림쇼 2"
+      ],
+      "from": "2023-05-01",
+      "to": "2023-07-31"
+    },
+    {
+      "name": "WINTER DREAM (2019 팬미팅)",
+      "keywords": [
+        "WINTER DREAM",
+        "팬미팅"
+      ],
+      "from": "2019-11-25",
+      "to": "2019-12-31"
+    },
+    {
+      "name": "DREAM LAND (7주년 팬미팅)",
+      "keywords": [
+        "DREAM LAND",
+        "드림랜드",
+        "팬미팅"
+      ],
+      "from": "2023-06-15",
+      "to": "2023-08-10"
+    },
+    {
+      "name": "DREAMIES' Wonderland (일본 팬미팅)",
+      "keywords": [
+        "Wonderland",
+        "원더랜드",
+        "팬미팅"
+      ],
+      "from": "2024-12-15",
+      "to": "2025-02-28"
+    },
+    {
+      "name": "NCT LIFE : DREAM in Wonderland",
+      "keywords": [
+        "NCT LIFE",
+        "DREAM in Wonderland",
+        "엔시티 라이프"
+      ],
+      "from": "2020-06-15",
+      "to": "2020-10-15"
+    },
+    {
+      "name": "부퀘스트",
+      "keywords": [
+        "부퀘스트",
+        "BOO QUEST"
+      ],
+      "from": "2020-08-15",
+      "to": "2021-10-15"
+    },
+    {
+      "name": "소년멘탈캠프",
+      "keywords": [
+        "소년멘탈캠프",
+        "멘탈캠프"
+      ],
+      "from": "2021-05-01",
+      "to": "2021-07-15"
+    },
+    {
+      "name": "런쥔 중국 스페셜 EP (Echoes Between Us)",
+      "member": "런쥔",
+      "keywords": [
+        "Echoes Between Us",
+        "솔로",
+        "EP",
+        "중국"
+      ],
+      "from": "2026-05-10",
+      "to": "2026-07-20"
+    },
+    {
+      "name": "런쥔 라디오 DJ 악동서울",
+      "member": "런쥔",
+      "keywords": [
+        "악동서울",
+        "DJ"
+      ],
+      "from": "2019-07-20",
+      "to": "2019-09-30"
+    },
+    {
+      "name": "천러 중국 앨범 灿 (Lucid)",
+      "member": "천러",
+      "keywords": [
+        "Lucid",
+        "灿",
+        "솔로",
+        "중국",
+        "앨범"
+      ],
+      "from": "2025-04-10",
+      "to": "2025-06-20"
+    },
+    {
+      "name": "천러 라디오 DJ 악동서울",
+      "member": "천러",
+      "keywords": [
+        "악동서울",
+        "DJ"
+      ],
+      "from": "2020-09-20",
+      "to": "2020-11-15"
+    },
+    {
+      "name": "해찬 일본 팬 이벤트 TASTE IN JAPAN",
+      "member": "해찬",
+      "keywords": [
+        "TASTE",
+        "일본",
+        "팬 이벤트"
+      ],
+      "from": "2025-09-01",
+      "to": "2025-10-31"
+    },
+    {
+      "name": "해찬 OST 니가 좋은 이유",
+      "member": "해찬",
+      "keywords": [
+        "니가 좋은 이유",
+        "OST",
+        "금주를 부탁해"
+      ],
+      "from": "2025-05-10",
+      "to": "2025-06-30"
+    },
+    {
+      "name": "해찬 OST Bitter Sweet",
+      "member": "해찬",
+      "keywords": [
+        "Bitter Sweet",
+        "OST",
+        "건물주"
+      ],
+      "from": "2026-03-10",
+      "to": "2026-04-30"
+    },
+    {
+      "name": "해찬 OST 좋은 사람",
+      "member": "해찬",
+      "keywords": [
+        "좋은 사람",
+        "OST"
+      ],
+      "from": "2022-02-20",
+      "to": "2022-04-15"
+    },
+    {
+      "name": "해찬 서울재즈페스티벌",
+      "member": "해찬",
+      "keywords": [
+        "서울재즈페스티벌",
+        "서울 재즈 페스티벌"
+      ],
+      "from": "2026-03-01",
+      "to": "2026-06-10"
+    },
+    {
+      "name": "해찬 부산원아시아페스티벌",
+      "member": "해찬",
+      "keywords": [
+        "원아시아페스티벌",
+        "원아시아 페스티벌",
+        "BOF"
+      ],
+      "from": "2026-04-01",
+      "to": "2026-07-10"
+    },
+    {
+      "name": "드림 페스티벌 2026 (TV아사히)",
+      "member": "해찬",
+      "keywords": [
+        "드림 페스티벌",
+        "Dream Festival",
+        "아사히"
+      ],
+      "from": "2026-10-01",
+      "to": "2026-11-30"
+    },
+    {
+      "name": "지성 고정 예능 왕자와 거지",
+      "member": "지성",
+      "keywords": [
+        "왕자와 거지"
+      ],
+      "from": "2026-06-15",
+      "to": "2026-10-31"
+    },
+    {
+      "name": "지성 라디오 DJ 친한친구",
+      "member": "지성",
+      "keywords": [
+        "친한친구"
+      ],
+      "from": "2025-05-10",
+      "to": "2025-06-30"
+    },
+    {
+      "name": "지성 더 댄서",
+      "member": "지성",
+      "keywords": [
+        "더 댄서",
+        "WHY NOT"
+      ],
+      "from": "2018-04-15",
+      "to": "2018-07-10"
+    },
+    {
+      "name": "재민 같이 할래? GG",
+      "member": "재민",
+      "keywords": [
+        "같이 할래",
+        "GG"
+      ],
+      "from": "2019-04-15",
+      "to": "2019-06-30"
+    }
+  ],
+  "_설명_member": "member가 있으면 '멤버 이름 + 키워드'로 찾는다 (멤버 개인 활동, 나무위키 멤버 문서 2026-11-22 기준과 비교해 빠진 것)"
 }

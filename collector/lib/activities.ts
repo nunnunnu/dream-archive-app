@@ -297,8 +297,10 @@ export function addReleases(
   acts: Activity[],
   releases: { song: string; date: string; owner: Activity['owner'] }[],
   articles: { title: string; publishedAt: string }[] = [],
+  events: PublicEvent[] = [],
 ): Activity[] {
   const pad = (d: string, days: number) => new Date(Date.parse(d) + days * 864e5).toISOString().slice(0, 10);
+  const assigned = new Set(acts.flatMap((a) => a.eventIds));
   const namesOf = (song: string) => [song.replace(/\([^)]*\)/g, ''), ...[...song.matchAll(/\(([^)]+)\)/g)].map((m) => m[1])].map(sq).filter((n) => n.length >= 3);
   const evidence = (r: { song: string; date: string }, re: RegExp) => articles.some((a) => {
     const d = a.publishedAt.slice(0, 10);
@@ -339,6 +341,15 @@ export function addReleases(
       owner: r.owner, from: r.date, to: pad(r.date, 49), eventIds: [], parts: [], videoKeys: [],
       subtitle: isRepackage ? `${prev ? `${prev.name} ` : ''}리패키지` : undefined,
     };
+    // MV로 새로 만든 컴백에도 그 시기 일정을 붙인다: 제목·단계에 곡 이름이 나오는 일정 (프로그램 이름이 제목인 "더 스테이지 · 타이틀곡 'Ridin''"),
+    // 발매 1주 안의 앨범 발매 일정 ("새 앨범 '리로드'(Reload) 발매"). 다른 활동에 이미 묶인 일정은 건드리지 않는다
+    const names = namesOf(r.song);
+    for (const e of events) {
+      if (assigned.has(e.id) || e.date < pad(r.date, -14) || e.date > act.to) continue;
+      const text = sq(`${e.title} ${e.step}`);
+      const album = e.kind === '발매' && Math.abs(Date.parse(e.date) - Date.parse(r.date)) <= 7 * 864e5 && /앨범|album|정규|미니/i.test(`${e.title} ${e.step}`);
+      if (names.some((n) => text.includes(n)) || album) { act.eventIds.push(e.id); assigned.add(e.id); }
+    }
     // 앞 활동과 기간이 겹치면 앞 활동을 이 곡 전날까지로 줄인다 (영상·기사가 두 활동에 겹치지 않게)
     for (const a of acts) if (sameOwner(a) && a.from < r.date && a.to >= r.date) a.to = pad(r.date, -1);
     acts.push(act);

@@ -165,7 +165,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   // 디스코그래피(공식 MV)로 예전 컴백도 활동으로
   const allVideos = await loadRecentVideos(now, 160);
   const releases = buildDiscography(allVideos);
-  addReleases(acts, releases, allArticles);
+  addReleases(acts, releases, allArticles, events);
   await repo.publish('discography.json', { releases });
   const keptIds = await stabilizeEraIds(repo, acts);
   if (keptIds) console.log(`활동 주소 유지 ${keptIds}개`);
