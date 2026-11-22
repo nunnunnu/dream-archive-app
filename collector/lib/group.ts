@@ -34,7 +34,7 @@ export interface GroupConfig {
   formerMembers: { name: string; aliases: string[]; hide: boolean; emojis?: string[] }[];
   units: { name: string; aliases: string[]; members: string[] }[];
   weverse: { community: string };
-  youtube: { channels: { id: string; name: string; filter: boolean; guest?: boolean }[]; stageChannels?: string[]; agencyChannels?: string[] };
+  youtube: { channels: { id: string; name: string; filter: boolean; guest?: boolean }[]; stageChannels?: string[]; agencyChannels?: string[]; thumbFocus?: Record<string, number> };
   community?: { theqoo?: { board: string; categories: { id: string; name: string }[] } };
 }
 

@@ -17,8 +17,8 @@ interface SeriesLite { id: string; type: string; name: string; count: number; fr
 const ANNIV = JSON.parse(readFileSync(join(ROOT, 'config', 'anniversaries.json'), 'utf8')) as { items: { date: string; title: string; member?: string; born?: string }[] };
 const FANCAM_RE = /focus|직캠|fancam|facecam|페이스캠|얼빡/i;
 const STAGE = new Set([...GROUP.youtube.channels.map((c) => c.name), ...(GROUP.youtube.stageChannels ?? [])]);
-/** 채널별 직캠 썸네일 구도: 얼굴이 있는 가로 위치 (MBC 음중직캠은 왼쪽 자막·오른쪽 얼굴). 없으면 가운데 */
-const THUMB_FOCUS: Record<string, number> = { MBCkpop: 80 };
+/** 채널별 직캠 썸네일 구도: 얼굴이 있는 가로 위치 (config/group.json youtube.thumbFocus). 없으면 가운데 */
+const THUMB_FOCUS: Record<string, number> = GROUP.youtube.thumbFocus ?? {};
 const LATIN = (aliases: string[]) => aliases.find((a) => /^[A-Z][A-Z\s]+$/.test(a)) ?? '';
 
 export interface MemberDoc {
