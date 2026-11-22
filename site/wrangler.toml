@@ -19,3 +19,7 @@ GROQ_SMALL_MODEL = "openai/gpt-oss-20b"
 GROQ_RERANK_MODEL = "openai/gpt-oss-120b"
 OPENAI_FALLBACK_MODEL = "gpt-5-mini"
 ASK_DAILY_LIMIT = "50"
+# 어드민 로그인(Cloudflare Access). 비밀값 아님. 비어 있으면 /admin 은 아무도 못 들어온다
+# ACCESS_TEAM_DOMAIN: Zero Trust 팀 도메인 (예: 팀이름.cloudflareaccess.com), ACCESS_AUD: Access 앱의 Application Audience (AUD) 태그
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD = ""

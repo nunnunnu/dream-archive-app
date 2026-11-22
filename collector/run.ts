@@ -46,7 +46,7 @@ import { addReleases, findActivities } from './lib/activities.ts';
 import { buildDiscography } from './lib/discography.ts';
 import { buildSeries } from './lib/series.ts';
 import { applyOverrides, loadOverrides, mergeOverrides, type Overrides } from './lib/overrides.ts';
-import { finalizeReports, pullReports, queueReports, type Report } from './lib/reports.ts';
+import { applyReportDecisions, finalizeReports, pullReports, pushPendingReasons, queueReports, type Report } from './lib/reports.ts';
 import { judgeDeleteReports } from './lib/reportDelete.ts';
 import { judgeNewsReports, reportedFeed } from './lib/reportNews.ts';
 import { publishLinkWake, runLinkWatch } from './lib/linkWatch.ts';
@@ -237,6 +237,7 @@ try {
     return { reports: {}, fetched: 0 };
   });
   reports = pulled.reports;
+  for (const l of await applyReportDecisions(repo, reports, now).catch((err) => [`어드민 결정 반영 실패: ${(err as Error).message}`])) console.log(l);
   const queuedReports = await queueReports(repo, reports, now);
   if (pulled.fetched || queuedReports) console.log(`사이트 제보: 가져옴 ${pulled.fetched}개 · 자동 검증 대기 ${queuedReports}개`);
   step('① 수집');
@@ -270,6 +271,7 @@ try {
     step('③ 합치기 · 내보내기');
     const { events } = await consolidateAndPublish();
     await publishLinkWake(repo, events, now);
+    await pushPendingReasons(reports);
   }
 
   if (!fast) {
@@ -311,6 +313,7 @@ try {
     step('③ 합치기 · 내보내기');
     const { events, pending, rumors, review } = await consolidateAndPublish();
     await publishLinkWake(repo, events, now);
+    await pushPendingReasons(reports);
 
     step('④ 빈칸 채우기');
     const plan = await planFill(repo, events, pending, now, await loadTracked(repo), rumors, review, budget);

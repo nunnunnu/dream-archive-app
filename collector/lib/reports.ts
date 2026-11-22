@@ -7,7 +7,7 @@
 import { GROUP } from './group.ts';
 import type { ExtractionRecord, Repo } from './repo.ts';
 import { submissionId, addSubmission, type Submission } from './submissions.ts';
-import type { Overrides } from './overrides.ts';
+import type { OverrideTarget, Overrides } from './overrides.ts';
 
 export interface Report {
   id: string;
@@ -52,6 +52,21 @@ export async function saveReport(r: Report) {
   if (c) await saveRemote(c, r);
 }
 
+/** 대기 중인 제보의 판정 이유가 바뀌면 사이트(KV)에도 저장 (어드민 화면에서 "AI가 넘긴 이유"로 보인다) */
+const remoteReason = new Map<string, string>();
+export async function pushPendingReasons(reports: Record<string, Report>): Promise<number> {
+  const c = config();
+  if (!c) return 0;
+  let n = 0;
+  for (const r of Object.values(reports)) {
+    if (r.status !== 'pending' || !r.reviewReason || remoteReason.get(r.id) === r.reviewReason) continue;
+    await saveRemote(c, r).catch(() => {});
+    remoteReason.set(r.id, r.reviewReason);
+    n++;
+  }
+  return n;
+}
+
 async function saveRemote(c: KvConfig, r: Report) {
   const res = await kv(c, `/values/${encodeURIComponent(`report:${r.id}`)}`, { method: 'PUT', body: JSON.stringify(r) });
   if (!res.ok) throw new Error(`제보 상태 저장 실패 ${res.status}`);
@@ -74,6 +89,7 @@ export async function pullReports(repo: Repo): Promise<{ reports: Record<string,
     const incoming = await value.json() as Report;
     // 원격 pending 상태는 로컬에서 이미 끝낸 판정을 되돌리지 않는다.
     if (!reports[id] || reports[id].status === 'pending') reports[id] = incoming;
+    remoteReason.set(id, incoming.reviewReason ?? '');
     fetched++;
   }
   await repo.putState('reports', reports);
@@ -155,4 +171,84 @@ export async function finalizeReports(repo: Repo, reports: Record<string, Report
   await repo.putState('report-overrides', stateOverrides);
   await repo.putState('reports', reports);
   return { approved, pending: Object.values(reports).filter((r) => r.status === 'pending').length };
+}
+
+/** 어드민에서 내린 운영자 결정 (사이트 KV report-decision:<id>) */
+export interface ReportDecision { action: 'approve' | 'reject'; note?: string; at: string; by?: string }
+
+/** 제보가 가리키는 일정: 제보할 때 함께 온 일정 정보 → 없으면 "11. 20 대상 · 단계" 제목에서 */
+export function reportTarget(r: Report, year: string): OverrideTarget {
+  const snap = (r.eventSnapshot ?? {}) as { id?: string; date?: string; title?: string; step?: string };
+  if (snap.date && snap.title) return { id: snap.id ?? r.eventId, date: snap.date, title: `${snap.title} ${snap.step ?? ''}`.trim(), reason: r.message, reportId: r.id };
+  const m = /^(\d{1,2})\.\s*(\d{1,2})\s+(.+)$/.exec(r.eventTitle.trim());
+  const date = r.date || (m ? `${year}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}` : '');
+  return { id: r.eventId, date, title: (m?.[3] ?? r.eventTitle).replace(/…/g, '').replace(/\s+·\s+/, ' ').trim(), reason: r.message, reportId: r.id };
+}
+
+/**
+ * 운영자 결정 하나를 적용한다 (덮어쓰기는 overrides에 직접 반영, 저장은 부르는 쪽에서).
+ *  승인: 삭제 → 숨기기, 보완 → 고치기, 추가 → 링크를 제보 처리 대기열에(submit), 소식 → 소식 탭에 (reportedFeed가 approved를 읽음)
+ *  거절: 상태만 바꾼다
+ *  링크 없는 추가 요청은 자동으로 넣을 수 없어서 대기로 두고 이유를 남긴다
+ */
+export function decideReport(r: Report, d: ReportDecision, overrides: Overrides, now: Date): { applied: boolean; submit?: string; message: string } {
+  const by = d.note ? ` (메모: ${d.note})` : '';
+  if (d.action === 'reject') {
+    Object.assign(r, { status: 'rejected', reviewedAt: now.toISOString(), reviewMode: 'manual', reviewReason: `운영자가 거절했어요${by}` });
+    return { applied: true, message: `제보 ${r.id}: 운영자 거절` };
+  }
+  let submit: string | undefined;
+  if (r.type === 'add') {
+    if (!r.url) {
+      r.reviewReason = `운영자가 승인했지만 링크가 없어 자동으로 넣지 못했어요. npm run submit 으로 직접 넣어 주세요${by}`;
+      return { applied: false, message: `제보 ${r.id}: 링크 없는 추가 요청이라 직접 넣어야 함` };
+    }
+    submit = r.url;
+  } else if (r.type === 'delete') {
+    const t = reportTarget(r, now.toISOString().slice(0, 4));
+    overrides.hide = overrides.hide.filter((h) => h.reportId !== r.id);
+    overrides.hide.push(t);
+  } else if (r.type === 'fix') {
+    const t = reportTarget(r, now.toISOString().slice(0, 4));
+    overrides.patch = overrides.patch.filter((p) => p.reportId !== r.id);
+    overrides.patch.push({ ...t, set: { ...(r.date ? { date: r.date } : {}), ...(r.time ? { time: r.time } : {}), ...(r.members.length ? { members: r.members } : {}), ...(r.url ? { url: r.url } : {}) } });
+  }
+  Object.assign(r, { status: 'approved', reviewedAt: now.toISOString(), reviewMode: 'manual', reviewReason: `운영자가 승인했어요${by}` });
+  return { applied: true, submit, message: `제보 ${r.id}: 운영자 승인 (${r.type})` };
+}
+
+/** 어드민 결정 가져와 적용: 적용한 결정은 KV에서 지운다. 수집 실행마다 pullReports 바로 뒤에 부른다 */
+export async function applyReportDecisions(repo: Repo, reports: Record<string, Report>, now: Date): Promise<string[]> {
+  const c = config();
+  if (!c) return [];
+  const res = await kv(c, '/keys?prefix=report-decision:');
+  if (!res.ok) return [`어드민 결정 읽기 실패 ${res.status}`];
+  const keys = ((await res.json()) as { result?: { name: string }[] }).result ?? [];
+  if (!keys.length) return [];
+  const overrides = await repo.getState<Overrides>('report-overrides', { hide: [], patch: [] });
+  const log: string[] = [];
+  for (const k of keys) {
+    const id = k.name.slice('report-decision:'.length);
+    const value = await kv(c, `/values/${encodeURIComponent(k.name)}`);
+    const d = value.ok ? (await value.json().catch(() => null)) as ReportDecision | null : null;
+    const r = reports[id];
+    const drop = () => kv(c, `/values/${encodeURIComponent(k.name)}`, { method: 'DELETE' });
+    if (!d || !r || r.status !== 'pending') {
+      log.push(`어드민 결정 ${id}: ${!r ? '제보를 못 찾음' : !d ? '읽지 못함' : '이미 처리된 제보'} → 지움`);
+      await drop();
+      continue;
+    }
+    const out = decideReport(r, d, overrides, now);
+    // 자동 검증 때 이미 대기열에 들어간 링크는 다시 읽지 않는다 (addSubmission은 처리 상태를 처음으로 되돌린다)
+    if (out.submit && !(await repo.getState<Submission[]>('submissions', [])).some((s) => s.id === submissionId(out.submit!))) {
+      await addSubmission(repo, out.submit, undefined, now, `[운영자 승인 ${r.id}] ${r.title ?? ''} ${r.message}`.trim());
+    }
+    await saveRemote(c, r);
+    remoteReason.set(r.id, r.reviewReason ?? '');
+    await drop();
+    log.push(out.message);
+  }
+  await repo.putState('report-overrides', overrides);
+  await repo.putState('reports', reports);
+  return log;
 }

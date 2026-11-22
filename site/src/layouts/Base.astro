@@ -8,9 +8,11 @@ const mark = cfg.group.parentNames.reduce((n, p) => n.replace(new RegExp(`^${p}\
 
 interface Props {
   title: string;
-  current: 'schedule' | 'news' | 'archive' | 'series' | 'ask' | 'report';
+  current: 'schedule' | 'news' | 'archive' | 'series' | 'ask' | 'report' | 'admin';
+  /** 검색에 안 나오게 (어드민) */
+  noindex?: boolean;
 }
-const { title, current } = Astro.props;
+const { title, current, noindex } = Astro.props;
 const nav = [
   { id: 'schedule', href: '/', label: '일정' },
   { id: 'news', href: '/news/', label: '소식' },
@@ -24,7 +26,8 @@ const nav = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title} · 드림아카이브</title>
+    <title>{title} · 드림로그</title>
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
@@ -34,7 +37,7 @@ const nav = [
   <body>
     <header class="site-head">
       <div class="wrap">
-        <a class="brand" href="/" aria-label={`${groupName} 아카이브`}><span class="brand-mark">{mark}</span><span class="brand-name">{groupName}</span> <small>아카이브</small></a>
+        <a class="brand" href="/" aria-label={`${groupName} 드림로그`}><span class="brand-mark">{mark}</span><span class="brand-name">{groupName}</span> <small>드림로그</small></a>
         <nav class="nav" aria-label="주요 메뉴">
           {nav.map((n) => <a href={n.href} aria-current={n.id === current ? 'page' : undefined}>{n.label}</a>)}
           <a class="report-btn" href="/report/" aria-current={current === 'report' ? 'page' : undefined}>제보</a>
@@ -42,6 +45,6 @@ const nav = [
       </div>
     </header>
     <slot />
-    <footer class="wrap site-foot">{groupName} 팬 아카이브 · 공식 공지·기사·영상에서 자동으로 모은 일정이에요. 정확한 내용은 각 출처를 확인해 주세요.</footer>
+    <footer class="wrap site-foot">{groupName} 팬 아카이브 드림로그 · 공식 공지·기사·영상에서 자동으로 모은 일정이에요. 정확한 내용은 각 출처를 확인해 주세요.</footer>
   </body>
 </html>

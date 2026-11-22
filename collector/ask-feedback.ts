@@ -1,6 +1,7 @@
 /**
  * 사이트 질문 답변 평가(👍/👎) 모아 보기: npm run ask:feedback [-- --days=7] [--to-eval]
- *   --to-eval  👎 받은 질문을 eval/feedback-candidates.json 에 모은다 (정답을 채워 eval/ask-questions.json 으로 옮기면 평가 세트가 된다)
+ *   --to-eval  어드민(/admin)에서 "평가 세트 후보로" 표시한 👎만 eval/feedback-candidates.json 에 모은다 (정답을 채워 eval/ask-questions.json 으로 옮기면 평가 세트가 된다)
+ *   --to-eval --all  표시와 상관없이 👎 전부 ("확인함" 표시한 것은 빼고)
  * 필요한 값(.env): CLOUDFLARE_ACCOUNT_ID, CF_KV_REPORTS_ID, KV 읽기 권한이 있는 토큰(CF_API_TOKEN 또는 CLOUDFLARE_API_TOKEN)
  */
 import './lib/env.ts';
@@ -35,17 +36,27 @@ for (let i = 0; i < days; i++) {
 }
 const up = items.filter((x) => x.rating === 'up').length;
 const down = items.filter((x) => x.rating === 'down');
+// 어드민 표시 (askfb-review:<id> = eval | seen)
+const marks = new Map<string, string>();
+for (const x of down) {
+  const v = await kv(`/values/${encodeURIComponent(`askfb-review:${x.id}`)}`);
+  if (v.ok) marks.set(x.id, (await v.text()).trim());
+}
+const MARK: Record<string, string> = { eval: ' [평가 후보]', seen: ' [확인함]' };
 console.log(`최근 ${days}일 평가 ${items.length}개 · 👍 ${up} · 👎 ${down.length}${items.length ? ` (만족 ${Math.round((up / items.length) * 100)}%)` : ''}`);
 const reasons = new Map<string, number>();
 for (const x of down) reasons.set(x.reason || '이유 없음', (reasons.get(x.reason || '이유 없음') ?? 0) + 1);
 if (down.length) console.log(`👎 이유: ${[...reasons].map(([r, n]) => `${r} ${n}`).join(' · ')}`);
-for (const x of down.slice(0, 20)) console.log(`\n👎 ${x.at.slice(0, 16)} [${x.reason || '-'}] ${x.question}${x.note ? `\n   의견: ${x.note}` : ''}\n   답: ${x.answer.slice(0, 160).replace(/\n/g, ' ')}`);
+for (const x of down.slice(0, 20)) console.log(`\n👎 ${x.at.slice(0, 16)} [${x.reason || '-'}]${MARK[marks.get(x.id) ?? ''] ?? ''} ${x.question}${x.note ? `\n   의견: ${x.note}` : ''}\n   답: ${x.answer.slice(0, 160).replace(/\n/g, ' ')}`);
 
 if (process.argv.includes('--to-eval') && down.length) {
   const file = join(ROOT, 'eval', 'feedback-candidates.json');
   const prev = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as { id: string }[]) : [];
   const seen = new Set(prev.map((p) => p.id));
-  const add = down.filter((x) => !seen.has(x.id)).map((x) => ({ id: x.id, q: x.question, reason: x.reason, note: x.note, badAnswer: x.answer, at: x.at, todo: '정답 조건(all/any/unknown)을 채워 ask-questions.json 으로 옮기기' }));
+  const all = process.argv.includes('--all');
+  const picked = down.filter((x) => (all ? marks.get(x.id) !== 'seen' : marks.get(x.id) === 'eval'));
+  if (!picked.length) console.log(all ? '\n모을 👎이 없어요' : '\n어드민에서 "평가 세트 후보로" 표시한 👎이 없어요 (표시와 상관없이 모으려면 --all)');
+  const add = picked.filter((x) => !seen.has(x.id)).map((x) => ({ id: x.id, q: x.question, reason: x.reason, note: x.note, badAnswer: x.answer, at: x.at, todo: '정답 조건(all/any/unknown)을 채워 ask-questions.json 으로 옮기기' }));
   writeFileSync(file, JSON.stringify([...prev, ...add], null, 1));
   console.log(`\n평가 후보 ${add.length}개 추가 → eval/feedback-candidates.json`);
 }
