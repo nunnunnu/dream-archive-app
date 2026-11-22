@@ -40,11 +40,8 @@ const outlets = (i: FeedItem) => new Set((i.articles ?? []).map((a) => a.publish
 const notices = list.filter((i) => i.type === 'weverse-notice');
 const articles = list.filter((i) => i.type === 'news');
 const videos = list.filter((i) => i.type === 'youtube');
-// 다른 가수가 주인공일 수 있는 기사(shared)는 사진 칸·하이라이트에서 뺀다
+// 다른 가수가 주인공일 수 있는 기사(shared)는 사진 칸에서 뺀다 (소식은 모두 최신순, 자동 하이라이트는 두지 않는다)
 const photos = list.filter((i) => i.topic && i.topic !== '차트' && !i.shared);
-// 하이라이트: 최근 7일, 많이 보도된 순(같은 소식 기사 수) → 사진 있는 것 → 주제 있는 것
-const score = (i: FeedItem) => (i.count ?? 1) * 3 + (visual(i) ? 2 : 0) + (i.topic ? 1 : 0);
-const highlights = list.filter((i) => i.publishedAt >= weekAgo && i.type !== 'weverse-notice' && !i.shared).sort((a, b) => score(b) - score(a) || b.publishedAt.localeCompare(a.publishedAt)).slice(0, 5);
 const articleDays = [...new Set(articles.map((i) => day(i.publishedAt)))];
 const SHOW_DAYS = 3;
 const shownArticles = articles.filter((i) => articleDays.slice(0, SHOW_DAYS).includes(day(i.publishedAt))).length;
@@ -63,20 +60,6 @@ const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span c
     <div class="filter-divider"></div>
     <div class="member-filters" data-group="member">{members.map((m) => <button class={mc(m)} aria-pressed="false" data-v={m}>{m}</button>)}</div>
   </div></div>
-
-  {highlights.length > 0 && <section class="wrap news-section" data-section>
-    <div class="section-title"><div><p class="eyebrow">THIS WEEK</p><h2>이번 주 하이라이트</h2></div><span>{md(weekAgo)} – {md(new Date(now).toISOString())} · 가장 많이 모인 소식</span></div>
-    <div class="hl-grid">{highlights.map((i, n) => (
-      <a class={`hl-card feed-item${n === 0 ? ' hl-main' : ''}`} href={i.url} target="_blank" rel="noopener" data-type={i.type} data-topic={i.topic ?? ''} data-members={i.members.join(',')}>
-        <div class={`vis v-${i.topic === '공항' ? 'airport' : i.type === 'youtube' ? 'video' : `p${n % 4}`}`}>
-          {visual(i) && (i.type === 'youtube' ? <img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /> : <><img class="cover-bg" src={visual(i)!} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" /><img class="cover" src={visual(i)!} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.previousElementSibling?.remove(); this.remove()" /></>)}
-          <span class="tags"><em class="t-lime">{i.topic ?? (i.type === 'youtube' ? '공식 영상' : LABEL[i.type])}</em>{(i.count ?? 1) > 1 && <em>기사 {i.count}건</em>}</span>
-          <span class="go">↗</span>
-          {n === 0 && <small class="vis-note">🖼 이미지는 원문 주소에서 바로 불러와요 · 서버 저장 없음</small>}
-        </div>
-        <div class="hl-copy"><h3>{clean(i.title)}</h3><div class="mrow" set:html={chips(i)} /><p><b>{i.publisher ?? LABEL[i.type]}</b> · {when(i.publishedAt)}</p></div>
-      </a>))}</div>
-  </section>}
 
   {photos.length > 0 && <section class="wrap news-section" data-section>
     <div class="section-title"><div><p class="eyebrow">PHOTO</p><h2>화보·광고·공항</h2></div>{photos.length > 8 && <button type="button" class="link-btn" data-more-photos>사진 소식 모두 보기 →</button>}</div>

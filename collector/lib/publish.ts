@@ -32,7 +32,7 @@ export interface FeedItem {
   count?: number;
   /** 같은 소식으로 묶인 매체별 기사 (펼쳐 보기용, 시간순) */
   articles?: { title: string; url: string; publisher: string; publishedAt: string }[];
-  /** 다른 가수가 주인공일 수 있는 기사 (제목 첫 주어에 그룹·멤버 이름이 없음): 사진을 쓰지 않고 하이라이트·사진 칸에서 뺀다 */
+  /** 다른 가수가 주인공일 수 있는 기사 (제목 첫 주어에 그룹·멤버 이름이 없음): 사진을 쓰지 않고 사진 칸에서 뺀다 */
   shared?: boolean;
   /** 영상 길이(초)·라이브 여부 */
   duration?: number;
