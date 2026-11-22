@@ -44,29 +44,36 @@ export const tokenFrom = (req: Request): string | null =>
   ?? null;
 
 export async function verifyAccess(token: string | null, cfg: AccessConfig | null, opts: { fetcher?: CertFetcher; now?: number } = {}): Promise<AccessUser | null> {
-  if (!token || !cfg) return null;
+  const r = await checkAccess(token, cfg, opts);
+  return 'email' in r ? r : null;
+}
+
+/** 통과 못 한 이유를 짧은 코드로 (화면에 보여도 되는 것만: no-token, aud, iss, exp, sig 등) */
+export async function checkAccess(token: string | null, cfg: AccessConfig | null, opts: { fetcher?: CertFetcher; now?: number } = {}): Promise<AccessUser | { reason: string }> {
+  if (!cfg) return { reason: 'no-config' };
+  if (!token) return { reason: 'no-token' };
   const parts = token.split('.');
-  if (parts.length !== 3) return null;
+  if (parts.length !== 3) return { reason: 'format' };
   try {
     const header = b64urlJson<{ alg?: string; kid?: string }>(parts[0]);
     const payload = b64urlJson<{ aud?: string | string[]; iss?: string; exp?: number; nbf?: number; email?: string }>(parts[1]);
-    if (header.alg !== 'RS256' || !header.kid) return null;
+    if (header.alg !== 'RS256' || !header.kid) return { reason: 'alg' };
     const now = (opts.now ?? Date.now()) / 1000;
     const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-    if (!auds.includes(cfg.aud)) return null;
-    if (payload.iss !== `https://${cfg.teamDomain}`) return null;
-    if (!payload.exp || payload.exp < now) return null;
-    if (payload.nbf && payload.nbf > now + 60) return null;
-    if (!payload.email) return null;
+    if (!auds.includes(cfg.aud)) return { reason: 'aud' };
+    if (payload.iss !== `https://${cfg.teamDomain}`) return { reason: 'iss' };
+    if (!payload.exp || payload.exp < now) return { reason: 'exp' };
+    if (payload.nbf && payload.nbf > now + 60) return { reason: 'nbf' };
+    if (!payload.email) return { reason: 'no-email' };
     const fetcher = opts.fetcher ?? fetchCerts;
     let jwk = (await keysFor(cfg.teamDomain, fetcher)).find((k) => k.kid === header.kid);
     if (!jwk) jwk = (await keysFor(cfg.teamDomain, fetcher, true)).find((k) => k.kid === header.kid);
-    if (!jwk || jwk.kty !== 'RSA') return null;
+    if (!jwk || jwk.kty !== 'RSA') return { reason: 'no-key' };
     const key = await crypto.subtle.importKey('jwk', { kty: 'RSA', n: jwk.n, e: jwk.e, alg: 'RS256', ext: true }, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
     const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlBytes(parts[2]), new TextEncoder().encode(`${parts[0]}.${parts[1]}`));
-    return ok ? { email: payload.email } : null;
-  } catch {
-    return null;
+    return ok ? { email: payload.email } : { reason: 'sig' };
+  } catch (err) {
+    return { reason: `error:${(err as Error).name}` };
   }
 }
 
