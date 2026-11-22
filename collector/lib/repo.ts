@@ -56,7 +56,7 @@ export interface ArticleRecord {
   imageCheckedAt?: string;
 }
 
-export type DocType = 'notice' | 'article' | 'submission' | 'video' | 'post' | 'notice-image';
+export type DocType = 'namu' | 'notice' | 'article' | 'submission' | 'video' | 'post' | 'notice-image';
 
 export interface ExtractionRecord {
   docType: DocType;

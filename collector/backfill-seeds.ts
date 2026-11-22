@@ -25,9 +25,13 @@ const deadline = Date.now() + Number(arg('minutes', '40')) * 60_000;
 interface Seed { name: string; keywords: string[]; query?: string; member?: string; from: string; to: string }
 const { items } = JSON.parse(readFileSync(join(ROOT, 'config', 'archive-seeds.json'), 'utf8')) as { items: Seed[] };
 const membersOnly = process.argv.includes('--members');
-const seeds = items.filter((s) => (!only || s.name.includes(only)) && (!membersOnly || s.member));
+const fromState = process.argv.includes('--from-state');
 
 const repo = new JsonRepo();
+// --from-state: 나무위키 주간 검토(namu-watch.ts)가 넣은 활동 중 아직 안 찾은 것
+const stateSeeds = fromState ? await repo.getState<(Seed & { done?: boolean; found?: number })[]>('namu/seeds', []) : [];
+const seeds = fromState ? stateSeeds.filter((s) => !s.done) : items.filter((s) => (!only || s.name.includes(only)) && (!membersOnly || s.member));
+if (!seeds.length) { console.log('찾을 활동 없음'); process.exit(0); }
 const now = new Date();
 const norm = (s: string) => s.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
 const known = await repo.listArticles('2016-01-01T00:00:00Z');
@@ -52,7 +56,9 @@ for (const s of seeds) {
   if (batch.length) await repo.putArticles(batch);
   if (s.from < earliest) earliest = s.from;
   console.log(`${s.name}: 검색 ${r.length}건 → 새 기사 ${batch.length}개`);
+  if (fromState) Object.assign(s, { done: true, found: batch.length });
 }
+if (fromState) await repo.putState('namu/seeds', stateSeeds);
 
 const budget = await new Budget(repo, now).load();
 const browser = await chromium.launch();

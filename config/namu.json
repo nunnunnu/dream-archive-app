@@ -1,0 +1,13 @@
+{
+  "_설명": "나무위키 주간 검토(namu-watch.ts): 이 문서들에서 지난주와 달라진 부분만 읽어 활동 이름·날짜를 뽑고, 아카이브에 없는 것은 그 이름으로 기사를 찾는다. 나무위키 글은 사이트에 옮기지 않고 검색 힌트로만 쓴다 (CC BY-NC-SA). robots.txt가 /w/ 읽기를 허용. 봇 확인 화면이 나오면 우회하지 않고 건너뛴다",
+  "intervalDays": 7,
+  "pages": [
+    { "title": "NCT DREAM" },
+    { "title": "런쥔", "member": "런쥔" },
+    { "title": "제노(NCT)", "member": "제노" },
+    { "title": "해찬", "member": "해찬" },
+    { "title": "재민", "member": "재민" },
+    { "title": "천러", "member": "천러" },
+    { "title": "지성(NCT)", "member": "지성" }
+  ]
+}

@@ -86,6 +86,9 @@ jobs:
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           if [ "$MODE" = "backfill" ]; then
             # 과거 기사 채우기 (개발 비용은 운영 월 상한과 따로) → 다시 내보내기
+            # 나무위키 주간 검토 (7일에 한 번, 실패해도 나머지는 계속) → 새 활동 이름으로 기사 찾기
+            npm run namu:watch || true
+            npm run backfill:seeds -- --from-state --minutes=10 || true
             npm run backfill:news -- --minutes=20 --total-minutes=45 && npm run collect -- --publish-only
           elif [ "$MODE" = "links" ]; then
             npm run collect -- --links
