@@ -284,6 +284,18 @@ function setup(panel: HTMLElement) {
       box.querySelector<HTMLInputElement>('[data-v="offset"]')!.value = draft.videos[m].offset;
       renderCues();
       renderTimeline();
+    } else if (btn.dataset.act === 'off') {
+      // 이 영상만: 오프셋(구간 오프셋 포함)을 옮긴다. 큐(노래 시각)와 다른 영상은 그대로
+      const d = Number(btn.dataset.d);
+      const v = draft.videos[m];
+      const r = (x: string) => String(Math.max(0, Math.round(((Number(x) || 0) + d) * 1000) / 1000));
+      v.offset = r(v.offset);
+      for (const sg of v.segments) sg.offset = r(sg.offset);
+      box.querySelector<HTMLInputElement>('[data-v="offset"]')!.value = v.offset;
+      renderSegs(box, m);
+      renderCues();
+      renderTimeline();
+      setTimeout(() => setStatus(`${m === 'mv' ? '뮤비' : '가이드'} 큐를 ${d < 0 ? '앞으로' : '뒤로'} ${Math.abs(d)}초 옮겼어요 (오프셋 ${v.offset}초)`), 0);
     } else if (btn.dataset.act === 'seg-add') {
       const v = draft.videos[m];
       v.segments.push({ from: vt ? vt.toFixed(2) : '', to: '', offset: v.offset });
