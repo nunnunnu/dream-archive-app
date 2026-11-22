@@ -4,7 +4,7 @@ interface Props { title: string; sub?: string; cover: { from: string; to: string
 const { title, sub, cover, size = 'md', image } = Astro.props;
 ---
 <div class={`cover cover-${size}${image ? ' has-img' : ''}`} style={`--from:${cover.from};--to:${cover.to};--ink:${cover.text}`}>
-  {image ? <img src={image} alt="" loading="lazy" /> : <div class="cover-glow"></div>}
+  {image ? <><img class="cover-bg" src={image} alt="" aria-hidden="true" loading="lazy" referrerpolicy="no-referrer" /><img class="cover-img" src={image} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.parentElement.classList.remove('has-img'); this.previousElementSibling?.remove(); this.remove()" /></> : <div class="cover-glow"></div>}
   <div class="cover-text">
     <strong>{title}</strong>
     {sub && <small>{sub}</small>}
@@ -12,7 +12,10 @@ const { title, sub, cover, size = 'md', image } = Astro.props;
 </div>
 <style>
   .cover { position: relative; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; background: linear-gradient(160deg, color-mix(in srgb, var(--from) 35%, var(--to)) 0%, var(--to) 55%); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25); }
-  .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  /* 썸네일은 잘라서 채우지 않고 비율 그대로(contain), 남는 곳은 같은 사진을 흐리게 깐 배경 (소식 카드와 같은 방식) */
+  .cover img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .cover-bg { object-fit: cover; filter: blur(16px) brightness(0.7); transform: scale(1.25); }
+  .cover-img { object-fit: contain; }
   .cover.has-img::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, color-mix(in srgb, var(--to) 85%, transparent) 100%); }
   .cover-glow { position: absolute; inset: -30% -30% auto auto; width: 90%; aspect-ratio: 1; background: radial-gradient(circle, var(--from) 0%, transparent 65%); opacity: 0.7; }
   .cover-text { position: absolute; left: 16px; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 4px; z-index: 1; }

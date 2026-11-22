@@ -14,6 +14,9 @@ import { ROOT } from './store.ts';
 import type { Video } from './youtube.ts';
 
 interface SeriesLite { id: string; type: string; name: string; count: number; from: string; to: string; thumb?: string; members: string[] }
+/** 음악방송 (config/programs.json): 방송 출연 목록에서는 뺀다 (매주 반복이라 컴백 활동 쪽에서 본다) */
+const MUSIC_SHOWS = (JSON.parse(readFileSync(join(ROOT, 'config', 'programs.json'), 'utf8')) as { programs: { names: string[] }[] }).programs.flatMap((p) => p.names);
+const isMusicShow = (t: string) => MUSIC_SHOWS.some((n) => t.replace(/\s+/g, '').includes(n.replace(/\s+/g, '')));
 const ANNIV = JSON.parse(readFileSync(join(ROOT, 'config', 'anniversaries.json'), 'utf8')) as { items: { date: string; title: string; member?: string; born?: string }[] };
 const FANCAM_RE = /focus|직캠|fancam|facecam|페이스캠|얼빡/i;
 const STAGE = new Set([...GROUP.youtube.channels.map((c) => c.name), ...(GROUP.youtube.stageChannels ?? [])]);
@@ -23,6 +26,8 @@ const LATIN = (aliases: string[]) => aliases.find((a) => /^[A-Z][A-Z\s]+$/.test(
 
 export interface MemberDoc {
   slug: string; name: string; en: string; kind: '그룹' | '멤버';
+  /** 표지·점 색 (config/group.json members[].color, 그룹은 groupColor) */
+  color?: { from: string; to: string; dot: string };
   realName?: string; position?: string; birthday?: string; born?: string; debut?: string; groups: string[];
   photo?: { thumb: string; url: string; title: string; focus?: number };
   timeline: { year: string; items: { date: string; kind: string; title: string; eraId: string; owner: string }[] }[];
@@ -50,18 +55,18 @@ export function buildMemberDocs(input: { events: PublicEvent[]; eras: EraPage[];
       timeline: years.map((y) => ({ year: y, items: myEras.filter((e) => e.from.startsWith(y)).map((e) => ({ date: e.from, kind: e.kind, title: e.title, eraId: e.id, owner: e.owner.label })) })),
       eras: myEras.filter((e) => e.kind === '컴백' || e.kind === '콘서트·투어' || e.kind === '팬미팅').map((e) => e.id),
       variety: series.filter((s) => (kind === '그룹' ? !s.members.length : s.members.includes(name)) && s.count > 0).sort((a, b) => b.to.localeCompare(a.to)).slice(0, 12).map((s) => ({ id: s.id, name: s.name, type: s.type, count: s.count, to: s.to })),
-      appearances: events.filter((e) => e.kind === '방송' && mine(e.members) && !/음악중심|뮤직뱅크|인기가요|엠카운트다운|더 ?쇼|쇼챔피언/.test(e.title)).map((e) => ({ date: e.date, title: e.title, step: e.step, url: e.sources[0]?.url })).sort(byDateDesc).slice(0, 12),
+      appearances: events.filter((e) => e.kind === '방송' && mine(e.members) && !isMusicShow(e.title)).map((e) => ({ date: e.date, title: e.title, step: e.step, url: e.sources[0]?.url })).sort(byDateDesc).slice(0, 12),
       pictorial: feed.filter((f) => f.type === 'news' && (f.topic === '광고' || f.topic === '브랜드·화보') && !f.shared && mine(f.members)).map((f) => ({ title: f.title, url: f.url, image: f.image, date: f.publishedAt.slice(0, 10), publisher: f.publisher, topic: f.topic })).sort(byDateDesc).slice(0, 8),
       news: feed.filter((f) => f.type !== 'youtube' && mine(f.members)).map((f) => ({ title: f.title, url: f.url, date: f.publishedAt.slice(0, 10), publisher: f.publisher, topic: f.topic, type: f.type, image: f.shared ? undefined : f.image })).sort(byDateDesc).slice(0, 8),
     };
   };
   const debut = GROUP.debut;
-  const group = doc('nctdream', GROUP.name, GROUP.name, '그룹', (members, owner) => !members.length || owner?.scope === '단체', { debut, groups: [GROUP.name] });
+  const group = doc('nctdream', GROUP.name, GROUP.name, '그룹', (members, owner) => !members.length || owner?.scope === '단체', { debut, groups: [GROUP.name], color: GROUP.groupColor });
   const members = GROUP.members.map((m) => doc(m.slug, m.name, LATIN(m.aliases), '멤버',
     // 멤버 문서: 단체 활동 + 그 멤버가 들어간 유닛·솔로 활동
     (ms, owner) => owner ? (owner.scope === '단체' || owner.members.includes(m.name)) : ms.includes(m.name),
     {
-      realName: m.realName, position: m.position || undefined, debut,
+      realName: m.realName, position: m.position || undefined, debut, color: m.color,
       birthday: ANNIV.items.find((a) => a.member === m.name)?.date,
       born: ANNIV.items.find((a) => a.member === m.name)?.born,
       groups: [GROUP.name, ...GROUP.units.filter((u) => u.members.includes(m.name)).map((u) => u.name), ...(m.otherGroups ?? [])],

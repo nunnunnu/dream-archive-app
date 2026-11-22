@@ -46,7 +46,12 @@
         "🦊"
       ],
       "realName": "황런쥔 (黄仁俊)",
-      "position": ""
+      "position": "",
+      "color": {
+        "from": "#22285c",
+        "to": "#6c8ef5",
+        "dot": "#6c8ef5"
+      }
     },
     {
       "name": "제노",
@@ -63,7 +68,12 @@
         "🐶"
       ],
       "realName": "이제노",
-      "position": ""
+      "position": "",
+      "color": {
+        "from": "#5a2318",
+        "to": "#ee8455",
+        "dot": "#f08a5d"
+      }
     },
     {
       "name": "해찬",
@@ -86,7 +96,12 @@
         "NCT 127"
       ],
       "realName": "이동혁",
-      "position": ""
+      "position": "",
+      "color": {
+        "from": "#4a1430",
+        "to": "#ec67a6",
+        "dot": "#ec67a6"
+      }
     },
     {
       "name": "재민",
@@ -104,7 +119,12 @@
         "🐰"
       ],
       "realName": "나재민",
-      "position": ""
+      "position": "",
+      "color": {
+        "from": "#2c1a5c",
+        "to": "#9a7cf0",
+        "dot": "#9a7cf0"
+      }
     },
     {
       "name": "천러",
@@ -121,7 +141,12 @@
         "🐬"
       ],
       "realName": "종천러 (钟辰乐)",
-      "position": ""
+      "position": "",
+      "color": {
+        "from": "#0d3b2c",
+        "to": "#3fd3a6",
+        "dot": "#3fd3a6"
+      }
     },
     {
       "name": "지성",
@@ -139,7 +164,12 @@
         "🐹"
       ],
       "realName": "박지성",
-      "position": ""
+      "position": "",
+      "color": {
+        "from": "#4d3a08",
+        "to": "#f2c23a",
+        "dot": "#f2c23a"
+      }
     }
   ],
   "formerMembers": [
@@ -278,5 +308,10 @@
   },
   "_otherGroups설명": "members[].otherGroups: 이 그룹 밖 활동(예: NCT 127). 그 일정은 수집하지 않아서 질문 답변에 \"빠질 수 있음\"으로 알린다",
   "_멤버프로필설명": "멤버 문서 프로필 표: realName(본명)·otherGroups(드림 밖 소속)은 공개된 사실, position(포지션)은 운영자가 직접 적는다 (비어 있으면 '작성 전'). 생일은 config/anniversaries.json",
-  "debut": "2016-08-25"
+  "debut": "2016-08-25",
+  "groupColor": {
+    "from": "#1b2a05",
+    "to": "#c5f03a",
+    "dot": "#c5f03a"
+  }
 }

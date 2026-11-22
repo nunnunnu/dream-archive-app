@@ -7,7 +7,7 @@ import Base from '../../layouts/Base.astro';
 import Cover from '../../components/Cover.astro';
 import MemberCard from '../../components/MemberCard.astro';
 import { loadPublic, ymd, type EraSummary } from '../../lib/data';
-import { daysUntil, EMPTY_MEMBERS, MEMBER_COLOR, type MembersData } from '../../lib/members';
+import { colorOf, daysUntil, EMPTY_MEMBERS, type MembersData } from '../../lib/members';
 
 const { slug } = Astro.params;
 const [data, { eras }] = await Promise.all([
@@ -18,7 +18,7 @@ const all = [data.group, ...data.members];
 const m = all.find((x) => x.slug === slug);
 if (!m) return new Response('없는 문서예요', { status: 404 });
 const isGroup = m.kind === '그룹';
-const color = MEMBER_COLOR[m.slug] ?? MEMBER_COLOR.nctdream;
+const color = colorOf(m);
 const eraById = new Map(eras.map((e) => [e.id, e]));
 const bigEras = m.eras.map((id) => eraById.get(id)).filter((e): e is EraSummary => Boolean(e));
 const nextDay = m.birthday ? daysUntil(m.birthday) : m.debut ? daysUntil(m.debut.slice(5)) : null;
@@ -43,8 +43,8 @@ const num = (id: string) => TOC.findIndex(([x]) => x === id) + 1;
         <h1>{m.name}{!isGroup && <small>{m.en}</small>}<i style={`background:${color.dot}`}></i></h1>
         <p class="sub">{isGroup ? `그룹 문서 · ${debutYear}년 데뷔 · 멤버 ${data.members.length}` : `${data.group.name} 멤버 문서 · ${debutYear ?? ''} – 현재`}</p>
         <nav class="mchips" aria-label="다른 문서">
-          <a href="/member/nctdream/" aria-current={isGroup ? 'page' : undefined}><i style={`background:${MEMBER_COLOR.nctdream.dot}`}></i>그룹</a>
-          {data.members.map((x) => <a href={`/member/${x.slug}/`} aria-current={x.slug === m.slug ? 'page' : undefined}><i style={`background:${MEMBER_COLOR[x.slug]?.dot}`}></i>{x.name}</a>)}
+          <a href="/member/nctdream/" aria-current={isGroup ? 'page' : undefined}><i style={`background:${colorOf(data.group).dot}`}></i>그룹</a>
+          {data.members.map((x) => <a href={`/member/${x.slug}/`} aria-current={x.slug === m.slug ? 'page' : undefined}><i style={`background:${colorOf(x).dot}`}></i>{x.name}</a>)}
         </nav>
         <div class="hero-actions">
           {nextDay && <span class={`dday${nextDay.days === 0 ? ' today' : ''}`}>{dayLabel} <b>{nextDay.days === 0 ? '오늘' : `D-${nextDay.days}`}</b> <em>{ymd(nextDay.date)}</em></span>}

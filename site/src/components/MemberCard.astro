@@ -1,9 +1,9 @@
 ---
 // 멤버 사진 카드: 등록 채널의 최신 직캠 썸네일 (사진을 다시 올리지 않음). 없으면 색 그라데이션 + 이니셜
-import { MEMBER_COLOR, thumbs, type MemberDoc } from '../lib/members';
+import { colorOf, thumbs, type MemberDoc } from '../lib/members';
 interface Props { m: MemberDoc; size?: 'sm' | 'lg'; highlight?: boolean }
 const { m, size = 'sm', highlight = false } = Astro.props;
-const c = MEMBER_COLOR[m.slug] ?? MEMBER_COLOR.nctdream;
+const c = colorOf(m);
 const t = m.photo ? thumbs(m.photo.thumb) : null;
 ---
 <div class={`mcard mcard-${size}${highlight ? ' hl' : ''}`} style={`--from:${c.from};--to:${c.to}`}>
