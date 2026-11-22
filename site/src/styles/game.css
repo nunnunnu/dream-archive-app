@@ -50,10 +50,10 @@
 .game-note.is-ghost { background: rgba(255, 255, 255, .75); }
 .game-note.is-miss { background: #ff6b7a; opacity: .6; }
 .game-note.is-hold { background: var(--accent); }
-.game-note-tail { position: absolute; left: 15px; top: 50%; height: 16px; margin-top: -8px; border-radius: 0 8px 8px 0; background: rgba(197, 240, 58, .45); }
+.game-hold-body { position: absolute; left: 15px; top: 50%; height: 16px; margin-top: -8px; border-radius: 0 8px 8px 0; background: rgba(197, 240, 58, .45); }
 .game-note.is-holding { box-shadow: 0 0 0 4px rgba(197, 240, 58, .35); }
-.game-note.is-holding .game-note-tail { background: rgba(197, 240, 58, .8); }
-.game-note.is-miss .game-note-tail { background: rgba(255, 107, 122, .4); }
+.game-note.is-holding .game-hold-body { background: rgba(197, 240, 58, .8); }
+.game-note.is-miss .game-hold-body { background: rgba(255, 107, 122, .4); }
 .game-note-lab { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); white-space: nowrap; font-size: 13px; font-weight: 700; color: #eee; }
 .game-judge, .game-live-judge { position: absolute; left: 14%; bottom: 92px; transform: translateX(-50%); font-weight: 900; font-size: 20px; letter-spacing: .04em; opacity: 0; pointer-events: none; text-align: center; white-space: nowrap; }
 .game-judge small, .game-live-judge small { display: block; font-size: 11px; font-weight: 600; opacity: .8; letter-spacing: 0; }
@@ -76,9 +76,9 @@
 .game-stick .stk-d { fill: #f2ffb8; stroke: #86b800; stroke-width: 1; opacity: .85; }
 .game-stick.is-lit .game-stick-svg, .game-stick.is-holding .game-stick-svg { filter: drop-shadow(0 0 22px rgba(197, 240, 58, .85)) drop-shadow(0 0 48px rgba(197, 240, 58, .35)); transition: none; }
 .game-stick.is-lit .stk-glow, .game-stick.is-holding .stk-glow { opacity: 1; transition: none; }
-.game-stick-judge { position: absolute; top: -4px; right: -6px; font-size: 13px; font-weight: 900; letter-spacing: .04em; opacity: 0; pointer-events: none; }
-.game-stick-judge.is-show { animation: game-fade .6s ease-out forwards; }
-.game-stick-judge.is-perfect { color: var(--accent); } .game-stick-judge.is-good { color: #fff; } .game-stick-judge.is-miss { color: #ff6b7a; }
+.game-stick-pop { position: absolute; top: -4px; right: -6px; font-size: 13px; font-weight: 900; letter-spacing: .04em; opacity: 0; pointer-events: none; }
+.game-stick-pop.is-show { animation: game-fade .55s ease-out forwards; }
+.game-stick-pop.is-perfect { color: var(--accent); } .game-stick-pop.is-good { color: #fff; } .game-stick-pop.is-miss { color: #ff6b7a; }
 @keyframes game-fade { 0% { opacity: 1; transform: translateY(2px); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-4px); } }
 .game-tap-hint { font-size: 12px; color: #888; margin: 6px 0 0; text-align: center; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -159,7 +159,7 @@
   .game-play-row, .game-play-row.is-live { grid-template-columns: minmax(0, 1fr); align-items: start; }
   .game-stick-wrap { margin-top: 4px; }
   .game-stick { width: 200px; height: 250px; }
-  .game-stick-judge { right: 10%; top: 30%; font-size: 16px; }
+  .game-stick-pop { right: 10%; top: 30%; font-size: 16px; }
   .game-chant { justify-content: flex-start; margin-bottom: 30px; }
   .game-cw { font-size: 18px; }
   .game-cw.is-now { font-size: 30px; }
@@ -170,6 +170,6 @@
   .game-result-hero { flex-direction: column; align-items: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .game-stick-judge.is-show { animation: none; opacity: 1; }
+  .game-stick-pop.is-show { animation: none; opacity: 1; }
   .game-judge.is-show, .game-live-judge.is-show { animation: none; opacity: 1; }
   }

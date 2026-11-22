@@ -5,7 +5,7 @@
  */
 import { fmtTime, judgeWindow, songTimeAt, videoTimeAt, type FanchantChart, type FanchantConfig } from '../../lib/fanchant';
 import { VideoClock } from './clock';
-import { histogram, Judger, missSections, type Judge, type TapResult } from './judge';
+import { histogram, holdOf, Judger, missSections, type Judge, type TapResult } from './judge';
 import { getBest, getInputOffset, lateNotes, MODE_LABEL, saveBest, setInputOffset, usesMv, type GameMode } from './storage';
 import { createPlayer, YTState, ytErrorText, type YTPlayer } from './youtube';
 
@@ -128,9 +128,8 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
   function release(eventTime: number) {
     if (!clock || !judger.holding || finished) return;
     const vt = clock.now(Math.min(eventTime, performance.now()));
-    const early = judger.release(songTimeAt(video!, vt) - inputOffset / 1000);
-    if (early != null) showJudge('good', undefined, '일찍 뗐어요');
-    noteEls.get(early ?? -1)?.classList.remove('is-holding');
+    const r = judger.release(songTimeAt(video!, vt) - inputOffset / 1000);
+    if (r) showJudge(r.judge, r, r.judge === 'miss' ? (r.deltaMs < 0 ? '너무 일찍 뗐어요' : '너무 늦게 뗐어요') : undefined);
   }
   tapBtn.addEventListener('pointerup', (e) => release(e.timeStamp));
   tapBtn.addEventListener('pointercancel', (e) => release(e.timeStamp));
@@ -158,14 +157,15 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
   function showJudge(j: Judge, r?: TapResult, note?: string) {
     if (judgeEl) {
       judgeEl.className = `${judgeEl.id === 'g-judge' && mode === 'live' ? 'game-live-judge' : 'game-judge'} is-${j}`;
-      judgeEl.innerHTML = `${WORD[j]}${r ? `<small>${r.points ? `+${nf(r.points)}` : ''} ${r.deltaMs > 0 ? `+${r.deltaMs}` : r.deltaMs}ms${r.hold ? ' · 꾹 누르고 있기' : ''}</small>` : note ? `<small>${esc(note)}</small>` : ''}`;
+      const tail = note ?? (r?.hold ? '꾹 누르고 있기' : r?.kind === 'release' ? '뗌' : '');
+      judgeEl.innerHTML = `${WORD[j]}${r && r.judge !== 'miss' ? `<small>+${nf(r.points)} ${r.deltaMs > 0 ? `+${r.deltaMs}` : r.deltaMs}ms${tail ? ` · ${esc(tail)}` : ''}</small>` : tail ? `<small>${esc(tail)}</small>` : ''}`;
       void judgeEl.offsetWidth;
       judgeEl.classList.add('is-show');
     }
     if (mode === 'live') $('g-live-hint')?.setAttribute('hidden', '');
-    const sj = $('g-stick-judge');
-    if (sj) { sj.className = `game-stick-judge is-${j}`; sj.textContent = WORD[j]; void sj.offsetWidth; sj.classList.add('is-show'); }
-    if (late && r) pushRecent(r.index, true);
+    const sj = $('g-stick-pop');
+    if (sj) { sj.className = `game-stick-pop is-${j}`; sj.textContent = WORD[j]; void sj.offsetWidth; sj.classList.add('is-show'); }
+    if (late && r && r.kind === 'press') pushRecent(r.index, true);
     $('g-combo')!.textContent = String(judger.combo);
     $('g-score')!.textContent = nf(judger.score);
   }
@@ -190,8 +190,8 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
     for (let i = Math.max(0, Math.min(judger.nextIndex, held < 0 ? Infinity : held) - 6); i < cues.length; i++) {
       const d = cues[i].t - st;
       if (d > ahead) break;
-      const hold = cues[i].hold ?? 0;
-      const res = judger.results[i];
+      const hold = holdOf(cues[i]);
+      const res = judger.pressResult(i);
       const holding = i === held;
       if (!holding && (d + (res?.judge === 'miss' ? hold : 0) < -behind || res?.judge === 'skip' || (res && res.judge !== 'miss'))) continue;
       keep.add(i);
@@ -199,7 +199,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
       if (!el) {
         el = document.createElement('div');
         el.className = `game-note${late ? ' is-plain is-ghost' : ''}${hold ? ' is-hold' : ''}`;
-        el.innerHTML = `${hold ? '<span class="game-note-tail"></span>' : ''}${mode === 'step1' ? `<span class="game-note-lab">${esc(cues[i].text)}</span>` : ''}`;
+        el.innerHTML = `${hold ? '<span class="game-hold-body"></span>' : ''}${mode === 'step1' ? `<span class="game-note-lab">${esc(cues[i].text)}</span>` : ''}`;
         notesEl.append(el);
         noteEls.set(i, el);
       }
@@ -215,7 +215,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
   // ── 응원 문구 한 줄: 지난 것(흐리게) · 지금(크게) · 다음(옆으로). 쉬는 구간은 넓게 띄움 ──
   const chantEl = $('g-chant');
   const BREAK_SEC = 1.5;
-  const word = (i: number, cls: string) => `<span class="game-cw ${cls}${cues[i].hold ? ' has-hold' : ''}">${esc(cues[i].text)}${cues[i].hold ? '<em>홀드</em>' : ''}</span>`;
+  const word = (i: number, cls: string) => `<span class="game-cw ${cls}${holdOf(cues[i]) ? ' has-hold' : ''}">${esc(cues[i].text)}${holdOf(cues[i]) ? '<em>홀드</em>' : ''}</span>`;
   const row = (idx: number[], cls: (i: number) => string) => idx.map((i, k) => `${k && cues[i].t - cues[idx[k - 1]].t > BREAK_SEC ? '<span class="game-cbreak"></span>' : k ? '<span class="game-cdot">·</span>' : ''}${word(i, cls(i))}`).join('');
   let chantKey = -1;
   function drawChant() {
@@ -224,7 +224,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
     if (n === chantKey) return;
     chantKey = n;
     const idx: number[] = [];
-    for (let i = Math.max(0, n - 2); i < Math.min(cues.length, n + 6); i++) if (judger.results[i]?.judge !== 'skip') idx.push(i);
+    for (let i = Math.max(0, n - 2); i < Math.min(cues.length, n + 6); i++) if (judger.pressResult(i)?.judge !== 'skip') idx.push(i);
     chantEl.innerHTML = row(idx, (i) => (i < n ? 'is-past' : i === n ? 'is-now' : 'is-next'));
   }
   // 2·3단계: 누른(놓친) 뒤에만 정답을 옆으로 쌓아 보여 준다
@@ -252,10 +252,13 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
     swing = { start: performance.now(), from: ang };
     tapBtn.classList.add('is-lit');
     clearTimeout(litTimer);
-    litTimer = window.setTimeout(() => tapBtn.classList.remove('is-lit'), 260);
+    litTimer = window.setTimeout(() => tapBtn.classList.remove('is-lit'), cfg.pressGlowMs ?? 280);
     if (!stickRaf) stickRaf = requestAnimationFrame(stickFrame);
   }
-  const KEYS: [number, number][] = [[0.35, -15], [0.75, 12], [1, 0]];
+  // 0° → −15° → +12° → −4° → 0° (스펙 §11.1)
+  const KEYS: [number, number][] = [[0.3, -15], [0.6, 12], [0.82, -4], [1, 0]];
+  const WOBBLE_MS = cfg.pressWobbleMs ?? 250;
+  const SWAY_MS = cfg.holdSwayMs ?? 1150;
   let lastStick = performance.now();
   let stickRaf = 0;
   function stickFrame(now: number) {
@@ -265,7 +268,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
     const holding = Boolean(judger.holding) && !finished;
     tapBtn.classList.toggle('is-holding', holding);
     if (swing) {
-      const p = (now - swing.start) / 250;
+      const p = (now - swing.start) / WOBBLE_MS;
       if (p >= 1) { swing = null; ang = 0; swayStart = now; }
       else {
         let t0 = 0, a0 = swing.from;
@@ -275,7 +278,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
         }
       }
     } else if (holding) {
-      ang = Math.sin(((now - swayStart) / 900) * 2 * Math.PI) * 6;
+      ang = Math.sin(((now - swayStart) / SWAY_MS) * 2 * Math.PI) * 6;
     } else {
       ang += (0 - ang) * Math.min(1, dt * 12);
       if (Math.abs(ang) < 0.05) ang = 0;
@@ -299,7 +302,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
         const was = tainted;
         if (st > lastSt + 0.5 && Number.isFinite(lastSt)) {
           if (judger.skip((t) => t < st - win)) tainted = true;
-        } else if (st < lastSt - 0.5 && judger.results.some((r, i) => r && r.judge !== 'skip' && cues[i].t > st)) {
+        } else if (st < lastSt - 0.5 && cues.some((c, i) => c.t > st && judger.pressResult(i) && judger.pressResult(i)!.judge !== 'skip')) {
           tainted = true;
         }
         if (tainted && !was && !practice) notice('영상 위치가 바뀌어서 이번 판은 기록에 남지 않아요. 처음부터 하려면 다시 하기', true);
@@ -339,7 +342,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
     const peak = Math.max(1, ...hist);
     const tendency = Math.abs(s.avgDeltaMs) < 15 ? '거의 딱 맞아요' : s.avgDeltaMs > 0 ? (s.avgDeltaMs > 40 ? '늦은 편' : '약간 늦은 편') : (s.avgDeltaMs < -40 ? '빠른 편' : '약간 빠른 편');
     const guide = chart.videos.find((v) => v.mode === 'guide')!;
-    const sections = missSections(cues, judger.results, cfg.missGroupSec, cfg.maxMissSections);
+    const sections = missSections(cues, cues.map((_, i) => judger.cueResult(i)), cfg.missGroupSec, cfg.maxMissSections);
     const q = (m: GameMode, extra = '') => `${location.pathname}?song=${encodeURIComponent(chart.songId)}&mode=${m}${extra}`;
     const practiceHref = (g: { from: number; to: number }) => q('step1', `&from=${Math.max(0, videoTimeAt(guide, g.from) - cfg.practiceLeadInSec).toFixed(1)}&to=${(videoTimeAt(guide, g.to) + cfg.practiceTrailSec).toFixed(1)}`);
     const diff = prev ? s.score - prev.score : 0;
@@ -352,7 +355,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
           <p class="game-result-mode">${MODE_LABEL[mode]}${practice ? ' · 구간 연습' : ''} · ${esc(chart.title)}</p>
           <h2>${practice ? '구간 연습 끝' : s.cleared ? `${MODE_LABEL[mode]} 클리어` : '클리어 실패'}</h2>
           <p class="game-score"><b>${nf(s.score)}</b> / ${nf(s.maxScore)}</p>
-          <p class="game-result-sub">정확도 ${(s.accuracy * 100).toFixed(1)}% · 최대 콤보 ${s.maxCombo}${s.holds ? ` · 길게 누르기 ${s.holdOk}/${s.holds} 끝까지` : ''}${record ? (prev ? ` · 이전 최고 ${nf(prev.score)}에서 ${diff >= 0 ? '+' : ''}${nf(diff)}` : ' · 첫 기록') : ''}</p>
+          <p class="game-result-sub">정확도 ${(s.accuracy * 100).toFixed(1)}% · 최대 콤보 ${s.maxCombo}${s.holds ? ` · 홀드 뗌 ${s.holdOk}/${s.holds}` : ''}${record ? (prev ? ` · 이전 최고 ${nf(prev.score)}에서 ${diff >= 0 ? '+' : ''}${nf(diff)}` : ' · 첫 기록') : ''}</p>
           ${!record ? `<p class="game-result-sub">${preview ? '시험 플레이라 기록은 남기지 않아요' : practice ? '구간 연습은 기록에 남기지 않아요' : tainted ? '건너뛴 구간이 있어서 기록에 남기지 않았어요' : ''}</p>` : ''}
         </div>
       </div>

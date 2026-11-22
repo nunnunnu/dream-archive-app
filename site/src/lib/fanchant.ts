@@ -3,8 +3,8 @@
  * 어드민 저장 API(서버), 채보 도구·게임 화면(브라우저), 수집기 공개 단계가 함께 쓴다. 순수 함수만.
  */
 export type FanchantMode = 'guide' | 'mv';
-/** hold: 길게 누르는 큐의 길이(초, 노래 시각). 없으면 탭 한 번 */
-export interface FanchantCue { t: number; text: string; member?: string; section?: string; hold?: number }
+/** 홀드(§11.2): type 'hold' + duration(초, 노래 시각). 없으면 탭. 예전 형식 hold(초)도 읽는다 */
+export interface FanchantCue { t: number; text: string; type?: 'tap' | 'hold'; duration?: number; member?: string; section?: string }
 export interface FanchantSegment { from: number; to: number; offset: number }
 export interface FanchantVideo { mode: FanchantMode; youtubeId: string; offset: number; segments?: FanchantSegment[] }
 export interface FanchantChart {
@@ -33,9 +33,10 @@ export interface FanchantIndexSong {
 
 /** config/fanchant.json 이 없을 때 쓰는 기본값 (원본은 config). 실전은 힌트가 없어서 판정 창을 넓게(live*) */
 export const FANCHANT_DEFAULTS = {
-  perfectMs: 80, goodMs: 150, livePerfectMs: 100, liveGoodMs: 200, approachMs: 1500, step2LookaheadMs: 350, step2LingerMs: 80, clockSampleMs: 200,
+  perfectMs: 80, goodMs: 150, goodReleaseMs: 220, livePerfectMs: 100, liveGoodMs: 200, approachMs: 1500, step2LookaheadMs: 350, step2LingerMs: 80, clockSampleMs: 200,
   minCueGapMs: 80, holdMinMs: 300, nudgeMs: 10, practiceLeadInSec: 3, practiceTrailSec: 1.5, missGroupSec: 8, maxMissSections: 3,
   clearAccuracy: 0.7, storagePrefix: 'fanchant.',
+  pressWobbleMs: 250, pressGlowMs: 280, holdSwayMs: 1150, holdArmMs: 220,
 };
 export type FanchantConfig = typeof FANCHANT_DEFAULTS;
 
@@ -167,11 +168,11 @@ export function checkChart(input: unknown, opts: { memberSlugs?: string[]; minCu
     const section = str(c.section, LIMITS.section);
     if (member) cue.member = member;
     if (section) cue.section = section;
-    const hold = num(c.hold);
+    const hold = c.type === 'hold' ? num(c.duration) : num(c.hold);
     if (Number.isFinite(hold) && hold > 0) {
-      if (hold > 60) errors.push('길게 누르기는 60초까지');
-      else cue.hold = r3(hold);
-    }
+      if (hold > 60) errors.push('홀드는 60초까지');
+      else { cue.type = 'hold'; cue.duration = r3(hold); }
+    } else if (c.type === 'hold') errors.push('홀드 큐에는 길이(duration, 초)가 필요해요');
     cues.push(cue);
   }
   cues.sort((a, b) => a.t - b.t);
@@ -181,8 +182,8 @@ export function checkChart(input: unknown, opts: { memberSlugs?: string[]; minCu
   const gap = (opts.minCueGapMs ?? FANCHANT_DEFAULTS.minCueGapMs) / 1000;
   const close = cues.filter((c, i) => i > 0 && c.t - cues[i - 1].t < gap).length;
   if (close) warnings.push(`${Math.round(gap * 1000)}ms보다 가까운 큐 ${close}개 (입력이 하나라 앞 큐만 판정돼요)`);
-  const overlap = cues.filter((c, i) => c.hold && i + 1 < cues.length && c.t + c.hold > cues[i + 1].t).length;
-  if (overlap) warnings.push(`길게 누르는 동안 다음 큐가 시작되는 곳 ${overlap}개`);
+  const overlap = cues.filter((c, i) => c.duration && i + 1 < cues.length && c.t + c.duration > cues[i + 1].t).length;
+  if (overlap) warnings.push(`홀드를 누르는 동안 다음 큐가 시작되는 곳 ${overlap}개`);
   if (Number.isFinite(durationSec) && cues.some((c) => c.t > durationSec)) warnings.push('노래 길이보다 뒤에 있는 큐가 있어요');
   if (slugs) {
     const bad = [...new Set(cues.map((c) => c.member).filter((m): m is string => Boolean(m) && !slugs.has(m!)))];
@@ -230,7 +231,12 @@ export function fmtTime(sec: number, digits = 2): string {
 }
 
 /** 이 모드의 판정 창 (실전은 넓게) */
-export const judgeWindow = (cfg: FanchantConfig, mode: string) =>
-  mode === 'live'
-    ? { perfectMs: cfg.livePerfectMs ?? FANCHANT_DEFAULTS.livePerfectMs, goodMs: cfg.liveGoodMs ?? FANCHANT_DEFAULTS.liveGoodMs }
-    : { perfectMs: cfg.perfectMs ?? FANCHANT_DEFAULTS.perfectMs, goodMs: cfg.goodMs ?? FANCHANT_DEFAULTS.goodMs };
+export const judgeWindow = (cfg: FanchantConfig, mode: string) => {
+  const d = FANCHANT_DEFAULTS;
+  const good = cfg.goodMs ?? d.goodMs;
+  const release = cfg.goodReleaseMs ?? d.goodReleaseMs;
+  if (mode !== 'live') return { perfectMs: cfg.perfectMs ?? d.perfectMs, goodMs: good, goodReleaseMs: release };
+  const liveGood = cfg.liveGoodMs ?? d.liveGoodMs;
+  // 실전은 누름 창을 넓힌 만큼 뗌 창도 넓힌다
+  return { perfectMs: cfg.livePerfectMs ?? d.livePerfectMs, goodMs: liveGood, goodReleaseMs: release + Math.max(0, liveGood - good) };
+};

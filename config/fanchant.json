@@ -2,6 +2,7 @@
   "_설명": "응원법 게임 판정 창·상수 (FANCHANT_GAME_SPEC.md 부록 A). 고친 뒤 npm run publish:site 하면 fanchant/index.json의 config로 사이트에 반영된다",
   "perfectMs": 80,
   "goodMs": 150,
+  "goodReleaseMs": 220,
   "livePerfectMs": 100,
   "liveGoodMs": 200,
   "approachMs": 1500,
@@ -16,5 +17,9 @@
   "missGroupSec": 8,
   "maxMissSections": 3,
   "clearAccuracy": 0.7,
-  "storagePrefix": "fanchant."
+  "storagePrefix": "fanchant.",
+  "pressWobbleMs": 250,
+  "pressGlowMs": 280,
+  "holdSwayMs": 1150,
+  "holdArmMs": 220
 }

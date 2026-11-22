@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { gradeOf, histogram, Judger, judgeOf, maxScoreFor, missSections } from '../../site/src/scripts/game/judge.ts';
 
-const cfg = { perfectMs: 80, goodMs: 150, clearAccuracy: 0.7 };
+const cfg = { perfectMs: 80, goodMs: 150, goodReleaseMs: 220, clearAccuracy: 0.7 };
 
 test('판정 창 경계 80/150ms', () => {
   assert.equal(judgeOf(80, cfg), 'perfect');
@@ -72,7 +72,7 @@ test('놓친 구간: 8초 안끼리 묶고 MISS 많은 순', () => {
   const j = new Judger(cues, cfg);
   j.tap(12);
   j.finish();
-  const g = missSections(cues, j.results, 8, 3);
+  const g = missSections(cues, cues.map((_, i) => j.cueResult(i)), 8, 3);
   assert.equal(g.length, 2);
   assert.equal(g[0].from, 30);
   assert.equal(g[0].miss, 3);
@@ -80,28 +80,35 @@ test('놓친 구간: 8초 안끼리 묶고 MISS 많은 순', () => {
   assert.equal(g[1].label, 'a');
 });
 
-test('길게 누르기: 끝까지 누르면 성공, 일찍 떼면 PERFECT → GOOD (점수도 낮춤)', () => {
-  const j = new Judger([{ t: 1, hold: 2 }, { t: 5, hold: 1 }, { t: 8 }], cfg);
+test('홀드: 누름·뗌 두 번 판정, 뗌 창 ±220ms', () => {
+  const j = new Judger([{ t: 1, type: 'hold', duration: 2 }, { t: 5, type: 'hold', duration: 1 }, { t: 8 }], cfg);
   const a = j.tap(1)!;
   assert.equal(a.hold, 2);
-  assert.ok(j.holding);
-  assert.equal(j.release(2.9), null); // 끝(3.0) − 150ms 안이면 성공
-  assert.equal(j.holdOk, 1);
-  const before = j.score;
-  const b = j.tap(5)!;
-  assert.equal(b.judge, 'perfect');
-  assert.equal(j.release(5.3), 1); // 너무 일찍 뗌
-  assert.equal(j.results[1]!.judge, 'good');
-  assert.equal(j.results[1]!.early, true);
-  assert.equal(j.score - before, 500 + 2 * 5);
-  assert.equal(j.holdEarly, 1);
-  // 떼지 않아도 끝이 지나면 성공
-  const k = new Judger([{ t: 1, hold: 1 }], cfg);
+  const r = j.release(2.85)!; // 끝 3.0 보다 150ms 일찍 → GOOD (뗌 창 220)
+  assert.equal(r.kind, 'release');
+  assert.equal(r.judge, 'good');
+  assert.equal(j.combo, 2);
+  j.tap(5);
+  const early = j.release(5.3)!; // 끝 6.0 보다 700ms 일찍 → MISS
+  assert.equal(early.judge, 'miss');
+  assert.equal(j.combo, 0);
+  // 끝+220ms 까지 안 떼면 뗌 MISS
+  const k = new Judger([{ t: 1, type: 'hold', duration: 1 }], cfg);
   k.tap(1);
-  k.advance(2.01);
+  assert.deepEqual(k.advance(2.2), []);
+  assert.deepEqual(k.advance(2.23), [0]);
   assert.equal(k.holding, null);
-  assert.equal(k.holdOk, 1);
-  assert.equal(k.release(2.5), null);
-  const s = j.summary();
-  assert.equal(s.holds, 2);
+  assert.equal(k.release(2.3), null);
+  // 누름을 놓치면 뗌도 MISS, 만점은 판정 수(탭 1 + 홀드 2) 기준
+  const m = new Judger([{ t: 1, type: 'hold', duration: 1 }, { t: 3 }], cfg);
+  m.tap(3);
+  m.finish();
+  const s = m.summary();
+  assert.equal(s.total, 3);
+  assert.equal(s.miss, 2);
+  assert.equal(s.maxScore, maxScoreFor(3));
+  assert.equal(m.cueResult(0)!.judge, 'miss');
+  // 예전 형식(hold)도 읽음
+  const legacy = new Judger([{ t: 1, hold: 1 } as never], cfg);
+  assert.equal(legacy.tap(1)!.hold, 1);
 });

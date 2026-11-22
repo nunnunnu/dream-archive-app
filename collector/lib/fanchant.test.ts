@@ -58,9 +58,12 @@ test('채보 검사: 가까운 큐·모르는 멤버·길게 누르기 겹침은
   assert.deepEqual(r.errors, []);
   assert.ok(r.warnings.some((w) => w.includes('80ms')));
   assert.ok(r.warnings.some((w) => w.includes('nobody')));
-  assert.ok(r.warnings.some((w) => w.includes('길게')));
-  assert.equal(r.chart!.cues[2].hold, 2.5);
-  assert.equal(r.chart!.cues[3].hold, undefined);
+  assert.ok(r.warnings.some((w) => w.includes('홀드')));
+  assert.deepEqual([r.chart!.cues[2].type, r.chart!.cues[2].duration], ['hold', 2.5]); // 예전 형식 hold 도 읽음
+  assert.equal(r.chart!.cues[3].type, undefined);
+  const n = checkChart({ ...base(), cues: [{ t: 1, text: '드~림', type: 'hold', duration: 0.8 }] });
+  assert.deepEqual(n.chart!.cues[0], { t: 1, text: '드~림', type: 'hold', duration: 0.8 });
+  assert.ok(checkChart({ ...base(), cues: [{ t: 1, text: 'x', type: 'hold' }] }).errors.length);
 });
 
 test('노래 시각 ↔ 영상 시각 (구간 오프셋 포함)', () => {
@@ -90,6 +93,6 @@ test('공개 파일: verified 이고 검사 통과한 것만, index 에 설정�
 });
 
 test('실전만 판정 창이 넓다', () => {
-  assert.deepEqual(judgeWindow(FANCHANT_DEFAULTS, 'step1'), { perfectMs: 80, goodMs: 150 });
-  assert.deepEqual(judgeWindow(FANCHANT_DEFAULTS, 'live'), { perfectMs: 100, goodMs: 200 });
+  assert.deepEqual(judgeWindow(FANCHANT_DEFAULTS, 'step1'), { perfectMs: 80, goodMs: 150, goodReleaseMs: 220 });
+  assert.deepEqual(judgeWindow(FANCHANT_DEFAULTS, 'live'), { perfectMs: 100, goodMs: 200, goodReleaseMs: 270 });
 });

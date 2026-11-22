@@ -83,7 +83,7 @@ function setup(panel: HTMLElement) {
       songId: d.songId.trim(), title: d.title, album: d.album, year: num(d.year), durationSec: num(d.durationSec), bpm: num(d.bpm),
       difficulty: Number(d.difficulty), difficultyLabel: difficultyLabelOf(Number(d.difficulty)), author: d.author, verified: d.verified,
       ...(d.cover ? { cover: d.cover } : {}),
-      cues: d.cues.map((c) => ({ t: c.t, text: c.text, ...(c.member ? { member: c.member } : {}), ...(c.section ? { section: c.section } : {}), ...(c.hold ? { hold: c.hold } : {}) })),
+      cues: d.cues.map((c) => ({ t: c.t, text: c.text, ...(c.member ? { member: c.member } : {}), ...(c.section ? { section: c.section } : {}), ...(c.hold ? { type: 'hold', duration: c.hold } : {}) })),
       videos: (['guide', 'mv'] as const).filter((m) => d.videos[m].youtubeId.trim()).map((m) => ({
         mode: m, youtubeId: d.videos[m].youtubeId.trim(), offset: num(d.videos[m].offset),
         ...(d.videos[m].segments.length ? { segments: d.videos[m].segments.map((s) => ({ from: num(s.from), to: num(s.to), offset: num(s.offset) })) } : {}),
@@ -100,7 +100,7 @@ function setup(panel: HTMLElement) {
       if (v.mode !== 'guide' && v.mode !== 'mv') continue;
       d.videos[v.mode] = { youtubeId: v.youtubeId ?? '', offset: String(v.offset ?? 0), segments: (v.segments ?? []).map((s) => ({ from: String(s.from), to: String(s.to), offset: String(s.offset) })) };
     }
-    d.cues = (c.cues ?? []).map((q) => ({ t: Number(q.t) || 0, text: q.text ?? '', member: q.member ?? '', section: q.section ?? '', hold: Number(q.hold) || 0 })).sort((a, b) => a.t - b.t);
+    d.cues = (c.cues ?? []).map((q) => ({ t: Number(q.t) || 0, text: q.text ?? '', member: q.member ?? '', section: q.section ?? '', hold: Number(q.type === 'hold' ? q.duration : (q as { hold?: number }).hold) || 0 })).sort((a, b) => a.t - b.t);
     return d;
   }
 
@@ -383,7 +383,7 @@ function setup(panel: HTMLElement) {
     rowOf.clear();
     const v = curVideo();
     const gap = cfg.minCueGapMs / 1000;
-    $('ed-cue-count').textContent = `큐 ${draft.cues.length}개${draft.cues.some((c) => c.hold) ? ` · 길게 ${draft.cues.filter((c) => c.hold).length}` : ''}`;
+    $('ed-cue-count').textContent = `큐 ${draft.cues.length}개${draft.cues.some((c) => c.hold) ? ` · 홀드 ${draft.cues.filter((c) => c.hold).length}` : ''}`;
     if (!draft.cues.length) { list.innerHTML = '<li class="ed-cue-empty">녹음을 켜고 재생하면서 스페이스를 눌러 보세요.</li>'; renderTimeline(); return; }
     list.innerHTML = '';
     draft.cues.forEach((c, i) => {
@@ -392,13 +392,13 @@ function setup(panel: HTMLElement) {
       if (c === selected) li.classList.add('is-sel');
       if (i > 0 && c.t - draft.cues[i - 1].t < gap) li.classList.add('is-close');
       li.innerHTML = `
-        <button type="button" class="ed-t" data-a="seek" title="이 시각으로 이동">${fmtTime(c.t, 3)}${c.hold ? ` <b>길게 ${c.hold.toFixed(2)}s</b>` : ''}<small>영상 ${fmtTime(videoTimeAt(v, c.t))}</small></button>
+        <button type="button" class="ed-t" data-a="seek" title="이 시각으로 이동">${fmtTime(c.t, 3)}${c.hold ? ` <b>홀드 ${c.hold.toFixed(2)}s</b>` : ''}<small>영상 ${fmtTime(videoTimeAt(v, c.t))}</small></button>
         <input data-k="text" value="${esc(c.text)}" placeholder="문구" aria-label="응원 문구" maxlength="40" />
         <select data-k="member" aria-label="멤버">${memberOptions(c.member)}</select>
         <span class="ed-cue-btns">
           <button type="button" data-a="nudge" data-d="-1" aria-label="${cfg.nudgeMs}ms 앞으로">−${cfg.nudgeMs}</button>
           <button type="button" data-a="nudge" data-d="1" aria-label="${cfg.nudgeMs}ms 뒤로">+${cfg.nudgeMs}</button>
-          <button type="button" data-a="hold" aria-label="길게 누르기 길이" title="길게 누르기 (초, 0이면 탭)">⟷</button>
+          <button type="button" data-a="hold" aria-label="홀드 길이" title="홀드 길이 (초, 0이면 탭)">⟷</button>
           <button type="button" data-a="del" aria-label="이 큐 지우기">×</button>
         </span>
         <input class="ed-sec" data-k="section" value="${esc(c.section)}" placeholder="구간 이름 (선택, 예: 후렴 첫 콜)" aria-label="구간 이름" maxlength="40" />`;
@@ -443,7 +443,7 @@ function setup(panel: HTMLElement) {
     else if (btn.dataset.a === 'nudge') nudge(c, Number(btn.dataset.d));
     else if (btn.dataset.a === 'del') { draft.cues.splice(draft.cues.indexOf(c), 1); selected = null; renderCues(); changed(); }
     else if (btn.dataset.a === 'hold') {
-      const v = prompt('길게 누르는 길이(초). 0이면 보통 탭', c.hold ? String(c.hold) : '0');
+      const v = prompt('홀드 길이(초). 0이면 탭', c.hold ? String(c.hold) : '0');
       if (v === null) return;
       const n = Number(v);
       if (Number.isFinite(n) && n >= 0 && n <= 60) { c.hold = Math.round(n * 1000) / 1000; renderCues(); changed(); }
