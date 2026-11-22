@@ -37,7 +37,7 @@ import { buildFeed, publishAll } from './lib/publish.ts';
 import { JsonRepo } from './lib/repo.ts';
 import { processSubmissions } from './lib/submissions.ts';
 import { Tagger } from './lib/tags.ts';
-import { buildEraPages, siteConfig } from './lib/eras.ts';
+import { addConfiguredActivities, buildEraPages, siteConfig } from './lib/eras.ts';
 import { localizeEvents } from './lib/timezones.ts';
 import { linkTrailers } from './lib/trailers.ts';
 import { stabilizeEraIds } from './lib/eraIds.ts';
@@ -166,6 +166,8 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   const allVideos = await loadRecentVideos(now, 160);
   const releases = buildDiscography(allVideos);
   addReleases(acts, releases, allArticles, events);
+  // 설정에 적은 활동 (국내 일정이 없는 해외 발매 등, config/tags.json eras의 create)
+  addConfiguredActivities(acts, events);
   await repo.publish('discography.json', { releases });
   const keptIds = await stabilizeEraIds(repo, acts);
   if (keptIds) console.log(`활동 주소 유지 ${keptIds}개`);

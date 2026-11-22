@@ -19,6 +19,31 @@ interface EraConfig {
   id: string; name: string; from: string; to: string; keywords: string[];
   kind?: string; title?: string; subtitle?: string; titleSong?: string; release?: string;
   cover?: { from: string; to: string; text: string };
+  /** 수집한 일정이 없어도 활동을 만든다 (해외 발매처럼 국내 기사·공지가 거의 없는 것). member: 멤버 솔로, source: 날짜 근거 */
+  create?: boolean; member?: string; source?: string;
+}
+
+/**
+ * 설정에 create로 적은 활동 중 자동으로 묶인 활동이 없는 것을 만든다 (예: 런쥔 중국 스페셜 EP — 발표가 웨이보 위주라 국내 일정이 없음).
+ * 날짜는 설정(근거: source)을 따르고, 영상·기사·일정은 이름(keywords)으로 평소처럼 붙는다.
+ */
+export function addConfiguredActivities(acts: Activity[], events: PublicEvent[]): number {
+  let added = 0;
+  for (const c of CONFIG.eras.filter((e) => e.create)) {
+    const names = [c.title ?? '', ...c.keywords].map(sq).filter((k) => k.length >= 3);
+    if (acts.some((a) => a.keys.some((k) => names.includes(sq(k))))) continue;
+    const from = c.release ?? c.from;
+    const eventIds = events.filter((e) => e.date >= c.from && e.date <= c.to && names.some((n) => sq(`${e.title} ${e.step}`).includes(n))).map((e) => e.id);
+    acts.push({
+      id: `${from.slice(0, 4)}-${sq(c.title ?? c.keywords[0]).replace(/[^a-z0-9가-힣]/g, '').slice(0, 30) || c.id}`,
+      name: c.title ?? c.keywords[0], kind: (c.kind as Activity['kind']) ?? '컴백', keys: [...new Set([c.title ?? '', ...c.keywords].filter(Boolean))],
+      parts: [], videoKeys: [],
+      owner: c.member ? { scope: '멤버', members: [c.member], label: c.member } : { scope: '단체', members: [], label: '단체' },
+      from, to: c.to, eventIds, subtitle: c.subtitle,
+    });
+    added++;
+  }
+  return added;
 }
 export interface EraVideo { id: string; title: string; url: string; thumb: string; date: string; channel: string; members: string[]; group?: string }
 export interface EraPage {

@@ -45,6 +45,42 @@
         "THE DREAM SHOW2"
       ],
       "subtitle": "In A DREAM · 2nd World Tour"
+    },
+    {
+      "id": "renjun-echoes-between-us",
+      "name": "런쥔 중국 스페셜 EP Echoes Between Us",
+      "from": "2026-05-18",
+      "to": "2026-07-31",
+      "keywords": [
+        "Echoes Between Us",
+        "同谋者的默契"
+      ],
+      "title": "Echoes Between Us",
+      "subtitle": "런쥔 중국 스페셜 EP",
+      "release": "2026-06-01",
+      "member": "런쥔",
+      "create": true,
+      "source": "나무위키 런쥔 문서 (2026-11-22 확인): 2026년 6월 1일 중국 스페셜 EP 同谋者的默契 (Echoes Between Us)"
+    },
+    {
+      "id": "chenle-lucid",
+      "name": "천러 중국 스페셜 EP 灿 (Lucid)",
+      "from": "2025-04-14",
+      "to": "2025-06-30",
+      "keywords": [
+        "Lucid",
+        "灿",
+        "Tear Bridge",
+        "泪桥",
+        "Cosmic Joke",
+        "宇宙的笑话"
+      ],
+      "title": "灿 (Lucid)",
+      "subtitle": "천러 중국 스페셜 EP",
+      "release": "2025-04-28",
+      "member": "천러",
+      "create": true,
+      "source": "나무위키 천러 문서 (2026-11-22 확인): 수록곡 泪桥 (Tear Bridge) 2025.04.28, Cosmic Joke 2025.05.05 / 공식 NCT 채널 'CHENLE 灿 (Lucid) - Chinese Special EP MV & Jacket Behind' 2025-05-09"
     }
   ],
   "projects": [
@@ -139,5 +175,6 @@
       ]
     }
   ],
-  "_설명_시리즈": "seriesGroups: 이름이 제각각인 자체 콘텐츠를 한 시리즈로 묶을 때 (예: 여행 자컨). 7llin'처럼 앞 단어가 같은 시즌은 자동으로 묶인다."
+  "_설명_시리즈": "seriesGroups: 이름이 제각각인 자체 콘텐츠를 한 시리즈로 묶을 때 (예: 여행 자컨). 7llin'처럼 앞 단어가 같은 시즌은 자동으로 묶인다.",
+  "_설명_create": "eras에 create: true를 적으면 수집한 일정이 없어도 활동 페이지를 만든다 (국내 기사·공지가 거의 없는 해외 발매 등). 날짜 근거는 source에. 영상·기사는 keywords로 자동으로 붙는다"
 }
