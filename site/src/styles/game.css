@@ -67,7 +67,10 @@
 @keyframes game-pop { 0% { opacity: 1; transform: translateX(-50%) scale(1.15); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) scale(1); } }
 .game-live-feedback { position: relative; height: 150px; display: grid; place-items: center; }
 .game-live-hint { color: #888; font-size: 14px; margin: 0; }
-.game-live-judge { left: 50%; top: 50%; font-size: 44px; transform: translate(-50%, -50%); }
+.game-live-judge { left: 50%; top: 50%; bottom: auto; font-size: 30px; transform: translate(-50%, -50%); }
+.game-live-word { display: block; font-size: 46px; font-weight: 900; color: #fff; letter-spacing: 0; line-height: 1.1; margin-bottom: 2px; }
+.game-live-judge.is-perfect .game-live-word { color: var(--accent); }
+.game-live-judge.is-miss .game-live-word { color: #8a8a8a; }
 .game-live-judge.is-show { animation: game-pop-live .6s ease-out forwards; }
 @keyframes game-pop-live { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1.2); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
 .game-play-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 0; align-items: end; }

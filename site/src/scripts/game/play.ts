@@ -154,11 +154,14 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
   // ── 판정 표시 ──
   const judgeEl = $('g-judge');
   const WORD: Record<Judge, string> = { perfect: 'PERFECT', good: 'GOOD', miss: 'MISS' };
-  function showJudge(j: Judge, r?: TapResult, note?: string) {
+  function showJudge(j: Judge, r?: TapResult, note?: string, cueIdx?: number) {
     if (judgeEl) {
       judgeEl.className = `${judgeEl.id === 'g-judge' && mode === 'live' ? 'game-live-judge' : 'game-judge'} is-${j}`;
       const tail = note ?? (r?.hold ? '꾹 누르고 있기' : r?.kind === 'release' ? '뗌' : '');
-      judgeEl.innerHTML = `${WORD[j]}${r && r.judge !== 'miss' ? `<small>+${nf(r.points)} ${r.deltaMs > 0 ? `+${r.deltaMs}` : r.deltaMs}ms${tail ? ` · ${esc(tail)}` : ''}</small>` : tail ? `<small>${esc(tail)}</small>` : ''}`;
+      // 실전: 누른(놓친) 뒤에만 그 자리의 응원법 단어를 같이 (미리 보이지 않음)
+      const wi = r?.index ?? cueIdx;
+      const liveWord = mode === 'live' && wi != null && cues[wi] ? `<span class="game-live-word">${esc(cues[wi].text)}</span>` : '';
+      judgeEl.innerHTML = `${liveWord}${WORD[j]}${r && r.judge !== 'miss' ? `<small>+${nf(r.points)} ${r.deltaMs > 0 ? `+${r.deltaMs}` : r.deltaMs}ms${tail ? ` · ${esc(tail)}` : ''}</small>` : tail ? `<small>${esc(tail)}</small>` : ''}`;
       void judgeEl.offsetWidth;
       judgeEl.classList.add('is-show');
     }
@@ -321,7 +324,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
       if (clock.playing && performance.now() - clock.jumpedAt > 300) {
         const missed = judger.advance(st - inputOffset / 1000);
         if (missed.length) {
-          showJudge('miss');
+          showJudge('miss', undefined, undefined, missed.at(-1));
           if (late) for (const i of missed) pushRecent(i, false);
         }
         lastSt = st;

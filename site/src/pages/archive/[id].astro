@@ -2,6 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import Cover from '../../components/Cover.astro';
 import { groupNameRe, loadPublic, loadSite, md, ymd, type EraPage } from '../../lib/data';
+import type { FanchantIndexSong } from '../../lib/fanchant';
 import '../../styles/era.css';
 import '../../styles/guide.css';
 
@@ -37,12 +38,16 @@ const GROUP_RE = groupNameRe(cfg);
 const short = (t: string) =>
   t.split(/\s+/).filter((w) => !(w.startsWith('#') && isCommonTag(w))).map((w) => (w.startsWith('#') ? w.slice(1) : w)).join(' ')
     .replace(GROUP_RE, '').replace(/\s{2,}/g, ' ').replace(/^[\s|·-]+|[\s|·-]+$/g, '').trim() || t;
+// 응원법 게임: 공개 채보 중 이 활동의 타이틀곡·활동 이름·키워드와 제목이 같은 곡
+const fanIndex = await loadPublic<{ songs?: FanchantIndexSong[] }>(Astro.locals, 'fanchant/index.json', {}).catch(() => ({ songs: [] }));
+const eraNames = new Set([era.titleSong, era.title, ...era.keys].filter((x): x is string => Boolean(x)).map(sq));
+const fanchants = (fanIndex.songs ?? []).filter((f) => f.verified && eraNames.has(sq(f.title)));
 ---
 <Base title={era.title} current="archive">
   <nav class="crumbs wrap" aria-label="경로">
     <a href="/archive/">아카이브</a><span>/</span><span>{era.from.slice(0, 4)}</span><span>/</span><b>{era.title}</b>
     <div class="jump">
-      <a href="#timeline">타임라인</a><a href="#schedule">일정</a>{era.official.length > 0 && <a href="#official">공식 영상</a>}{showStages && <a href="#stages">음방 무대</a>}{relatedBy.length > 0 && <a href="#related">관련 영상</a>}{era.own.length > 0 && <a href="#own">자체 콘텐츠</a>}{(era.shorts ?? []).length > 0 && <a href="#shorts">쇼츠</a>}{era.outside.length > 0 && <a href="#outside">외부 콘텐츠</a>}
+      <a href="#timeline">타임라인</a><a href="#schedule">일정</a>{era.official.length > 0 && <a href="#official">공식 영상</a>}{showStages && <a href="#stages">음방 무대</a>}{relatedBy.length > 0 && <a href="#related">관련 영상</a>}{era.own.length > 0 && <a href="#own">자체 콘텐츠</a>}{(era.shorts ?? []).length > 0 && <a href="#shorts">쇼츠</a>}{era.outside.length > 0 && <a href="#outside">외부 콘텐츠</a>}{fanchants.length > 0 && <a href="#fanchant">응원법</a>}
     </div>
   </nav>
   {(era.guide ?? []).length > 0 && <nav class="era-tabs wrap" aria-label="활동 보기">
@@ -71,6 +76,17 @@ const short = (t: string) =>
           <span><b>{era.counts.own}</b> 자체 콘텐츠</span><span><b>{era.counts.shorts ?? 0}</b> 쇼츠</span><span><b>{era.counts.outside}</b> 외부 콘텐츠</span>
           <a href="/">일정 {era.counts.events}개 보기 →</a>
         </p>
+        {fanchants.map((f, i) => (
+          <div class="era-fanchant" id={i === 0 ? 'fanchant' : undefined}>
+            <span class="era-fanchant-label">응원법 게임</span>
+            <b>{f.title}</b>
+            <span class="era-fanchant-meta">노트 {f.noteCount} · {f.difficultyLabel}</span>
+            <span class="era-fanchant-go">
+              <a class="is-main" href={`/game/play?song=${f.songId}&mode=step1`}>응원법 연습하기</a>
+              {f.hasMv && <a href={`/game/play?song=${f.songId}&mode=live`}>실전</a>}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   </section>
