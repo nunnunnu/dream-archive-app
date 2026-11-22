@@ -27,7 +27,7 @@ import { chromium } from 'playwright';
 import { Budget } from './lib/budget.ts';
 import { GROUP, GROUP_NAME_RE } from './lib/group.ts';
 import { clusterArticles } from './lib/cluster.ts';
-import { consolidate, type PendingItem, type PublicEvent, type ReviewItem, type RumorItem } from './lib/consolidate.ts';
+import { consolidate, type PendingItem, type PublicEvent, type ReviewItem, type RumorItem, fixSingleEpisodeRanges } from './lib/consolidate.ts';
 import { extractKeywords } from './lib/fanKeywords.ts';
 import { markFillDone, planFill } from './lib/fill.ts';
 import { buildItems, itemsFromGuestVideos, itemsFromOfficialVideos } from './lib/items.ts';
@@ -149,6 +149,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   // 소식 제보: 판정(확실할 때만 올리기·거절) → 승인된 것은 소식 탭에. 빠른 실행·다시 내보내기에서도 저장된 제보로
   const savedReports = Object.keys(reports).length ? reports : await repo.getState<Record<string, Report>>('reports', {});
   for (const l of await judgeNewsReports(repo, savedReports, budget, now)) console.log(l);
+  fixSingleEpisodeRanges(events);
   const feed = [...buildFeed(notices, clusters, archiveVideos, now, await communityFeed(repo)), ...reportedFeed(savedReports)].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
   // 비공개·삭제된 영상을 가리키는 소식(커뮤니티 글의 유튜브 링크 포함)은 뺀다
   const goneIds = await unavailableVideoIds();

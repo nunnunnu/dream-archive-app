@@ -224,12 +224,14 @@ function recentCard(it: Recent) {
   return card;
 }
 
+const shownQ = new Set<string>();
 async function loadRecent(more = false) {
   const res = await fetch(`/api/ask-log${more && cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`).catch(() => null);
   const data = res?.ok ? ((await res.json()) as { items: Recent[]; next: string | null; stats: Stats | null }) : { items: [], next: null, stats: null };
   if (data.stats) renderStats(data.stats);
-  if (!more) recentBox.innerHTML = data.items.length ? '' : '<p class="recent-empty">아직 질문이 없어요. 첫 질문을 해 보세요.</p>';
-  for (const it of data.items) recentBox.append(recentCard(it));
+  if (!more) { recentBox.innerHTML = data.items.length ? '' : '<p class="recent-empty">아직 질문이 없어요. 첫 질문을 해 보세요.</p>'; shownQ.clear(); }
+  // 같은 질문은 한 번만 (서버는 쪽마다 따로 합쳐서, 더 보기로 붙이면 겹칠 수 있다)
+  for (const it of data.items) { const k = it.qk ?? it.q.replace(/\s+/g, ''); if (shownQ.has(k)) continue; shownQ.add(k); recentBox.append(recentCard(it)); }
   cursor = data.next;
   moreBtn.hidden = !data.next;
 }

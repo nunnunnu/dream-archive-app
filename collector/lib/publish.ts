@@ -199,6 +199,14 @@ export const leadsWithGroup = (title: string) => {
   return GROUP_NAME_RE.test(head) || MEMBER_ALIAS_RE.test(head) || (PARENT_RE.test(head) && MEMBER_ALIAS_RE.test(title));
 };
 
+/** X(트위터) 게시물 번호에 들어 있는 작성 시각 (Snowflake: 번호 >> 22 + 2010-11-04 기준). X 주소가 아니면 null */
+export function tweetTime(url?: string): string | null {
+  const m = url ? /(?:x|twitter)\.com\/[^/]+\/status\/(\d{15,20})/.exec(url) : null;
+  if (!m) return null;
+  const ms = Number(BigInt(m[1]) >> 22n) + 1288834974657;
+  return ms > Date.UTC(2010, 0, 1) && ms < Date.now() + 864e5 ? new Date(ms).toISOString() : null;
+}
+
 export function buildFeed(
   notices: { title: string; url: string; postedAt: string }[],
   articleClusters: { title: string; url: string; publishedAt: string; publisher: string; count: number; image?: string; articles?: FeedItem['articles'] }[],
@@ -209,7 +217,7 @@ export function buildFeed(
   const items: FeedItem[] = [
     ...notices.map((n) => ({ type: 'weverse-notice' as const, title: n.title, url: n.url, publishedAt: n.postedAt, members: mentionedMembers(n.title).members })),
     ...articleClusters.map((a) => ({ type: 'news' as const, title: a.title, url: a.url, publishedAt: a.publishedAt, publisher: a.publisher, count: a.count, members: mentionedMembers(a.title).members, image: a.image, ...(a.articles && a.articles.length > 1 ? { articles: a.articles } : {}) })),
-    ...posts.filter((p) => p.link).map((p) => ({ type: 'sns' as const, title: p.title.replace(/^\s*\[[^\]]{1,40}\]\s*/, ''), url: p.link!, publishedAt: p.postedAt, publisher: p.label, members: p.members })),
+    ...posts.filter((p) => p.link).map((p) => ({ type: 'sns' as const, title: p.title.replace(/^\s*\[[^\]]{1,40}\]\s*/, ''), url: p.link!, publishedAt: tweetTime(p.link) ?? p.postedAt, publisher: p.label, members: p.members })),
     ...videos.filter((v) => REGISTERED.has(v.channel) || v.guest).map((v) => ({ type: 'youtube' as const, title: v.title, url: v.url, publishedAt: v.publishedAt, publisher: v.channel, members: v.who.members, ...(v.duration ? { duration: v.duration } : {}), ...(/🔴|\bLIVE\b|라이브/i.test(v.title) ? { live: true } : {}) })),
   ];
   for (const it of items) { const t = topicOf(it.title); if (t) it.topic = t; }

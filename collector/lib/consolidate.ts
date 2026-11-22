@@ -558,6 +558,18 @@ export function consolidate(
     }
   }
 
+  // 2-0a) 음악방송 무대 영상이 "○○회 출연분 공개"로 따로 잡히면 같은 날 그 프로그램 방송 일정에 출처로 합친다
+  //       (2026-11-22 인기가요 15:20 방송 + SBSKPOP 영상 15:47 "1332회 NCT DREAM 출연분 공개"가 두 줄로 떴음)
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    const prog = e.kind === '발매' ? programOf(e.title) : undefined;
+    if (!prog || !e.sources.every((s) => s.type === 'youtube')) continue;
+    const host = events.find((x) => x !== e && x.date === e.date && x.kind === '방송' && programOf(x.title) === prog);
+    if (!host) continue;
+    for (const src of e.sources) if (!host.sources.some((s) => s.url === src.url)) host.sources.push(src);
+    events.splice(i, 1);
+  }
+
   // 2-0b) 음악방송 출연 일정에 같은 날 그 프로그램 무대 영상을 출처로 붙인다 (▶ 무대 영상 링크)
   for (const e of events) {
     const prog = e.kind === '방송' ? programOf(e.title) : undefined;
@@ -718,4 +730,23 @@ export function consolidate(
   events.sort((a, b) => `${a.date} ${a.time ?? '99:99'}`.localeCompare(`${b.date} ${b.time ?? '99:99'}`));
   rumors.sort((a, b) => a.date.localeCompare(b.date));
   return { events, pending, rumors, review };
+}
+
+/**
+ * 한 회차 공개("트레일러 공개 (EP.1)")인데 기사 문장("11월 3~4일 트레일러")으로 기간이 붙은 경우 → 공식 채널 영상 공개일 하루로.
+ * 영상 출처는 합친 뒤에도 붙으니(내보내기 직전) 마지막에 부른다.
+ */
+export function fixSingleEpisodeRanges(events: PublicEvent[]): number {
+  let n = 0;
+  for (const e of events) {
+    if (e.kind !== '발매' || !e.endDate || e.endDate === e.date || !/EP\.?\s*\d+/i.test(`${e.title} ${e.step}`)) continue;
+    const own = e.sources.find((s) => s.type === 'youtube' && OWN_CHANNEL_NAMES.has(s.publisher ?? ''));
+    if (!own) continue;
+    const p = toKstParts(new Date(own.publishedAt));
+    e.date = kstDate(p.year, p.month, p.day);
+    e.endDate = null;
+    e.endTime = null;
+    n++;
+  }
+  return n;
 }
