@@ -117,7 +117,7 @@ function setup(panel: HTMLElement) {
           <span>${c.hasGuide ? '가이드' : ''}${c.hasMv ? ' · 뮤비' : ' · 뮤비 없음'}</span>
           <span>${esc(kst(c.updatedAt))}${c.updatedBy ? ` · ${esc(c.updatedBy.split('@')[0])}` : ''}</span>
         </div>
-        <div class="admin-actions"><h3 style="margin:0;flex:1">${esc(c.title)}</h3><button type="button" class="admin-btn" data-open="${esc(c.songId)}">열기</button></div>
+        <div class="admin-actions"><h3 style="margin:0;flex:1">${esc(c.title)}</h3><a class="admin-btn" href="/admin/play?song=${encodeURIComponent(c.songId)}&mode=step1" target="_blank" rel="noopener">시험 플레이</a>${c.verified ? `<a class="admin-btn" href="/game/play?song=${encodeURIComponent(c.songId)}" target="_blank" rel="noopener">게임에서 보기</a>` : ''}<button type="button" class="admin-btn" data-open="${esc(c.songId)}">열기</button></div>
       </div>`).join('') : '<div class="card admin-empty">아직 채보가 없어요. "새 채보"로 시작해 보세요.</div>';
     box.querySelectorAll<HTMLButtonElement>('[data-open]').forEach((b) => b.addEventListener('click', () => openChart(b.dataset.open!)));
     showDraftNote();
@@ -200,6 +200,10 @@ function setup(panel: HTMLElement) {
     }
     $('ed-title').textContent = draft.title || '새 채보';
     $('ed-delete').hidden = !savedId;
+    const tryLink = $<HTMLAnchorElement>('ed-try');
+    tryLink.hidden = !savedId;
+    if (savedId) tryLink.href = `/admin/play?song=${encodeURIComponent(savedId)}&mode=step1`;
+    tryLink.title = '저장한 내용으로 해 봐요 (기록은 안 남아요)';
   }
   function renderSegs(box: HTMLElement, m: FanchantMode) {
     const wrap = box.querySelector<HTMLElement>('.ed-segs')!;
@@ -325,6 +329,7 @@ function setup(panel: HTMLElement) {
     }
   }
   $('ed-save').addEventListener('click', () => save());
+  $('ed-try').addEventListener('click', () => { if (dirty) setStatus('저장 안 한 변경은 시험 플레이에 안 들어가요. 먼저 저장해 주세요'); });
   $('ed-download').addEventListener('click', () => {
     const r = checkChart(toRaw(draft), { minCueGapMs: cfg.minCueGapMs });
     const body = JSON.stringify(r.chart ?? toRaw(draft), null, 2);

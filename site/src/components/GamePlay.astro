@@ -1,0 +1,83 @@
+---
+/**
+ * 응원법 게임 플레이 화면 (공개 /game/play, 어드민 시험 플레이 /admin/play 공용)
+ * 채보와 설정은 JSON으로 심고 동작은 scripts/game/play.ts
+ */
+import type { FanchantChart, FanchantConfig } from '../lib/fanchant';
+import '../styles/game.css';
+interface Props { chart: FanchantChart; config: FanchantConfig; mode: 'step1' | 'step2' | 'live'; from?: number; to?: number; backHref: string; preview?: boolean }
+const { chart, config, mode, from, to, backHref, preview } = Astro.props;
+const LABEL = { step1: '1단계 · 전체 힌트', step2: '2단계 · 직전 힌트', live: '실전 · 힌트 없음' };
+const BADGE = { step1: 'game-badge-pr', step2: 'game-badge-s2', live: 'game-badge-vs' };
+const hasMv = chart.videos.some((v) => v.mode === 'mv');
+const data = { chart, config, mode, from: from ?? null, to: to ?? null, backHref, preview: Boolean(preview) };
+---
+<div class="game-play" data-mode={mode}>
+  <div class="wrap game-bar">
+    <a class="game-bar-back" href={backHref}>← {preview ? '채보 도구' : '곡 선택'}</a>
+    <div class="game-bar-song">
+      <strong>{chart.title}</strong>
+      <span>{mode === 'live' ? '공식 뮤비' : '공식 응원법 가이드'}{from != null ? ' · 구간 연습' : ''}{preview ? ' · 시험 플레이 (기록 안 남음)' : ''}</span>
+    </div>
+    <span class={`game-badge ${BADGE[mode]}`}>{LABEL[mode]}</span>
+  </div>
+
+  <div class="wrap game-stage" id="game-stage">
+    <div class="game-hud">
+      <div class="game-hud-item"><span>TIME</span><b id="g-time">0:00 / 0:00</b></div>
+      <div class="game-hud-item is-combo"><span>COMBO</span><b id="g-combo">0</b></div>
+      <div class="game-hud-item"><span>SCORE</span><b id="g-score">0</b></div>
+    </div>
+    <div class="game-progress" role="progressbar" aria-label="진행" aria-valuemin="0" aria-valuemax="100"><div class="game-progress-fill" id="g-progress"></div></div>
+
+    <div class:list={['game-yt', mode === 'live' && 'game-yt-live']}>
+      <div class="game-yt-frame"><div id="game-yt-player"></div></div>
+    </div>
+    <p class="game-yt-badge">YouTube 플레이어 · 항상 보이기</p>
+
+    <div class="game-notice" id="g-notice" aria-live="polite">
+      <span id="g-notice-text">유튜브 영상이라 광고가 나올 수 있어요. 광고가 끝나면 게임이 시작돼요</span>
+      <button type="button" class="game-start" id="g-start" disabled>불러오는 중…</button>
+    </div>
+
+    {mode === 'live' && !hasMv ? (
+      <p class="game-notice is-warn">이 곡은 공식 뮤비 오프셋이 아직 없어서 실전을 할 수 없어요.</p>
+    ) : mode === 'live' ? (
+      <div class="game-live-feedback">
+        <p class="game-live-hint" id="g-live-hint">힌트 없음 · 외운 대로 눌러보세요</p>
+        <div class="game-live-judge" id="g-judge" aria-live="polite"></div>
+      </div>
+    ) : (
+      <>
+        <div class:list={['game-chant', mode === 'step2' && 'is-step2']}>
+          <div class="game-chant-now" id="g-chant-now">{mode === 'step2' ? ' ' : ''}</div>
+          <div class="game-chant-next" id="g-chant-next">{mode === 'step2' ? '누른 뒤에 정답이 떠요' : ''}</div>
+        </div>
+        <div class:list={['game-lane', mode === 'step2' && 'game-lane-late']} id="g-lane" aria-label={`판정선. 판정 ±${config.goodMs}ms`}>
+          {mode === 'step2' && <span class="game-lane-cap">노트는 직전에만 보여요</span>}
+          <div class="game-hit"><span class="game-hit-ring"></span></div>
+          <div class="game-notes" id="g-notes"></div>
+          <div class="game-judge" id="g-judge" aria-live="polite"></div>
+        </div>
+      </>
+    )}
+
+    <div class="game-tap-row">
+      <button type="button" class:list={['game-tap', mode === 'live' && 'is-pulse']} id="g-tap" aria-label="TAP (스페이스)">TAP</button>
+      <p class="game-tap-hint">스페이스 또는 TAP · 판정 ±{config.goodMs}ms</p>
+    </div>
+    <p class="game-focus" id="g-focus" hidden>영상을 누르면 스페이스가 영상으로 가요. TAP 버튼을 한 번 누르면 이어서 할 수 있어요.</p>
+    <div class="game-foot">
+      <span class="game-author">채보 {chart.author}</span>
+      <span class="game-calib">입력 보정
+        <button type="button" data-calib="-10" aria-label="보정 10ms 줄이기">−</button>
+        <b id="g-calib">0ms</b>
+        <button type="button" data-calib="10" aria-label="보정 10ms 늘리기">+</button>
+      </span>
+    </div>
+  </div>
+
+  <section class="wrap game-result" id="game-result" hidden aria-live="polite"></section>
+</div>
+<script type="application/json" id="game-data" set:html={JSON.stringify(data).replace(/</g, '\\u003c')}></script>
+<script src="../scripts/game/play.ts"></script>
