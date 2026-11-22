@@ -1,7 +1,12 @@
 /** 최고 기록·입력 보정 (localStorage, 로그인 없음). 저장이 막혀도 게임은 돈다 */
 import type { Grade } from './judge';
 
-export type GameMode = 'step1' | 'step2' | 'live';
+export type GameMode = 'step1' | 'step2' | 'step3' | 'live';
+export const GAME_MODES: GameMode[] = ['step1', 'step2', 'step3', 'live'];
+/** 뮤비로 하는 모드 (3단계·실전) */
+export const usesMv = (m: GameMode) => m === 'step3' || m === 'live';
+/** 노트가 직전에만 보이는 모드 (2·3단계) */
+export const lateNotes = (m: GameMode) => m === 'step2' || m === 'step3';
 export interface BestRecord { score: number; grade: Grade; accuracy: number; maxCombo: number; perfect: number; good: number; miss: number; at: string }
 
 const PREFIX = 'fanchant.';
@@ -29,8 +34,8 @@ export function setInputOffset(ms: number) {
 
 export function getMode(): GameMode {
   const m = get('mode');
-  return m === 'step2' || m === 'live' ? m : 'step1';
+  return m === 'step2' || m === 'step3' || m === 'live' ? m : 'step1';
 }
 export const setMode = (m: GameMode) => set('mode', m);
 
-export const MODE_LABEL: Record<GameMode, string> = { step1: '연습 1단계', step2: '연습 2단계', live: '실전' };
+export const MODE_LABEL: Record<GameMode, string> = { step1: '연습 1단계', step2: '연습 2단계', step3: '연습 3단계', live: '실전' };

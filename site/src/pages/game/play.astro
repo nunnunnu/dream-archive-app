@@ -1,12 +1,12 @@
 ---
-/** 응원법 게임 플레이: /game/play?song=<곡ID>&mode=step1|step2|live&from=&to= (공개된 채보만) */
+/** 응원법 게임 플레이: /game/play?song=<곡ID>&mode=step1|step2|step3|live&from=&to= (공개된 채보만) */
 import Base from '../../layouts/Base.astro';
 import GamePlay from '../../components/GamePlay.astro';
 import { loadPublic } from '../../lib/data';
 import { FANCHANT_DEFAULTS, SONG_ID, type FanchantChart, type FanchantConfig } from '../../lib/fanchant';
 const q = Astro.url.searchParams;
 const song = q.get('song') ?? '';
-const mode = (['step1', 'step2', 'live'] as const).find((m) => m === q.get('mode')) ?? 'step1';
+const mode = (['step1', 'step2', 'step3', 'live'] as const).find((m) => m === q.get('mode')) ?? 'step1';
 const from = q.has('from') ? Number(q.get('from')) : undefined;
 const to = q.has('to') ? Number(q.get('to')) : undefined;
 const chart = SONG_ID.test(song) ? await loadPublic<FanchantChart | null>(Astro.locals, `fanchant/${song}.json`, null) : null;
