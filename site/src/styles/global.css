@@ -98,6 +98,13 @@ button { font: inherit; color: inherit; }
   .brand-name { display: none; }
   .nav { gap: 10px; }
 }
+/* 메뉴가 화면보다 길면 옆으로 밀어서 보기 (줄바꿈·넘침 없이) */
+.brand { flex: none; }
+@media (max-width: 640px) {
+  .nav { min-width: 0; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; margin-left: 10px; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { flex: none; }
+}
 
 /* 스켈레톤 (데이터를 받는 동안 자리 표시) */
 @keyframes skel-shine { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }

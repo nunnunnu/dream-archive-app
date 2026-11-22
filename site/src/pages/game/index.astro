@@ -8,7 +8,7 @@ const index = await loadPublic<{ songs?: FanchantIndexSong[] }>(Astro.locals, 'f
 const songs = (index.songs ?? []).filter((s) => s.verified);
 const dots = (n: number) => '●'.repeat(n) + '○'.repeat(5 - n);
 ---
-<Base title="응원법 게임" current="series">
+<Base title="응원법 게임" current="game">
   <main class="wrap game-home">
     <section class="game-hero">
       <p class="eyebrow">FANCHANT · 응원법 게임</p>
