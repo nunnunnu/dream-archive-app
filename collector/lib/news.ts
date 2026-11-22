@@ -87,17 +87,15 @@ export async function collectArticles(repo: Repo, queries: NewsQuery[], now: Dat
   const seenTitle = new Set(known.map((a) => normalize(a.title)));
   const added: ArticleRecord[] = [];
 
-  let limited = 0;
   for (const query of queries) {
-    // 구글 뉴스가 요청을 막으면(429) 1분 쉬고 한 번 더, 또 막히면 이번 실행의 남은 기사 검색은 건너뛴다 (우회하지 않음)
+    // 429면 searchGoogleNews가 기다렸다가 다시 묻는다. 그래도 막히면 이번 실행의 남은 기사 검색은 다음 실행으로
     let results: Awaited<ReturnType<typeof searchGoogleNews>>;
     try {
       results = await searchGoogleNews(`${query.q} when:${query.days}d`);
     } catch (err) {
-      if (!/429/.test((err as Error).message)) { console.log(`기사 검색 실패: ${query.q} (${(err as Error).message})`); continue; }
-      if (++limited > 1) { console.log(`구글 뉴스 요청 제한(429) → 남은 기사 검색 ${queries.length - queries.indexOf(query)}개는 다음 실행으로`); break; }
-      await sleep(60_000);
-      try { results = await searchGoogleNews(`${query.q} when:${query.days}d`); } catch { console.log(`구글 뉴스 요청 제한(429) → 남은 기사 검색은 다음 실행으로`); break; }
+      if (/429/.test((err as Error).message)) { console.log(`남은 기사 검색 ${queries.length - queries.indexOf(query)}개는 다음 실행으로`); break; }
+      console.log(`기사 검색 실패: ${query.q} (${(err as Error).message})`);
+      continue;
     }
     // 빈칸 채우기 검색은 한 번에 많이 쌓이면 AI 해석이 오래 걸린다:
     // 그룹이 제목에 나오는 기사 → 최신 순으로 검색어당 최대 6개만
@@ -126,7 +124,6 @@ export async function collectArticles(repo: Repo, queries: NewsQuery[], now: Dat
         status: 'pending',
       });
     }
-    await sleep(2500); // 구글 뉴스 요청 제한(429)을 피하려고 간격을 둔다
   }
   if (added.length) await repo.putArticles(added);
   return added;

@@ -20,7 +20,7 @@ import {
   WEVERSE_COMMUNITY,
   WEVERSE_QUERIES,
 } from '../config.ts';
-import { searchGoogleNews, type NewsItem } from './googleNews.ts';
+import { googleNewsBlocked, searchGoogleNews, type NewsItem } from './googleNews.ts';
 import { openHighlightNotice, readHighlight } from './highlight.ts';
 import type { NoticeRecord, Repo } from './repo.ts';
 import { sleep } from './time.ts';
@@ -92,8 +92,10 @@ export async function collectWeverse(repo: Repo, page: Page, now: Date, opts: { 
     // 3) 구글 뉴스: 공지로 보이는 글 → 공지 번호 (결과 캐시)
     const windows = opts.backfill ? monthWindows(BACKFILL_FROM, now) : [RECENT_WINDOW];
     const candidates = new Map<string, NewsItem>();
-    for (const q of WEVERSE_QUERIES) {
+    // 구글이 쉬는 중이면 이 보조 방법은 통째로 건너뛴다 (공지 목록·하이라이트로 찾은 공지는 그대로)
+    for (const q of googleNewsBlocked() ? [] : WEVERSE_QUERIES) {
       for (const w of windows) {
+        if (googleNewsBlocked()) break;
         // 구글 뉴스가 막히면(429) 이 방법만 건너뛰고 하이라이트·공지 목록으로 찾은 공지는 그대로 처리한다
         const found = await searchGoogleNews(`${q} ${w}`).catch((err) => { log.push(`구글 뉴스로 공지 찾기 건너뜀: ${(err as Error).message.slice(0, 60)}`); return [] as NewsItem[]; });
         for (const it of found) if (NOTICE_TITLE_RE.test(it.title) && !candidates.has(it.guid)) candidates.set(it.guid, it);
