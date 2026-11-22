@@ -29,7 +29,7 @@ import { GROUP, GROUP_NAME_RE } from './lib/group.ts';
 import { clusterArticles } from './lib/cluster.ts';
 import { consolidate, type PendingItem, type PublicEvent, type ReviewItem, type RumorItem } from './lib/consolidate.ts';
 import { extractKeywords } from './lib/fanKeywords.ts';
-import { planFill } from './lib/fill.ts';
+import { markFillDone, planFill } from './lib/fill.ts';
 import { buildItems, itemsFromGuestVideos, itemsFromOfficialVideos } from './lib/items.ts';
 import { NEWS_QUERIES, collectArticles, isDreamRelated, type NewsQuery } from './lib/news.ts';
 import { processArticles, processNotices, processVideos } from './lib/process.ts';
@@ -244,7 +244,9 @@ try {
       .slice(0, 6)
       .map((kw) => ({ q: `${GROUP.name} ${kw}`, days: 3 }));
     const queued = await repo.getState<{ news: NewsQuery[]; youtube: { focus: string; after: string }[] }>('fillQueue', { news: [], youtube: [] });
-    const added = await collectArticles(repo, [...NEWS_QUERIES.map((q) => ({ ...q, days: NEWS_DAYS })), ...fanQueries, ...queued.news], now);
+    const doneKeys = new Set<string>();
+    const added = await collectArticles(repo, [...NEWS_QUERIES.map((q) => ({ ...q, days: NEWS_DAYS })), ...fanQueries, ...queued.news], now, (q) => q.fillKey && doneKeys.add(q.fillKey));
+    await markFillDone(repo, doneKeys, now);
     console.log(`기사 새로 ${added.length}개 (팬 글 화제 검색 ${fanQueries.length}개, 빈칸 채우기 검색 ${queued.news.length}개)`);
 
     const yt = await collectVideos(now);
@@ -277,14 +279,16 @@ try {
     const { events, pending, rumors, review } = await consolidateAndPublish();
 
     step('④ 빈칸 채우기');
-    const plan = await planFill(repo, events, pending, now, await loadTracked(repo), rumors, review);
+    const plan = await planFill(repo, events, pending, now, await loadTracked(repo), rumors, review, budget);
     console.log(`검색 계획: 기사 ${plan.news.length}개, 유튜브 ${plan.youtube.length}개`);
     if (pass === 2 || (!plan.news.length && !plan.youtube.length)) {
       // 남은 계획은 다음 실행 때
       await repo.putState('fillQueue', { news: plan.news, youtube: plan.youtube.map((y) => ({ focus: y.focus, after: y.after.toISOString() })) });
       break;
     }
-    const more = await collectArticles(repo, plan.news, now);
+    const fillDone = new Set<string>();
+    const more = await collectArticles(repo, plan.news, now, (q) => q.fillKey && fillDone.add(q.fillKey));
+    await markFillDone(repo, fillDone, now);
     let moreYt = 0;
     for (const y of plan.youtube) moreYt += (await searchVideos(y.focus, y.after, now).catch(() => [])).length;
     console.log(`빈칸 채우기로 기사 ${more.length}개, 영상 ${moreYt}개`);

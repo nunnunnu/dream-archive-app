@@ -46,6 +46,8 @@ export interface NewsQuery {
   days: number;
   /** 빈칸 채우기 검색이면 무엇을 찾는지. 제목에 이 이름이 있는 기사만 받는다 */
   focus?: string;
+  /** 빈칸 채우기 검색이면 기록 키 (실제로 검색했을 때만 "찾았음"으로 남긴다) */
+  fillKey?: string;
   /** 멤버 검색("NCT 재민")이면 그 멤버. 구글이 본문에서 NCT를 확인했으니 제목에 멤버 이름만 있어도 받는다 */
   member?: string;
 }
@@ -80,7 +82,7 @@ export function isSpecificFocus(focus: string): boolean {
 /** 검색해서 처음 보는 기사만 저장소에 추가한다 */
 const FOLLOWUP_PER_QUERY = 6;
 
-export async function collectArticles(repo: Repo, queries: NewsQuery[], now: Date): Promise<ArticleRecord[]> {
+export async function collectArticles(repo: Repo, queries: NewsQuery[], now: Date, onDone?: (q: NewsQuery) => void): Promise<ArticleRecord[]> {
   const nowIso = now.toISOString();
   const known = await repo.listArticles(new Date(now.getTime() - 120 * 24 * 3600 * 1000).toISOString());
   const seenGuid = new Set(known.map((a) => a.guid));
@@ -97,6 +99,7 @@ export async function collectArticles(repo: Repo, queries: NewsQuery[], now: Dat
       console.log(`기사 검색 실패: ${query.q} (${(err as Error).message})`);
       continue;
     }
+    onDone?.(query);
     // 빈칸 채우기 검색은 한 번에 많이 쌓이면 AI 해석이 오래 걸린다:
     // 그룹이 제목에 나오는 기사 → 최신 순으로 검색어당 최대 6개만
     if (query.focus) {
