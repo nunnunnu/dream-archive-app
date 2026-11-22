@@ -425,6 +425,11 @@ function setup(panel: HTMLElement) {
     if (!c || !el.dataset.k) return;
     const k = el.dataset.k as 'text' | 'member' | 'section';
     c[k] = el.value;
+    // 문구가 비었을 때 멤버를 고르면 문구를 "런쥔!"으로
+    if (k === 'member' && c.member && !c.text.trim()) {
+      const m = members.find((x) => x.slug === c.member);
+      if (m) { c.text = `${m.name}!`; rowOf.get(c)!.querySelector<HTMLInputElement>('[data-k="text"]')!.value = c.text; }
+    }
     // 문구에 멤버 이름이 있으면 멤버 자동으로
     if (k === 'text' && !c.member) {
       const m = members.find((x) => el.value.includes(x.name));
