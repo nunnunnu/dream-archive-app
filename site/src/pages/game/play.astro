@@ -15,7 +15,7 @@ const config = { ...FANCHANT_DEFAULTS, ...(index.config ?? {}) };
 const range = from != null && to != null && Number.isFinite(from) && Number.isFinite(to) && to > from;
 if (!chart) Astro.response.status = 404;
 ---
-<Base title={chart ? `${chart.title} 응원법` : '응원법 게임'} current="game">
+<Base title={chart ? `${chart.title} 응원법` : '응원법 게임'} current="game" theme="dark">
   {chart ? (
     <GamePlay chart={chart} config={config} mode={mode} from={range ? from : undefined} to={range ? to : undefined} backHref="/game/" />
   ) : (

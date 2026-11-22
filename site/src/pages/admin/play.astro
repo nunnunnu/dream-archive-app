@@ -16,7 +16,7 @@ const index = await loadPublic<{ config?: Partial<FanchantConfig> }>(Astro.local
 const config = { ...FANCHANT_DEFAULTS, ...(index.config ?? {}) };
 const range = from != null && to != null && Number.isFinite(from) && Number.isFinite(to) && to > from;
 ---
-<Base title="시험 플레이" current="admin" noindex>
+<Base title="시험 플레이" current="admin" noindex theme="dark">
   {chart ? (
     <GamePlay chart={chart} config={config} mode={mode} from={range ? from : undefined} to={range ? to : undefined} backHref="/admin/" preview />
   ) : (

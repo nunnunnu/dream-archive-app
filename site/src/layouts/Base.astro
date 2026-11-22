@@ -11,8 +11,10 @@ interface Props {
   current: 'schedule' | 'news' | 'archive' | 'series' | 'game' | 'ask' | 'report' | 'admin';
   /** 검색에 안 나오게 (어드민) */
   noindex?: boolean;
+  /** 'dark': 헤더까지 어두운 화면 (응원법 게임 플레이) */
+  theme?: 'dark';
 }
-const { title, current, noindex } = Astro.props;
+const { title, current, noindex, theme } = Astro.props;
 const nav = [
   { id: 'schedule', href: '/', label: '일정' },
   { id: 'news', href: '/news/', label: '소식' },
@@ -35,7 +37,7 @@ const nav = [
     <meta name="theme-color" content="#c5f03a" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
   </head>
-  <body>
+  <body class={theme === 'dark' ? 'theme-dark' : undefined}>
     <header class="site-head">
       <div class="wrap">
         <a class="brand" href="/" aria-label={`${groupName} 드림로그`}><span class="brand-mark">{mark}</span><span class="brand-name">{groupName}</span> <small>드림로그</small></a>

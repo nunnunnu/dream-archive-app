@@ -193,7 +193,9 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
       const hold = holdOf(cues[i]);
       const res = judger.pressResult(i);
       const holding = i === held;
-      if (!holding && (d + (res?.judge === 'miss' ? hold : 0) < -behind || res?.judge === 'skip' || (res && res.judge !== 'miss'))) continue;
+      // 맞힌·놓친 노트는 판정선을 지나 흐리게 흘러가다 사라진다 (2·3단계는 짧게)
+      const gone = d + hold < -(late ? behind : 0.6);
+      if (!holding && (gone || res?.judge === 'skip' || (late && res && res.judge !== 'miss' && d < -behind))) continue;
       keep.add(i);
       let el = noteEls.get(i);
       if (!el) {
@@ -204,6 +206,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
         noteEls.set(i, el);
       }
       if (res?.judge === 'miss') el.classList.add('is-miss');
+      else if (res && !holding) el.classList.add('is-done');
       el.classList.toggle('is-holding', holding);
       // 1단계는 approach 동안 오른쪽 끝에서 판정선까지, 2단계도 같은 속도로 보이는 구간만. 누르고 있는 길게 노트는 판정선에 붙어서 꼬리가 줄어든다
       const x = HIT_X * laneW + (holding ? 0 : d * pxPerSec);
@@ -216,7 +219,15 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
   const chantEl = $('g-chant');
   const BREAK_SEC = 1.5;
   const word = (i: number, cls: string) => `<span class="game-cw ${cls}${holdOf(cues[i]) ? ' has-hold' : ''}">${esc(cues[i].text)}${holdOf(cues[i]) ? '<em>홀드</em>' : ''}</span>`;
-  const row = (idx: number[], cls: (i: number) => string) => idx.map((i, k) => `${k && cues[i].t - cues[idx[k - 1]].t > BREAK_SEC ? '<span class="game-cbreak"></span>' : k ? '<span class="game-cdot">·</span>' : ''}${word(i, cls(i))}`).join('');
+  const row = (idx: number[], cls: (i: number) => string) => {
+    let broke = false;
+    return idx.map((i, k) => {
+      const brk = k > 0 && cues[i].t - cues[idx[k - 1]].t > BREAK_SEC;
+      const c = cls(i);
+      if (brk && c.includes('is-next')) broke = true;
+      return `${brk ? '<span class="game-cbreak"></span>' : k ? '<span class="game-cdot">·</span>' : ''}${word(i, broke && c.includes('is-next') ? `${c} is-later` : c)}`;
+    }).join('');
+  };
   let chantKey = -1;
   function drawChant() {
     if (mode !== 'step1' || !chantEl) return;
