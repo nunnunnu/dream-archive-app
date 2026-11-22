@@ -89,6 +89,14 @@ export function findActivities(events: PublicEvent[], extraKeys: string[], artic
   const display = new Map<string, string>();
   for (const e of events) for (const n of quotedNames(e.title)) if (!display.has(sq(n))) display.set(sq(n), n);
   for (const k of extraKeys) if (sq(k).length >= 3 && !display.has(sq(k))) display.set(sq(k), k);
+  // 이름 바로 뒤에 숫자가 붙은 후속편("THE DREAM SHOW2 : In A DREAM")은 따로: 따옴표 없이 나와도 어휘에 넣는다 (원래 이름에 묶이지 않게)
+  for (const name of [...display.values()].filter((n) => sq(n).length >= 5 && !/\d$/.test(n.trim()))) {
+    const re = new RegExp(`(^|[^\\p{L}\\p{N}])(${name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s?(\\d))(?![\\p{N}.])`, 'iu');
+    for (const e of events) {
+      const m = re.exec(e.title.normalize('NFKC'));
+      if (m && !display.has(sq(m[2]))) display.set(sq(m[2]), `${name.trim()} ${m[3]}`);
+    }
+  }
   const vocab = [...display.keys()].sort((a, b) => b.length - a.length);
 
   // 2) 제목마다 어휘 붙이기 + 함께 나온 이름 합치기 (union-find)

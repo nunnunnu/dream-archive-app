@@ -34,6 +34,17 @@
       ],
       "subtitle": "일본 타이틀곡",
       "region": "일본"
+    },
+    {
+      "id": "thedreamshow2",
+      "name": "THE DREAM SHOW 2 (2nd World Tour)",
+      "from": "2022-09-01",
+      "to": "2023-07-31",
+      "keywords": [
+        "THE DREAM SHOW 2",
+        "THE DREAM SHOW2"
+      ],
+      "subtitle": "In A DREAM · 2nd World Tour"
     }
   ],
   "projects": [
