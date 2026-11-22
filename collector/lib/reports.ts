@@ -1,7 +1,7 @@
 /**
  * 사이트 제보 자동 검증.
  * - 추가·보완: 공식 출처를 AI가 읽고 원문 대조를 통과한 경우만 자동 승인
- * - 삭제: 출처 하나가 사라져도 일정은 사실일 수 있으므로 자동 승인하지 않는다
+ * - 삭제: reportDelete.ts가 판정한다 (공식 출처가 있는 일정은 사람 확인, 그 밖에는 AI가 확실히 맞다고 볼 때만 자동 삭제)
  * - 판정과 자동 보완은 data/state에 저장해 다음 GitHub Actions 실행에도 유지한다
  */
 import { GROUP } from './group.ts';
@@ -45,6 +45,12 @@ const kv = (c: KvConfig, path: string, init?: RequestInit) => fetch(
   { ...init, headers: { Authorization: `Bearer ${c.token}`, ...(init?.headers ?? {}) } },
 );
 
+/** 판정한 제보 상태를 사이트(KV)에도 저장 (설정이 없으면 건너뜀) */
+export async function saveReport(r: Report) {
+  const c = config();
+  if (c) await saveRemote(c, r);
+}
+
 async function saveRemote(c: KvConfig, r: Report) {
   const res = await kv(c, `/values/${encodeURIComponent(`report:${r.id}`)}`, { method: 'PUT', body: JSON.stringify(r) });
   if (!res.ok) throw new Error(`제보 상태 저장 실패 ${res.status}`);
@@ -60,7 +66,8 @@ export async function pullReports(repo: Repo): Promise<{ reports: Record<string,
   let fetched = 0;
   for (const k of keys) {
     const id = k.name.slice('report:'.length);
-    if (reports[id]?.status !== 'pending') continue;
+    // 처음 보는 제보이거나 아직 판정 전인 것만 가져온다 (전에는 처음 보는 제보를 건너뛰어서 새 제보가 하나도 안 들어왔다)
+    if (reports[id] && reports[id].status !== 'pending') continue;
     const value = await kv(c, `/values/${encodeURIComponent(k.name)}`);
     if (!value.ok) continue;
     const incoming = await value.json() as Report;
@@ -114,8 +121,7 @@ export async function finalizeReports(repo: Repo, reports: Record<string, Report
   for (const r of Object.values(reports)) {
     if (r.status !== 'pending') continue;
     if (r.type === 'delete') {
-      r.reviewReason = '삭제는 공식 출처가 사라져도 일정 자체는 사실일 수 있어 수동 확인이 필요해요.';
-      continue;
+      continue; // 삭제는 합칠 때 일정을 보고 판정한다 (reportDelete.ts)
     }
     if (!r.url) {
       r.reviewReason = '자동 검증할 원문 링크가 없어요.';

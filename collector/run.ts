@@ -47,6 +47,7 @@ import { buildDiscography } from './lib/discography.ts';
 import { buildSeries } from './lib/series.ts';
 import { applyOverrides, loadOverrides, mergeOverrides, type Overrides } from './lib/overrides.ts';
 import { finalizeReports, pullReports, queueReports, type Report } from './lib/reports.ts';
+import { judgeDeleteReports } from './lib/reportDelete.ts';
 import { isHidden } from './lib/members.ts';
 import { transcribeNoticeImages } from './lib/noticeImages.ts';
 // 커뮤니티(더쿠) 수집은 비공개 레포에만 있다. 파일이 없으면(공개 레포) 건너뛴다
@@ -95,6 +96,8 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   const ownChannels = new Set(GROUP.youtube.channels.filter((c) => !c.guest).map((c) => c.name));
   const officialItems = itemsFromOfficialVideos((await loadRecentVideos(now, 6)).filter((v) => ownChannels.has(v.channel) && (v.channel === GROUP.name || isDreamRelated(v.title))), ownChannels, GROUP_NAME_RE);
   const { events, pending, rumors, review } = consolidate([...items, ...itemsFromGuestVideos(videos, interpreted), ...officialItems, ...itemsFromTracked(await loadTracked(repo))], { today, videos: related, trustedVideoUrls, seriesVideos: videos });
+  // 삭제 제보 자동 판정 (확실할 때만 숨기기에 추가, 같은 실행부터 적용)
+  for (const l of await judgeDeleteReports(repo, reports, events, budget, now)) console.log(l);
   // 운영자가 승인한 삭제·보완 제보 (config/overrides.json)
   const reportOverrides = await repo.getState<Overrides>('report-overrides', { hide: [], patch: [] });
   const ov = applyOverrides(events, mergeOverrides(loadOverrides(), reportOverrides));
