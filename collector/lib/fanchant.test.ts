@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activeOffset, checkChart, FANCHANT_DEFAULTS, songTimeAt, suggestSongId, videoTimeAt, youtubeIdFrom } from '../../site/src/lib/fanchant.ts';
+import { activeOffset, checkChart, FANCHANT_DEFAULTS, songTimeAt, suggestSongId, videoTimeAt, youtubeIdFrom, youtubeStartFrom } from '../../site/src/lib/fanchant.ts';
 import { buildFanchantFiles } from './fanchant-publish.ts';
 
 const base = () => ({
@@ -16,6 +16,15 @@ test('유튜브 주소에서 ID 꺼내기', () => {
   assert.equal(youtubeIdFrom('dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
   assert.equal(youtubeIdFrom('https://example.com/watch?v=dQw4w9WgXcQ'), null);
   assert.equal(youtubeIdFrom('짧음'), null);
+});
+
+test('유튜브 링크의 시작 위치', () => {
+  assert.equal(youtubeStartFrom('https://youtu.be/dQw4w9WgXcQ?t=40'), 40);
+  assert.equal(youtubeStartFrom('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m5s'), 65);
+  assert.equal(youtubeStartFrom('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s'), 42);
+  assert.equal(youtubeStartFrom('https://www.youtube.com/embed/dQw4w9WgXcQ?start=12'), 12);
+  assert.equal(youtubeStartFrom('https://youtu.be/dQw4w9WgXcQ'), null);
+  assert.equal(youtubeStartFrom('dQw4w9WgXcQ'), null);
 });
 
 test('곡 ID 제안', () => {

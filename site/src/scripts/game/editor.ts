@@ -5,7 +5,7 @@
  *  - 목록에서 문구·멤버·구간 이름 편집, ±10ms, 지우기, 그 시각으로 이동
  *  - 저장은 /api/admin/charts (KV chart:<곡ID>), 공개는 verified. 저장 안 한 작업은 이 브라우저에 임시로 남긴다
  */
-import { checkChart, difficultyLabelOf, FANCHANT_DEFAULTS, fmtTime, songTimeAt, suggestSongId, videoTimeAt, youtubeIdFrom, type FanchantChart, type FanchantConfig, type FanchantMode } from '../../lib/fanchant';
+import { checkChart, difficultyLabelOf, FANCHANT_DEFAULTS, fmtTime, songTimeAt, suggestSongId, videoTimeAt, youtubeIdFrom, youtubeStartFrom, type FanchantChart, type FanchantConfig, type FanchantMode } from '../../lib/fanchant';
 import { VideoClock } from './clock';
 import { createPlayer, YTState, ytErrorText, type YTPlayer } from './youtube';
 
@@ -248,7 +248,19 @@ function setup(panel: HTMLElement) {
       const m = box.dataset.mode as FanchantMode;
       if (el.dataset.v) {
         draft.videos[m][el.dataset.v as 'youtubeId' | 'offset'] = el.value;
-        if (el.dataset.v === 'youtubeId' && m === mode) syncPlayerSoon();
+        if (el.dataset.v === 'youtubeId') {
+          // 링크에 시작 위치(t=)가 있고 오프셋이 비었으면 그걸 오프셋으로
+          const start = youtubeStartFrom(el.value);
+          const off = draft.videos[m].offset.trim();
+          if (start != null && (off === '' || Number(off) === 0)) {
+            draft.videos[m].offset = String(start);
+            box.querySelector<HTMLInputElement>('[data-v="offset"]')!.value = draft.videos[m].offset;
+            setTimeout(() => setStatus(`링크의 시작 위치 ${start}초를 오프셋으로 넣었어요. 정확히는 재생하다 "지금 위치로"로 다듬어 주세요`), 0);
+            renderCues();
+            renderTimeline();
+          }
+          if (m === mode) syncPlayerSoon();
+        }
         if (el.dataset.v === 'offset') { renderCues(); renderTimeline(); }
       }
       if (el.dataset.s) {

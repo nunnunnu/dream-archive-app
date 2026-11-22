@@ -33,6 +33,7 @@ function run({ chart, config: cfg, mode, from, to, backHref, preview }: Data) {
   let lastSt = practice ? songTimeAt(video, from!) : -Infinity;
   let duration = 0;
   const lastCueT = cues.length ? cues.at(-1)!.t : 0;
+  const LEAD_SEC = 5;
 
   // ── 보정 ──
   const showCalib = () => { $('g-calib')!.textContent = `${inputOffset > 0 ? '+' : ''}${inputOffset}ms`; };
@@ -70,6 +71,11 @@ function run({ chart, config: cfg, mode, from, to, backHref, preview }: Data) {
     if (!player) return;
     if (finished) { location.reload(); return; }
     if (practice && player.getCurrentTime() < from! - 0.5) player.seekTo(from!, true);
+    // 처음 시작이면 영상 앞부분(인트로·드라마)을 기다리지 않고 첫 큐 몇 초 전부터
+    else if (!practice && !started && cues.length) {
+      const lead = Math.max(0, videoTimeAt(video, cues[0].t) - LEAD_SEC);
+      if (lead > 1 && player.getCurrentTime() < lead) player.seekTo(lead, true);
+    }
     player.playVideo();
     focusTap();
   });

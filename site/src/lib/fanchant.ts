@@ -65,6 +65,21 @@ export function youtubeIdFrom(input: string): string | null {
   }
 }
 
+/** 유튜브 링크의 시작 위치(t=40, t=1m5s, start=40)를 초로. 없으면 null */
+export function youtubeStartFrom(input: string): number | null {
+  try {
+    const u = new URL(input.trim());
+    const raw = u.searchParams.get('t') ?? u.searchParams.get('start') ?? new URLSearchParams(u.hash.slice(1)).get('t');
+    if (!raw) return null;
+    if (/^\d+(\.\d+)?s?$/.test(raw)) return parseFloat(raw);
+    const m = raw.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+    if (!m || !m[0]) return null;
+    return Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0);
+  } catch {
+    return null;
+  }
+}
+
 /** 제목에서 곡 ID 제안 (영문·숫자만 남김, 한글 제목이면 빈 값) */
 export const suggestSongId = (title: string) =>
   title.normalize('NFKD').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
