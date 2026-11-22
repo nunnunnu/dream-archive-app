@@ -1,0 +1,289 @@
+---
+/**
+ * 멤버 문서 (/member/jeno/, 그룹은 /member/nctdream/): 프로필 → 활동 연표 → 컴백·투어 → 예능·자컨 → 화보·광고 → 최근 소식 → 관련 문서.
+ * 프로필 표의 본명·소속은 설정(공개된 사실), 포지션은 운영자가 직접 적는다. 나머지는 수집한 활동·소식에서 자동으로.
+ */
+import Base from '../../layouts/Base.astro';
+import Cover from '../../components/Cover.astro';
+import MemberCard from '../../components/MemberCard.astro';
+import { loadPublic, ymd, type EraSummary } from '../../lib/data';
+import { daysUntil, EMPTY_MEMBERS, MEMBER_COLOR, type MembersData } from '../../lib/members';
+
+const { slug } = Astro.params;
+const [data, { eras }] = await Promise.all([
+  loadPublic<MembersData>(Astro.locals, 'members.json', EMPTY_MEMBERS),
+  loadPublic<{ eras: EraSummary[] }>(Astro.locals, 'eras.json', { eras: [] }),
+]);
+const all = [data.group, ...data.members];
+const m = all.find((x) => x.slug === slug);
+if (!m) return new Response('없는 문서예요', { status: 404 });
+const isGroup = m.kind === '그룹';
+const color = MEMBER_COLOR[m.slug] ?? MEMBER_COLOR.nctdream;
+const eraById = new Map(eras.map((e) => [e.id, e]));
+const bigEras = m.eras.map((id) => eraById.get(id)).filter((e): e is EraSummary => Boolean(e));
+const nextDay = m.birthday ? daysUntil(m.birthday) : m.debut ? daysUntil(m.debut.slice(5)) : null;
+const dayLabel = isGroup ? '데뷔 기념일' : '생일';
+const debutYear = m.debut?.slice(0, 4);
+const KIND_SHORT: Record<string, string> = { 컴백: '컴백', '콘서트·투어': '투어', 팬미팅: '팬미팅', 드라마: '드라마', 시상식: '시상식', 페스티벌: '페스티벌', 팝업: '팝업', 활동: '활동', 예능: '예능' };
+const TOC = [
+  ['profile', '프로필'], ['timeline', '활동 연표'], ['eras', '컴백·투어'], ['variety', '예능·자컨'],
+  ...(m.pictorial.length ? [['pictorial', '화보·광고']] : []), ['news', '최근 소식'], ['related', '관련 문서'],
+] as [string, string][];
+const num = (id: string) => TOC.findIndex(([x]) => x === id) + 1;
+---
+<Base title={`${m.name} 문서`} current="archive">
+  <header class="doc-hero" style={`--tint:${color.dot}`}>
+    <div class="wrap hero-in">
+      <a class="hero-photo" href={m.photo?.url ?? '#'} target={m.photo ? '_blank' : undefined} rel="noopener" title={m.photo?.title}>
+        <MemberCard m={m} size="lg" />
+        {m.photo && <small class="photo-src">사진: 영상 썸네일 ↗</small>}
+      </a>
+      <div class="hero-text">
+        <p class="crumbs"><a href="/archive/">아카이브</a><span>/</span>{isGroup ? '그룹 문서' : '멤버 문서'}<span>/</span><b>{m.name}</b></p>
+        <h1>{m.name}{!isGroup && <small>{m.en}</small>}<i style={`background:${color.dot}`}></i></h1>
+        <p class="sub">{isGroup ? `그룹 문서 · ${debutYear}년 데뷔 · 멤버 ${data.members.length}` : `${data.group.name} 멤버 문서 · ${debutYear ?? ''} – 현재`}</p>
+        <nav class="mchips" aria-label="다른 문서">
+          <a href="/member/nctdream/" aria-current={isGroup ? 'page' : undefined}><i style={`background:${MEMBER_COLOR.nctdream.dot}`}></i>그룹</a>
+          {data.members.map((x) => <a href={`/member/${x.slug}/`} aria-current={x.slug === m.slug ? 'page' : undefined}><i style={`background:${MEMBER_COLOR[x.slug]?.dot}`}></i>{x.name}</a>)}
+        </nav>
+        <div class="hero-actions">
+          {nextDay && <span class={`dday${nextDay.days === 0 ? ' today' : ''}`}>{dayLabel} <b>{nextDay.days === 0 ? '오늘' : `D-${nextDay.days}`}</b> <em>{ymd(nextDay.date)}</em></span>}
+          <a class="ics" href={`/calendar/${isGroup ? 'group' : m.slug}.ics`}>캘린더 구독(ics)</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap doc">
+    <aside class="toc">
+      <b>목차</b>
+      <ol>{TOC.map(([id, label], i) => <li><a href={`#${id}`}><span>{i + 1}</span>{label}</a></li>)}</ol>
+      <small>1은 사람이 작성<br />나머지는 자동 수집</small>
+    </aside>
+
+    <article class="body">
+      <section id="profile">
+        <h2><span class="n">{num('profile')}</span>프로필<em>사람이 작성 · 공개된 정보만</em></h2>
+        <div class="profile">
+          <div class="pf-text">
+            {isGroup
+              ? <p><b>{m.name}</b>는 {debutYear}년 데뷔한 그룹이에요. 이 문서는 그룹 활동(컴백·투어·팬미팅·예능)을 한곳에 모은 그룹 아카이브예요.</p>
+              : <p><b>{m.name}({m.en})</b>는 {m.groups.join(', ')}의 멤버예요.{debutYear && ` ${debutYear}년 데뷔 이후 그룹 활동과 개인 활동을 이어 왔어요.`}</p>}
+            <p>아래 연표·컴백·예능·화보·소식은 공식 공지와 기사, 등록 채널 영상에서 <b>자동으로</b> 쌓여요.</p>
+            <p class="note">신체 정보·학력·사생활 같은 개인 정보는 적지 않아요. 공개된 활동 기록과 일정만 모아요.</p>
+          </div>
+          <table class="infobox" style={`--from:${color.from};--to:${color.to}`}>
+            <caption>{m.name}</caption>
+            <tbody>
+              {isGroup ? (
+                <>
+                  <tr><th>데뷔</th><td>{m.debut ? ymd(m.debut) : '-'}</td></tr>
+                  <tr><th>멤버</th><td>{data.members.map((x) => x.name).join(' · ')}</td></tr>
+                </>
+              ) : (
+                <>
+                  <tr><th>본명</th><td>{m.realName ?? '-'}</td></tr>
+                  <tr><th>포지션</th><td>{m.position ?? <span class="todo">작성 전</span>}</td></tr>
+                  <tr><th>생일</th><td>{m.birthday ? (m.born ? ymd(m.born) : m.birthday.replace('-', '.')) : '-'}</td></tr>
+                  <tr><th>소속</th><td>{m.groups.join(', ')}</td></tr>
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="timeline">
+        <h2><span class="n">{num('timeline')}</span>활동 연표<em>자동 수집</em></h2>
+        {m.timeline.length ? (
+          <div class="tl">
+            {m.timeline.map((y) => (
+              <div class="tl-year">
+                <h3>{y.year}</h3>
+                <ul>{y.items.map((it) => (
+                  <li><span class="tl-date">{it.date.slice(5).replace('-', '.')}</span><span class={`k k-${it.kind}`}>{KIND_SHORT[it.kind] ?? it.kind}</span>
+                    <a href={`/archive/${it.eraId}/`}>{it.title}</a>{it.owner !== '단체' && <em>{it.owner}</em>}</li>
+                ))}</ul>
+              </div>
+            ))}
+          </div>
+        ) : <p class="empty">아직 모은 활동이 없어요.</p>}
+      </section>
+
+      <section id="eras">
+        <h2><span class="n">{num('eras')}</span>컴백·투어<em>자동 수집</em></h2>
+        <div class="era-row">
+          {bigEras.map((e) => (
+            <a class="era" href={`/archive/${e.id}/`}>
+              <Cover title={e.title} sub={e.subtitle} cover={e.cover} image={e.thumb} />
+              <b>{e.title}</b><small>{e.from.slice(0, 4)} · {KIND_SHORT[e.kind] ?? e.kind}</small>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <section id="variety">
+        <h2><span class="n">{num('variety')}</span>예능·자컨<em>자동 수집</em></h2>
+        {m.variety.length > 0 && (
+          <table class="tbl">
+            <thead><tr><th>시리즈</th><th>종류</th><th>편수</th><th>최근</th></tr></thead>
+            <tbody>{m.variety.map((v) => <tr><td><a href={`/series/${v.id}/`}>{v.name}</a></td><td>{v.type}</td><td>{v.count}편</td><td>{ymd(v.to)}</td></tr>)}</tbody>
+          </table>
+        )}
+        {m.appearances.length > 0 && (
+          <>
+            <h4>방송 출연</h4>
+            <table class="tbl">
+              <thead><tr><th>프로그램</th><th>내용</th><th>날짜</th><th></th></tr></thead>
+              <tbody>{m.appearances.map((a) => <tr><td>{a.title}</td><td>{a.step}</td><td>{ymd(a.date)}</td><td>{a.url && <a href={a.url} target="_blank" rel="noopener">원문 ↗</a>}</td></tr>)}</tbody>
+            </table>
+          </>
+        )}
+        {!m.variety.length && !m.appearances.length && <p class="empty">아직 모은 예능·자컨이 없어요.</p>}
+      </section>
+
+      {m.pictorial.length > 0 && (
+        <section id="pictorial">
+          <h2><span class="n">{num('pictorial')}</span>화보·광고<em>자동 수집</em></h2>
+          <div class="pic-grid">
+            {m.pictorial.map((p) => (
+              <a class="pic" href={p.url} target="_blank" rel="noopener" style={`--from:${color.from};--to:${color.to}`}>
+                <span class="pic-img">{p.image && <img src={p.image} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}<em>{p.publisher}</em></span>
+                <b>{p.title}</b><small>{ymd(p.date)} · {p.topic}</small>
+              </a>
+            ))}
+          </div>
+          <p class="note">사진은 기사에서 바로 불러와요(다시 올리지 않음). 다른 가수가 주인공일 수 있는 기사는 사진을 빼요.</p>
+        </section>
+      )}
+
+      <section id="news">
+        <h2><span class="n">{num('news')}</span>최근 소식<em>자동 수집</em></h2>
+        <ul class="news">
+          {m.news.map((n) => (
+            <li><a href={n.url} target="_blank" rel="noopener">
+              <span class="nk">{n.topic ?? (n.type === 'weverse-notice' ? '공지' : '기사')}</span>
+              <span class="nt"><b>{n.title}</b><small>{n.publisher ?? ''} · {ymd(n.date)}</small></span>
+              {n.image && <img src={n.image} alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()" />}
+            </a></li>
+          ))}
+        </ul>
+        <a class="more" href={isGroup ? '/news/' : `/news/?member=${encodeURIComponent(m.name)}`}>소식 탭에서 더 보기 →</a>
+      </section>
+
+      <section id="related">
+        <h2><span class="n">{num('related')}</span>관련 문서<em>자동 수집</em></h2>
+        <dl class="rel">
+          <dt>멤버</dt><dd>{all.filter((x) => x.slug !== m.slug).map((x) => <a href={`/member/${x.slug}/`}>{x.kind === '그룹' ? x.name : x.name}</a>)}</dd>
+          <dt>소속</dt><dd>{m.groups.map((g) => <span>{g}</span>)}</dd>
+          <dt>활동</dt><dd>{bigEras.slice(0, 6).map((e) => <a href={`/archive/${e.id}/`}>{e.title}</a>)}</dd>
+        </dl>
+        <p class="note">이 문서에 빠진 게 있나요? <a href="/report/">제보</a></p>
+      </section>
+    </article>
+  </div>
+</Base>
+
+<style>
+  .doc-hero { background: linear-gradient(180deg, color-mix(in srgb, var(--tint) 14%, var(--bg)) 0%, var(--bg) 100%); border-bottom: 1px solid var(--line); }
+  .hero-in { display: flex; gap: 32px; align-items: flex-start; padding-top: 28px; padding-bottom: 32px; }
+  .hero-photo { width: 168px; flex: none; text-decoration: none; display: flex; flex-direction: column; gap: 4px; }
+  .photo-src { color: var(--faint); font-size: 10.5px; text-align: right; }
+  .hero-text { min-width: 0; padding-top: 6px; }
+  .crumbs { margin: 0 0 8px; color: var(--sub); font-size: 12.5px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .crumbs a { color: var(--text); font-weight: 700; text-decoration: none; }
+  .crumbs b { color: var(--text); }
+  h1 { margin: 0; font-size: clamp(36px, 5vw, 48px); letter-spacing: -.05em; display: flex; align-items: center; gap: 12px; line-height: 1.05; }
+  h1 small { font-size: 18px; color: var(--sub); letter-spacing: .08em; font-weight: 800; }
+  h1 i { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 4px color-mix(in srgb, var(--tint) 30%, transparent); }
+  .sub { margin: 8px 0 14px; color: var(--sub); font-size: 14px; }
+  .mchips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mchips a { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 700; color: var(--text); text-decoration: none; }
+  .mchips a i { width: 8px; height: 8px; border-radius: 50%; }
+  .mchips a[aria-current] { background: var(--dark); border-color: var(--dark); color: #fff; }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .dday, .ics { border-radius: 999px; padding: 9px 16px; font-size: 13px; font-weight: 800; text-decoration: none; }
+  .dday { background: var(--accent); color: var(--accent-ink); }
+  .dday em { font-style: normal; opacity: .75; margin-left: 4px; }
+  .ics { background: var(--dark); color: #fff; }
+  .doc { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 36px; padding-top: 34px; padding-bottom: 64px; align-items: start; }
+  .toc { position: sticky; top: 80px; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 16px 12px; }
+  .toc > b { display: block; padding: 0 8px 8px; color: var(--sub); font-size: 11.5px; }
+  .toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .toc a { display: flex; gap: 12px; padding: 8px 10px; border-radius: 8px; color: var(--text); text-decoration: none; font-size: 13.5px; font-weight: 700; }
+  .toc a:hover { background: color-mix(in srgb, var(--accent) 22%, white); }
+  .toc a span { color: var(--faint); width: 12px; }
+  .toc small { display: block; padding: 10px 8px 0; color: var(--faint); font-size: 11px; line-height: 1.6; }
+  .body { min-width: 0; }
+  .body section { margin-bottom: 52px; scroll-margin-top: 80px; }
+  .body h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; padding-bottom: 10px; border-bottom: 2px solid var(--text); font-size: 22px; letter-spacing: -.03em; }
+  .body h2 .n { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; background: var(--accent); color: var(--accent-ink); font-size: 13px; }
+  .body h2 em { margin-left: auto; font-style: normal; font-size: 11px; font-weight: 700; color: var(--sub); background: var(--line-soft); border-radius: 999px; padding: 4px 10px; }
+  .body h4 { margin: 22px 0 8px; font-size: 14px; }
+  .profile { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 28px; align-items: start; }
+  .pf-text p { margin: 0 0 12px; line-height: 1.75; font-size: 14.5px; }
+  .note { color: var(--sub); font-size: 12.5px !important; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+  .infobox { width: 100%; border-collapse: collapse; border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px var(--line); font-size: 13.5px; }
+  .infobox caption { caption-side: top; padding: 46px 14px 12px; text-align: left; font-weight: 900; font-size: 17px; color: #fff; background: linear-gradient(165deg, var(--from), var(--to)); border-radius: 14px 14px 0 0; }
+  .infobox th { width: 78px; text-align: left; background: var(--line-soft); padding: 11px 12px; font-weight: 700; border-top: 1px solid var(--line); }
+  .infobox td { padding: 11px 12px; font-weight: 700; border-top: 1px solid var(--line); }
+  .todo { color: var(--faint); font-weight: 600; }
+  .tl-year { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: 12px; padding: 4px 0; }
+  .tl-year h3 { margin: 6px 0 0; font-size: 18px; }
+  .tl-year ul { list-style: none; margin: 0; padding: 0 0 12px 18px; border-left: 2px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+  .tl-year li { position: relative; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; padding-top: 4px; }
+  .tl-year li::before { content: ''; position: absolute; left: -24px; top: 11px; width: 10px; height: 10px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); }
+  .tl-date { color: var(--sub); font-size: 12px; width: 40px; }
+  .k { font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 6px; background: var(--line-soft); }
+  .k-컴백 { background: var(--accent); color: var(--accent-ink); }
+  .k-콘서트·투어 { background: var(--dark); color: #fff; }
+  .k-팬미팅 { background: #ffe0ef; color: #a0225e; }
+  .tl-year a { color: var(--text); font-weight: 750; text-decoration: none; }
+  .tl-year a:hover { text-decoration: underline; }
+  .tl-year em { font-style: normal; color: var(--sub); font-size: 12px; }
+  .era-row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+  .era { flex: 0 0 140px; display: flex; flex-direction: column; gap: 3px; color: inherit; text-decoration: none; }
+  .era :global(.cover) { border-radius: 10px; box-shadow: 0 8px 18px rgba(0,0,0,.15); }
+  .era :global(.cover-text strong) { font-size: 14px; }
+  .era :global(.cover-text) { left: 9px; right: 9px; bottom: 9px; }
+  .era b { margin-top: 6px; font-size: 13px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .era small { color: var(--sub); font-size: 11.5px; }
+  .tbl { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); font-size: 13px; }
+  .tbl th { text-align: left; background: var(--line-soft); padding: 10px 12px; color: var(--sub); font-weight: 700; font-size: 12px; }
+  .tbl td { padding: 11px 12px; border-top: 1px solid var(--line-soft); }
+  .tbl td a { color: var(--text); font-weight: 750; }
+  .pic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 12px; }
+  .pic { display: flex; flex-direction: column; gap: 3px; color: inherit; text-decoration: none; }
+  .pic-img { position: relative; aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden; background: linear-gradient(165deg, var(--from), var(--to)); }
+  .pic-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .pic-img em { position: absolute; left: 10px; bottom: 10px; color: #fff; font-style: normal; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-shadow: 0 1px 6px rgba(0,0,0,.4); }
+  .pic b { margin-top: 6px; font-size: 13px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pic small { color: var(--sub); font-size: 11.5px; }
+  .news { list-style: none; margin: 0; padding: 0; background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .news li + li { border-top: 1px solid var(--line-soft); }
+  .news a { display: flex; align-items: center; gap: 12px; padding: 13px 16px; color: inherit; text-decoration: none; }
+  .nk { flex: none; font-size: 10.5px; font-weight: 800; padding: 3px 7px; border-radius: 6px; background: var(--line-soft); }
+  .nt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .nt b { font-size: 14px; line-height: 1.4; }
+  .nt small { color: var(--sub); font-size: 11.5px; }
+  .news img { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; flex: none; }
+  .more { display: inline-block; margin-top: 10px; color: var(--sub); font-size: 13px; }
+  .rel { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 10px 14px; margin: 0 0 16px; font-size: 13px; }
+  .rel dt { color: var(--sub); padding-top: 5px; }
+  .rel dd { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .rel dd a, .rel dd span { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 11px; color: #2b55c8; text-decoration: none; font-weight: 700; }
+  .rel dd span { color: var(--text); }
+  .empty { color: var(--sub); }
+  @media (max-width: 900px) {
+    .doc { grid-template-columns: minmax(0, 1fr); }
+    .toc { display: none; }
+    .profile { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 600px) {
+    .hero-in { gap: 16px; }
+    .hero-photo { width: 110px; }
+    h1 small { font-size: 14px; }
+    .tl-year { grid-template-columns: 1fr; }
+    .tbl th:nth-child(2), .tbl td:nth-child(2) { display: none; }
+  }
+</style>

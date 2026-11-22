@@ -343,6 +343,9 @@ function render() {
 }
 
 export async function start() {
+  // 아카이브 공백기 카드에서 넘어오면 (?month=2026-05) 그 달을 보여 준다
+  const want = new URLSearchParams(location.search).get('month');
+  if (want && /^\d{4}-\d{2}$/.test(want)) { state.y = Number(want.slice(0, 4)); state.m = Number(want.slice(5, 7)); state.selected = `${want}-01`; }
   const [monthsRes, siteRes] = await Promise.all([fetch('/data/events/months.json'), fetch('/data/site.json')]);
   MONTHS = monthsRes.ok ? ((await monthsRes.json()) as { months: Record<string, number> }).months : {};
   // 달별 파일이 없으면(예전 데이터) 전체 파일로

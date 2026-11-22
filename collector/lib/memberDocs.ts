@@ -14,14 +14,14 @@ import { ROOT } from './store.ts';
 import type { Video } from './youtube.ts';
 
 interface SeriesLite { id: string; type: string; name: string; count: number; from: string; to: string; thumb?: string; members: string[] }
-const ANNIV = JSON.parse(readFileSync(join(ROOT, 'config', 'anniversaries.json'), 'utf8')) as { items: { date: string; title: string; member?: string }[] };
+const ANNIV = JSON.parse(readFileSync(join(ROOT, 'config', 'anniversaries.json'), 'utf8')) as { items: { date: string; title: string; member?: string; born?: string }[] };
 const FANCAM_RE = /focus|직캠|fancam|facecam|페이스캠|얼빡/i;
 const STAGE = new Set([...GROUP.youtube.channels.map((c) => c.name), ...(GROUP.youtube.stageChannels ?? [])]);
 const LATIN = (aliases: string[]) => aliases.find((a) => /^[A-Z][A-Z\s]+$/.test(a)) ?? '';
 
 export interface MemberDoc {
   slug: string; name: string; en: string; kind: '그룹' | '멤버';
-  realName?: string; position?: string; birthday?: string; debut?: string; groups: string[];
+  realName?: string; position?: string; birthday?: string; born?: string; debut?: string; groups: string[];
   photo?: { thumb: string; url: string; title: string };
   timeline: { year: string; items: { date: string; kind: string; title: string; eraId: string; owner: string }[] }[];
   eras: string[];
@@ -61,6 +61,7 @@ export function buildMemberDocs(input: { events: PublicEvent[]; eras: EraPage[];
     {
       realName: m.realName, position: m.position || undefined, debut,
       birthday: ANNIV.items.find((a) => a.member === m.name)?.date,
+      born: ANNIV.items.find((a) => a.member === m.name)?.born,
       groups: [GROUP.name, ...GROUP.units.filter((u) => u.members.includes(m.name)).map((u) => u.name), ...(m.otherGroups ?? [])],
     }));
   return { group, members };

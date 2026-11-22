@@ -293,5 +293,9 @@ const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span c
         apply();
       });
     }
+    // 멤버 문서에서 넘어오면 (?member=제노) 그 멤버로 거른다
+    const want = new URLSearchParams(location.search).get('member');
+    const btn = want ? box.querySelector<HTMLButtonElement>(`[data-group="member"] button[data-v="${CSS.escape(want)}"]`) : null;
+    if (btn) btn.click();
   }
 </script>
