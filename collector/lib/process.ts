@@ -112,8 +112,11 @@ export async function processArticles(
           continue;
         }
       }
-      // 구글 뉴스 날짜보다 기사 페이지 날짜를 믿는다 (옛 기사가 새 날짜로 다시 올라오는 경우)
-      const writtenAt = rep.pagePublishedAt ?? rep.publishedAt;
+      // 구글 뉴스 날짜보다 기사 주소 속 날짜 → 기사 페이지 날짜를 믿는다 (옛 기사가 새 날짜로 다시 올라오는 경우:
+      //  조선일보 2016년 기사가 사이트 이전 때문에 2020-07로 나옴 → "오늘 데뷔 곡 MV 공개"가 2020년 일정이 됐음)
+      const byUrl = urlDateOf(rep.originalUrl ?? url);
+      if (byUrl && Math.abs(Date.parse(byUrl) - Date.parse(rep.publishedAt.slice(0, 10))) > 3 * 864e5) rep.publishedAt = `${byUrl}T03:00:00.000Z`;
+      const writtenAt = byUrl && Math.abs(Date.parse(byUrl) - Date.parse((rep.pagePublishedAt ?? rep.publishedAt).slice(0, 10))) > 3 * 864e5 ? rep.publishedAt : rep.pagePublishedAt ?? rep.publishedAt;
       try {
         const r = await extractArticleEvents({ title: rep.title, publishedAt: writtenAt, body }, rep.focus);
         budget.record(r.usage.costUsd);
@@ -212,4 +215,13 @@ export async function processVideos(repo: Repo, budget: Budget, now: Date): Prom
   };
   await Promise.all(Array.from({ length: Math.min(6, todo.length) }, worker));
   return log;
+}
+
+/** 기사 주소 속 날짜 ("/2016/08/24/", "/20160824…"). 없으면 null */
+export function urlDateOf(url?: string): string | null {
+  if (!url) return null;
+  let path = '';
+  try { path = new URL(url).pathname; } catch { return null; }
+  const m = /\/(20\d{2})[\/-]?(0[1-9]|1[0-2])[\/-]?(0[1-9]|[12]\d|3[01])(?=\/|\d|\.|$)/.exec(path);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }

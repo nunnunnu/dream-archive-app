@@ -317,6 +317,20 @@ export function addReleases(
     const preHost = isRepackage ? undefined : acts.find((a) => preReleaseActs.has(a) && sameOwner(a) && r.date > a.from && r.date <= pad(a.from, 45));
     const byDate = isRepackage ? undefined : acts.find((a) => sameOwner(a) && r.date >= pad(a.from, -14) && r.date <= pad(a.from, 21));
     const host = byName ?? preHost ?? byDate;
+    // 이름이 같은 공식 MV가 있으면 컴백이다 (일정 문구가 "뮤직비디오·음원 공개"뿐이라 예능·활동으로 분류된 경우: 2016 Chewing Gum)
+    if (host && host === byName && (host.kind === '예능' || host.kind === '활동') && host.owner.scope === r.owner.scope) {
+      // 같은 주인의 컴백이 45일 안에 시작하거나 이미 진행 중이면 선공개곡이다 (2026 The Sun → Boogie Woogie): 뒤 컴백에 합친다
+      const later = acts.find((a) => a !== host && a.kind === '컴백' && a.owner.label === r.owner.label && a.to > r.date && a.from <= pad(r.date, 45));
+      if (later) {
+        later.eventIds.push(...host.eventIds.filter((id) => !later.eventIds.includes(id)));
+        later.parts.push(`선공개 ${r.song}`);
+        if (!later.keys.some((k) => sq(k) === key)) later.keys.push(r.song);
+        later.from = r.date < later.from ? r.date : later.from;
+        acts.splice(acts.indexOf(host), 1);
+        continue;
+      }
+      host.kind = '컴백';
+    }
     if (host) {
       if (host === preHost && !byName) {
         // 선공개곡 활동 → 이 곡(앨범 타이틀) 활동으로 이름을 바꾼다
