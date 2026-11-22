@@ -108,6 +108,8 @@ export async function planFill(
     if (e.kind !== '방송' && e.kind !== '발매') continue;
     if (e.date < kstDate(yday.year, yday.month, yday.day) || e.date > kstDate(d3.year, d3.month, d3.day)) continue;
     if (e.sources.some((s) => s.type === 'youtube') || e.seriesId) continue;
+    // 시각이 정해진 일정은 공개 전에는 찾지 않는다 (미리 찾으면 6시간 동안 다시 안 찾아서 늦어짐). 공개 뒤 2시간은 linkWatch가 +5·20·60분에 찾는다
+    if (e.time && now.getTime() < Date.parse(`${e.date}T${e.time}:00+09:00`) + 2 * 3600e3) continue;
     const key = `link:${core(e.title)}:${e.date}`;
     if (!due(key, 6) || plan.youtube.length >= MAX_YOUTUBE + 4) continue;
     plan.youtube.push({ focus: core(e.title), after: new Date(new Date(`${e.date}T00:00:00+09:00`).getTime() - 24 * 3600 * 1000) });

@@ -107,9 +107,14 @@ function submittedVideoItem(src: SourceRef): ExtractedItem | null {
   const members = mentionedMembers(title).members;
   if (!members.length && !mentionsGroup(title)) return null;
   const p = toKstParts(new Date(src.publishedAt));
+  // 회차가 있는 시리즈("… | 빈집대성 ep.10 크래시2 (…)")는 "유튜브 집대성 빈집대성" / "ep.10 지성 출연분 공개"처럼 (기사로 들어온 회차와 같은 모양)
+  const ep = /([^|]*?)\s*\bep\.?\s*(\d+)/i.exec(title);
+  const series = ep?.[1].replace(/\[[^\]]*\]/g, '').replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, '').trim();
+  const target = `유튜브 ${channel}${series && series.length <= 20 && series !== channel ? ` ${series}` : ''}`;
+  const step = ep ? `ep.${ep[2]} ${members.length ? members.join('·') : '단체'} 출연분 공개` : `${shortTitle(title)} 공개`;
   return {
     date: kstDate(p.year, p.month, p.day), time: kstTime(p.hour, p.minute), end_date: null, end_time: null, timezone: null,
-    target: `유튜브 ${channel}`, step: `${shortTitle(title)} 공개`, kind: '발매', members, evidence: title,
+    target, step, kind: '발매', members, evidence: title,
     verified: true, problems: [], source: src, by: 'rule',
   };
 }

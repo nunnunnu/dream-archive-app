@@ -48,6 +48,7 @@ import { buildSeries } from './lib/series.ts';
 import { applyOverrides, loadOverrides, mergeOverrides, type Overrides } from './lib/overrides.ts';
 import { finalizeReports, pullReports, queueReports, type Report } from './lib/reports.ts';
 import { judgeDeleteReports } from './lib/reportDelete.ts';
+import { publishLinkWake, runLinkWatch } from './lib/linkWatch.ts';
 import { isHidden } from './lib/members.ts';
 import { transcribeNoticeImages } from './lib/noticeImages.ts';
 // 커뮤니티(더쿠) 수집은 비공개 레포에만 있다. 파일이 없으면(공개 레포) 건너뛴다
@@ -194,6 +195,17 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   return { events, pending, rumors, review };
 }
 
+// 공개 직후 영상 링크 찾기 (예약 작업이 공개 시각 +5·20·60분에 띄움): 합치기 → 유튜브 검색 → 찾았으면 다시 합치기
+if (process.argv.includes('--links')) {
+  step('공개 직후 영상 링크 찾기');
+  let { events } = await consolidateAndPublish();
+  const r = await runLinkWatch(repo, events, now);
+  if (r.found) ({ events } = await consolidateAndPublish());
+  console.log(`검색 ${r.searched}번 · 영상 ${r.found}개 · 다음 찾을 시각 ${await publishLinkWake(repo, events, now)}개`);
+  await budget.save();
+  process.exit(0);
+}
+
 if (process.argv.includes('--publish-only')) {
   step('합치기 · 내보내기만');
   await consolidateAndPublish();
@@ -239,7 +251,8 @@ try {
     const moderation = await finalizeReports(repo, reports, now);
     if (moderation.approved) console.log(`제보 자동 승인 ${moderation.approved}개 · 확인 대기 ${moderation.pending}개`);
     step('③ 합치기 · 내보내기');
-    await consolidateAndPublish();
+    const { events } = await consolidateAndPublish();
+    await publishLinkWake(repo, events, now);
   }
 
   if (!fast) {
@@ -280,6 +293,7 @@ try {
 
     step('③ 합치기 · 내보내기');
     const { events, pending, rumors, review } = await consolidateAndPublish();
+    await publishLinkWake(repo, events, now);
 
     step('④ 빈칸 채우기');
     const plan = await planFill(repo, events, pending, now, await loadTracked(repo), rumors, review, budget);
