@@ -20,7 +20,8 @@
     "publish:site": "tsx collector/publish-site.ts",
     "rag:index": "tsx collector/rag-index.ts",
     "backfill:news": "tsx collector/backfill-news.ts",
-    "migrate:db": "tsx collector/migrate-to-db.ts"
+    "migrate:db": "tsx collector/migrate-to-db.ts",
+    "backfill:seeds": "tsx collector/backfill-seeds.ts"
   },
   "keywords": [],
   "author": "",

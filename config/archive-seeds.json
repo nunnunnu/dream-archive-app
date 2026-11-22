@@ -1,0 +1,23 @@
+{
+  "_설명": "아카이브에 빠진 활동을 채우기 위한 이름 검색 목록 (나무위키 NCT DREAM 문서 2026-11-22 기준 목록과 비교해서 빠진 것). backfill-seeds.ts가 그 기간 기사를 이름으로 찾아 넣으면, 일정 → 활동 페이지는 평소처럼 자동으로 묶인다. 사실 자체를 여기 적지 않는다",
+  "items": [
+    { "name": "RELOAD (Ridin')", "keywords": ["Ridin", "RELOAD", "라이딘"], "from": "2020-04-15", "to": "2020-07-15" },
+    { "name": "THE DREAM (일본 미니 1집)", "keywords": ["THE DREAM"], "query": "\"NCT DREAM\" \"THE DREAM\" 일본", "from": "2020-01-05", "to": "2020-03-01" },
+    { "name": "Trigger The Fever", "keywords": ["Trigger The Fever", "트리거 더 피버"], "from": "2017-02-20", "to": "2017-04-30" },
+    { "name": "Fireflies", "keywords": ["Fireflies", "파이어플라이즈", "스카우트"], "from": "2019-06-25", "to": "2019-08-31" },
+    { "name": "무대로 (Déjà Vu)", "keywords": ["무대로", "Deja Vu", "Déjà Vu"], "from": "2020-10-01", "to": "2020-11-30" },
+    { "name": "Dreaming (NCT Universe)", "keywords": ["Dreaming"], "from": "2021-12-01", "to": "2022-01-31" },
+    { "name": "Up to You", "keywords": ["Up to You"], "from": "2019-11-10", "to": "2019-12-31" },
+    { "name": "Love Me Right (SMTOWN)", "keywords": ["Love Me Right"], "from": "2025-02-01", "to": "2025-03-31" },
+    { "name": "NCT DREAM SHOW (첫 단독 콘서트)", "keywords": ["NCT DREAM SHOW", "드림쇼", "단독 콘서트"], "from": "2018-09-01", "to": "2018-12-31" },
+    { "name": "Beyond the Dream Show", "keywords": ["Beyond the Dream Show", "비욘드 라이브", "Beyond LIVE"], "from": "2020-04-20", "to": "2020-05-31" },
+    { "name": "THE DREAM SHOW2 : In A DREAM", "keywords": ["THE DREAM SHOW2", "THE DREAM SHOW 2", "드림쇼2", "드림쇼 2", "In A DREAM"], "from": "2022-07-15", "to": "2023-05-31" },
+    { "name": "THE DREAM SHOW2 : In YOUR DREAM", "keywords": ["In YOUR DREAM", "THE DREAM SHOW2", "드림쇼2", "드림쇼 2"], "from": "2023-05-01", "to": "2023-07-31" },
+    { "name": "WINTER DREAM (2019 팬미팅)", "keywords": ["WINTER DREAM", "팬미팅"], "from": "2019-11-25", "to": "2019-12-31" },
+    { "name": "DREAM LAND (7주년 팬미팅)", "keywords": ["DREAM LAND", "드림랜드", "팬미팅"], "from": "2023-06-15", "to": "2023-08-10" },
+    { "name": "DREAMIES' Wonderland (일본 팬미팅)", "keywords": ["Wonderland", "원더랜드", "팬미팅"], "from": "2024-12-15", "to": "2025-02-28" },
+    { "name": "NCT LIFE : DREAM in Wonderland", "keywords": ["NCT LIFE", "DREAM in Wonderland", "엔시티 라이프"], "from": "2020-06-15", "to": "2020-10-15" },
+    { "name": "부퀘스트", "keywords": ["부퀘스트", "BOO QUEST"], "from": "2020-08-15", "to": "2021-10-15" },
+    { "name": "소년멘탈캠프", "keywords": ["소년멘탈캠프", "멘탈캠프"], "from": "2021-05-01", "to": "2021-07-15" }
+  ]
+}
