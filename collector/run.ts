@@ -48,6 +48,7 @@ import { buildSeries } from './lib/series.ts';
 import { applyOverrides, loadOverrides, mergeOverrides, type Overrides } from './lib/overrides.ts';
 import { finalizeReports, pullReports, queueReports, type Report } from './lib/reports.ts';
 import { judgeDeleteReports } from './lib/reportDelete.ts';
+import { judgeNewsReports, reportedFeed } from './lib/reportNews.ts';
 import { publishLinkWake, runLinkWatch } from './lib/linkWatch.ts';
 import { anniversaryEvents } from './lib/anniversaries.ts';
 import { archiveSummary, buildMemberDocs } from './lib/memberDocs.ts';
@@ -145,7 +146,10 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   // 모아보기 태그
   const tagger = new Tagger({ videoTitles: archiveVideos.map((v) => v.title), tracked });
   for (const e of [...events, ...review]) e.tags = tagger.event(e);
-  const feed = buildFeed(notices, clusters, archiveVideos, now, await communityFeed(repo));
+  // 소식 제보: 판정(확실할 때만 올리기·거절) → 승인된 것은 소식 탭에. 빠른 실행·다시 내보내기에서도 저장된 제보로
+  const savedReports = Object.keys(reports).length ? reports : await repo.getState<Record<string, Report>>('reports', {});
+  for (const l of await judgeNewsReports(repo, savedReports, budget, now)) console.log(l);
+  const feed = [...buildFeed(notices, clusters, archiveVideos, now, await communityFeed(repo)), ...reportedFeed(savedReports)].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
   // 비공개·삭제된 영상을 가리키는 소식(커뮤니티 글의 유튜브 링크 포함)은 뺀다
   const goneIds = await unavailableVideoIds();
   for (let i = feed.length - 1; i >= 0; i--) if ([...goneIds].some((id) => JSON.stringify(feed[i]).includes(id))) feed.splice(i, 1);

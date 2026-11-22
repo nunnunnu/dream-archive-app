@@ -13,7 +13,7 @@ import '../../styles/news.css';
 
 type Topic = '공항' | '광고' | '브랜드·화보' | '차트';
 interface FeedItem {
-  type: 'weverse-notice' | 'news' | 'youtube' | 'sns'; title: string; url: string; publishedAt: string; publisher?: string; count?: number;
+  type: 'weverse-notice' | 'news' | 'youtube' | 'sns'; reported?: boolean; title: string; url: string; publishedAt: string; publisher?: string; count?: number;
   members: string[]; topic?: Topic; image?: string; shared?: boolean; articles?: { title: string; url: string; publisher: string; publishedAt: string }[]; duration?: number; live?: boolean;
 }
 const { items } = await loadPublic<{ items: FeedItem[] }>(Astro.locals, 'feed.json', { items: [] });
@@ -38,6 +38,8 @@ const mc = (m: string) => `mc-${Math.max(0, members.indexOf(m)) % 7}`;
 const outlets = (i: FeedItem) => new Set((i.articles ?? []).map((a) => a.publisher)).size;
 
 const notices = list.filter((i) => i.type === 'weverse-notice');
+// 팬 제보·공식 SNS 소식 (주제가 있으면 주제 칸에)
+const snsItems = list.filter((i) => i.type === 'sns' && !i.topic);
 // 주제가 없는 기사만 "그 밖의 기사"로 (주제 기사는 주제 칸에)
 const articles = list.filter((i) => i.type === 'news' && !i.topic);
 const videos = list.filter((i) => i.type === 'youtube');
@@ -117,6 +119,19 @@ const chips = (i: FeedItem) => (i.members.length ? i.members.map((m) => `<span c
       );
     })}
       {articleDays.length > SHOW_DAYS && <button type="button" class="ab-more" data-more-days>기사 더 보기 (소식 {articles.length - shownArticles}건 남음) ↓</button>}
+    </div>
+  </section>}
+
+  {snsItems.length > 0 && <section class="wrap news-section" data-section>
+    <div class="section-title"><div><p class="eyebrow">SNS · 제보</p><h2>SNS·팬 제보 소식</h2></div><span>{snsItems.length}건 · 최신순 · <a href="/report/?type=news">소식 알려주기 →</a></span></div>
+    <div class="ab">
+      {snsItems.slice(0, 30).map((i, n) => (
+        <div class="ab-row feed-item" data-type={i.type} data-topic="" data-members={i.members.join(',')} data-extra={n >= 6 ? '' : undefined} hidden={n >= 6}>
+          <div class="ab-main"><a class="ab-link" href={i.url} target="_blank" rel="noopener"><small><em class="k-one">{i.reported ? '제보' : 'SNS'}</em>{i.publisher ?? ''} · {when(i.publishedAt)}</small><h3>{clean(i.title)}</h3></a><div class="mrow" set:html={chips(i)} /></div>
+          <a class="ab-src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>
+        </div>
+      ))}
+      {snsItems.length > 6 && <button type="button" class="ab-more" data-more-in>더 보기 ({Math.min(snsItems.length, 30) - 6}건) ↓</button>}
     </div>
   </section>}
 

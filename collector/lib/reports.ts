@@ -11,7 +11,8 @@ import type { Overrides } from './overrides.ts';
 
 export interface Report {
   id: string;
-  type: 'add' | 'delete' | 'fix';
+  /** news: 소식 제보 (일정이 아닌 소식도. reportNews.ts가 판정해 소식 탭에) */
+  type: 'add' | 'delete' | 'fix' | 'news';
   title?: string;
   url: string;
   message: string;
@@ -120,6 +121,7 @@ export async function finalizeReports(repo: Repo, reports: Record<string, Report
   let approved = 0;
   for (const r of Object.values(reports)) {
     if (r.status !== 'pending') continue;
+    if (r.type === 'news') continue; // 소식 제보는 합칠 때 판정한다 (reportNews.ts)
     if (r.type === 'delete') {
       continue; // 삭제는 합칠 때 일정을 보고 판정한다 (reportDelete.ts)
     }

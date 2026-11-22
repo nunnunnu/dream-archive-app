@@ -11,7 +11,7 @@ interface KV {
 }
 interface Env { REPORTS: KV }
 
-const TYPES = ['add', 'delete', 'fix'] as const;
+const TYPES = ['add', 'delete', 'fix', 'news'] as const;
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
 
@@ -49,7 +49,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
   };
   if (type === 'add' && !report.title) return json({ ok: false, error: '일정 이름을 적어 주세요' }, 400);
   if (type === 'add' && !report.url && !report.message) return json({ ok: false, error: '근거 링크나 내용을 적어 주세요' }, 400);
-  if (type !== 'add' && !report.eventId) return json({ ok: false, error: '기존 일정을 선택해 주세요' }, 400);
+  if (type === 'news' && !report.title) return json({ ok: false, error: '어떤 소식인지 한 줄로 적어 주세요' }, 400);
+  if (type === 'news' && !report.url && !report.message) return json({ ok: false, error: '링크나 내용을 적어 주세요' }, 400);
+  if ((type === 'fix' || type === 'delete') && !report.eventId) return json({ ok: false, error: '기존 일정을 선택해 주세요' }, 400);
   if (type === 'delete' && !report.reasonCode) return json({ ok: false, error: '삭제 요청 이유를 골라 주세요' }, 400);
   if (report.url && !/^https?:\/\//i.test(report.url)) return json({ ok: false, error: '링크는 http로 시작해야 해요' }, 400);
 
