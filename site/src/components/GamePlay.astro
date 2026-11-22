@@ -3,13 +3,14 @@
  * 응원법 게임 플레이 화면 (공개 /game/play, 어드민 시험 플레이 /admin/play 공용)
  * 채보와 설정은 JSON으로 심고 동작은 scripts/game/play.ts
  */
-import type { FanchantChart, FanchantConfig } from '../lib/fanchant';
+import { judgeWindow, type FanchantChart, type FanchantConfig } from '../lib/fanchant';
 import '../styles/game.css';
 interface Props { chart: FanchantChart; config: FanchantConfig; mode: 'step1' | 'step2' | 'live'; from?: number; to?: number; backHref: string; preview?: boolean }
 const { chart, config, mode, from, to, backHref, preview } = Astro.props;
 const LABEL = { step1: '1단계 · 전체 힌트', step2: '2단계 · 직전 힌트', live: '실전 · 힌트 없음' };
 const BADGE = { step1: 'game-badge-pr', step2: 'game-badge-s2', live: 'game-badge-vs' };
 const hasMv = chart.videos.some((v) => v.mode === 'mv');
+const win = judgeWindow(config, mode);
 const data = { chart, config, mode, from: from ?? null, to: to ?? null, backHref, preview: Boolean(preview) };
 ---
 <div class="game-play" data-mode={mode}>
@@ -53,7 +54,7 @@ const data = { chart, config, mode, from: from ?? null, to: to ?? null, backHref
           <div class="game-chant-now" id="g-chant-now">{mode === 'step2' ? ' ' : ''}</div>
           <div class="game-chant-next" id="g-chant-next">{mode === 'step2' ? '누른 뒤에 정답이 떠요' : ''}</div>
         </div>
-        <div class:list={['game-lane', mode === 'step2' && 'game-lane-late']} id="g-lane" aria-label={`판정선. 판정 ±${config.goodMs}ms`}>
+        <div class:list={['game-lane', mode === 'step2' && 'game-lane-late']} id="g-lane" aria-label={`판정선. 판정 ±${win.goodMs}ms`}>
           {mode === 'step2' && <span class="game-lane-cap">노트는 직전에만 보여요</span>}
           <div class="game-hit"><span class="game-hit-ring"></span></div>
           <div class="game-notes" id="g-notes"></div>
@@ -64,7 +65,7 @@ const data = { chart, config, mode, from: from ?? null, to: to ?? null, backHref
 
     <div class="game-tap-row">
       <button type="button" class:list={['game-tap', mode === 'live' && 'is-pulse']} id="g-tap" aria-label="TAP (스페이스)">TAP</button>
-      <p class="game-tap-hint">스페이스 또는 TAP · 판정 ±{config.goodMs}ms</p>
+      <p class="game-tap-hint">스페이스 또는 TAP · 판정 ±{win.goodMs}ms</p>
     </div>
     <p class="game-focus" id="g-focus" hidden>영상을 누르면 스페이스가 영상으로 가요. TAP 버튼을 한 번 누르면 이어서 할 수 있어요.</p>
     <div class="game-foot">

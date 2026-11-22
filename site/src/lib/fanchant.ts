@@ -31,9 +31,9 @@ export interface FanchantIndexSong {
   author: string; verified: boolean; coverYoutubeId?: string; hasGuide: boolean; hasMv: boolean;
 }
 
-/** config/fanchant.json 이 없을 때 쓰는 기본값 (원본은 config) */
+/** config/fanchant.json 이 없을 때 쓰는 기본값 (원본은 config). 실전은 힌트가 없어서 판정 창을 넓게(live*) */
 export const FANCHANT_DEFAULTS = {
-  perfectMs: 80, goodMs: 150, approachMs: 1500, step2LookaheadMs: 350, step2LingerMs: 80, clockSampleMs: 200,
+  perfectMs: 80, goodMs: 150, livePerfectMs: 100, liveGoodMs: 200, approachMs: 1500, step2LookaheadMs: 350, step2LingerMs: 80, clockSampleMs: 200,
   minCueGapMs: 80, holdMinMs: 300, nudgeMs: 10, practiceLeadInSec: 3, practiceTrailSec: 1.5, missGroupSec: 8, maxMissSections: 3,
   clearAccuracy: 0.7, storagePrefix: 'fanchant.',
 };
@@ -228,3 +228,9 @@ export function fmtTime(sec: number, digits = 2): string {
   const m = Math.floor(s / 60);
   return `${m}:${(s - m * 60).toFixed(digits).padStart(digits ? 3 + digits : 2, '0')}`;
 }
+
+/** 이 모드의 판정 창 (실전은 넓게) */
+export const judgeWindow = (cfg: FanchantConfig, mode: string) =>
+  mode === 'live'
+    ? { perfectMs: cfg.livePerfectMs ?? FANCHANT_DEFAULTS.livePerfectMs, goodMs: cfg.liveGoodMs ?? FANCHANT_DEFAULTS.liveGoodMs }
+    : { perfectMs: cfg.perfectMs ?? FANCHANT_DEFAULTS.perfectMs, goodMs: cfg.goodMs ?? FANCHANT_DEFAULTS.goodMs };

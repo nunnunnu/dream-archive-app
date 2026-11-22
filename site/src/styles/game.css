@@ -43,6 +43,11 @@
 .game-note { position: absolute; left: 0; top: 50%; width: 30px; height: 30px; margin: -15px 0 0 -15px; border-radius: 50%; background: #fff; will-change: transform; }
 .game-note.is-ghost { background: rgba(255, 255, 255, .75); }
 .game-note.is-miss { background: #ff6b7a; opacity: .6; }
+.game-note.is-hold { background: var(--accent); }
+.game-note-tail { position: absolute; left: 15px; top: 50%; height: 16px; margin-top: -8px; border-radius: 0 8px 8px 0; background: rgba(197, 240, 58, .45); }
+.game-note.is-holding { box-shadow: 0 0 0 4px rgba(197, 240, 58, .35); }
+.game-note.is-holding .game-note-tail { background: rgba(197, 240, 58, .8); }
+.game-note.is-miss .game-note-tail { background: rgba(255, 107, 122, .4); }
 .game-note-lab { position: absolute; left: 50%; bottom: 34px; transform: translateX(-50%); white-space: nowrap; font-size: 13px; font-weight: 700; color: #eee; }
 .game-judge, .game-live-judge { position: absolute; left: 14%; top: 6px; transform: translateX(-50%); font-weight: 900; font-size: 18px; letter-spacing: .04em; opacity: 0; pointer-events: none; text-align: center; white-space: nowrap; }
 .game-judge small, .game-live-judge small { display: block; font-size: 11px; font-weight: 600; opacity: .8; letter-spacing: 0; }

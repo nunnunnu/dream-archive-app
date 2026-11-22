@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activeOffset, checkChart, FANCHANT_DEFAULTS, songTimeAt, suggestSongId, videoTimeAt, youtubeIdFrom, youtubeStartFrom } from '../../site/src/lib/fanchant.ts';
+import { activeOffset, checkChart, FANCHANT_DEFAULTS, judgeWindow, songTimeAt, suggestSongId, videoTimeAt, youtubeIdFrom, youtubeStartFrom } from '../../site/src/lib/fanchant.ts';
 import { buildFanchantFiles } from './fanchant-publish.ts';
 
 const base = () => ({
@@ -87,4 +87,9 @@ test('공개 파일: verified 이고 검사 통과한 것만, index 에 설정�
   assert.equal(index.songs[0].noteCount, 2);
   assert.equal(index.songs[0].hasMv, false);
   assert.ok(log.some((l) => l.includes('broken')));
+});
+
+test('실전만 판정 창이 넓다', () => {
+  assert.deepEqual(judgeWindow(FANCHANT_DEFAULTS, 'step1'), { perfectMs: 80, goodMs: 150 });
+  assert.deepEqual(judgeWindow(FANCHANT_DEFAULTS, 'live'), { perfectMs: 100, goodMs: 200 });
 });

@@ -3,12 +3,14 @@
  *  - delta = 탭 노래 시각 − 큐 시각 (ms, 입력 보정 뺀 값). 음수 = 빠름(EARLY), 양수 = 늦음(LATE)
  *  - 창 밖 탭은 무시(허공 탭으로 콤보가 깨지지 않게), 큐가 +goodMs 지나도록 입력이 없으면 자동 MISS
  *  - 건너뛴(시크·구간 밖) 큐는 점수 분모에서 뺀다
+ *  - 길게(hold) 큐: 누를 때 판정은 같고, 끝 − goodMs 전에 떼면 PERFECT → GOOD. 끝까지 누르고 있으면 성공(정확히 뗄 필요 없음)
  */
 export type Judge = 'perfect' | 'good' | 'miss';
 export type Grade = 'SS' | 'S' | 'A' | 'B' | 'C' | 'D';
 export interface JudgeConfig { perfectMs: number; goodMs: number; clearAccuracy: number }
-export interface CueResult { judge: Judge | 'skip'; deltaMs?: number }
-export interface TapResult { index: number; judge: Judge; deltaMs: number; points: number; combo: number }
+/** early: 길게 누르는 큐를 일찍 뗌 (PERFECT → GOOD) */
+export interface CueResult { judge: Judge | 'skip'; deltaMs?: number; points?: number; early?: boolean }
+export interface TapResult { index: number; judge: Judge; deltaMs: number; points: number; combo: number; hold: number }
 
 export function judgeOf(deltaMs: number, cfg: Pick<JudgeConfig, 'perfectMs' | 'goodMs'>): Judge | null {
   const a = Math.abs(deltaMs);
@@ -35,7 +37,12 @@ export class Judger {
   score = 0;
   private first = 0; // 이 앞은 모두 처리됨
 
-  constructor(private cues: readonly { t: number }[], private cfg: JudgeConfig) {
+  /** 지금 누르고 있는 길게 큐 */
+  holding: { index: number; endT: number } | null = null;
+  holdOk = 0;
+  holdEarly = 0;
+
+  constructor(private cues: readonly { t: number; hold?: number }[], private cfg: JudgeConfig) {
     this.results = cues.map(() => null);
   }
 
@@ -65,13 +72,35 @@ export class Judger {
     this.maxCombo = Math.max(this.maxCombo, this.combo);
     const points = judge === 'perfect' ? 1000 + this.combo * 10 : 500 + this.combo * 5;
     this.score += points;
-    this.results[best] = { judge, deltaMs };
+    this.results[best] = { judge, deltaMs, points };
+    const hold = this.cues[best].hold ?? 0;
+    this.holding = hold > 0 ? { index: best, endT: this.cues[best].t + hold } : null;
     this.moveFirst();
-    return { index: best, judge, deltaMs, points, combo: this.combo };
+    return { index: best, judge, deltaMs, points, combo: this.combo, hold };
   }
 
-  /** 시계 진행: +goodMs 지난 미처리 큐는 MISS. 새로 MISS 된 번호들 */
+  /** 손을 뗐을 때: 길게 큐를 일찍 뗐으면 PERFECT → GOOD. 일찍 뗀 큐 번호 */
+  release(songT: number): number | null {
+    const h = this.holding;
+    if (!h) return null;
+    this.holding = null;
+    if (songT >= h.endT - this.cfg.goodMs / 1000) { this.holdOk++; return null; }
+    this.holdEarly++;
+    const r = this.results[h.index]!;
+    r.early = true;
+    if (r.judge === 'perfect') {
+      const combo = Math.round(((r.points ?? 1000) - 1000) / 10);
+      const lower = 500 + combo * 5;
+      this.score -= (r.points ?? 0) - lower;
+      r.points = lower;
+      r.judge = 'good';
+    }
+    return h.index;
+  }
+
+  /** 시계 진행: +goodMs 지난 미처리 큐는 MISS. 새로 MISS 된 번호들. 길게 큐는 끝이 지나면 성공 */
   advance(songT: number): number[] {
+    if (this.holding && songT >= this.holding.endT) { this.holding = null; this.holdOk++; }
     const win = this.cfg.goodMs / 1000;
     const missed: number[] = [];
     for (let i = this.first; i < this.cues.length && songT - this.cues[i].t > win; i++) {
@@ -85,7 +114,7 @@ export class Judger {
   }
 
   /** 영상이 끝났을 때: 남은 큐 모두 MISS */
-  finish(): number[] { return this.advance(Infinity); }
+  finish(): number[] { this.holding = null; return this.advance(Infinity); }
 
   get done() { return this.first >= this.cues.length; }
   get nextIndex() { return this.first; }
@@ -102,6 +131,7 @@ export class Judger {
     return {
       total: n, perfect, good, miss, skipped: this.results.length - n,
       score: this.score, maxScore: maxScoreFor(n), maxCombo: this.maxCombo,
+      holds: this.cues.filter((c, i) => (c.hold ?? 0) > 0 && this.results[i]?.judge !== 'skip').length, holdOk: this.holdOk, holdEarly: this.holdEarly,
       accuracy, grade: gradeOf(accuracy), cleared: n > 0 && accuracy >= this.cfg.clearAccuracy, avgDeltaMs, deltas,
     };
   }

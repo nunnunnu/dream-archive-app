@@ -3,7 +3,7 @@
  *  - 유튜브가 PLAYING일 때만 시계·판정이 흐른다 (광고·버퍼·일시정지 = 정지)
  *  - 시크로 건너뛰거나 되감은 판, 구간 연습, 시험 플레이는 최고 기록에 저장하지 않는다
  */
-import { fmtTime, songTimeAt, videoTimeAt, type FanchantChart, type FanchantConfig } from '../../lib/fanchant';
+import { fmtTime, judgeWindow, songTimeAt, videoTimeAt, type FanchantChart, type FanchantConfig } from '../../lib/fanchant';
 import { VideoClock } from './clock';
 import { histogram, Judger, missSections, type Judge, type TapResult } from './judge';
 import { getBest, getInputOffset, MODE_LABEL, saveBest, setInputOffset, type GameMode } from './storage';
@@ -13,7 +13,9 @@ interface Data { chart: FanchantChart; config: FanchantConfig; mode: GameMode; f
 const raw = document.getElementById('game-data');
 if (raw) run(JSON.parse(raw.textContent || '{}') as Data);
 
-function run({ chart, config: cfg, mode, from, to, backHref, preview }: Data) {
+function run({ chart, config, mode, from, to, backHref, preview }: Data) {
+  // 실전은 판정 창이 넓다 (config livePerfectMs·liveGoodMs). 아래 cfg.perfectMs·goodMs 는 이 모드 기준
+  const cfg = { ...config, ...judgeWindow(config, mode) };
   const $ = (id: string) => document.getElementById(id);
   const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
   const nf = (n: number) => n.toLocaleString('ko-KR');
@@ -65,7 +67,7 @@ function run({ chart, config: cfg, mode, from, to, backHref, preview }: Data) {
       startBtn.hidden = true;
       try { sessionStorage.setItem(`fanchant.blocked.${chart.songId}.${mode}`, String(code)); } catch { /* 없음 */ }
     },
-  }).catch((err: Error) => notice(err.message, true));
+  }, { controls: 0 }).catch((err: Error) => notice(err.message, true));
 
   startBtn.addEventListener('click', () => {
     if (!player) return;
@@ -118,6 +120,17 @@ function run({ chart, config: cfg, mode, from, to, backHref, preview }: Data) {
     void tapBtn.offsetWidth;
     tapBtn.classList.add('is-hit');
   }
+  /** 손 뗌: 길게 큐를 일찍 떼면 GOOD으로 */
+  function release(eventTime: number) {
+    if (!clock || !judger.holding || finished) return;
+    const vt = clock.now(Math.min(eventTime, performance.now()));
+    const early = judger.release(songTimeAt(video!, vt) - inputOffset / 1000);
+    if (early != null) showJudge('good', undefined, '일찍 뗐어요');
+    noteEls.get(early ?? -1)?.classList.remove('is-holding');
+  }
+  tapBtn.addEventListener('pointerup', (e) => release(e.timeStamp));
+  tapBtn.addEventListener('pointercancel', (e) => release(e.timeStamp));
+  window.addEventListener('blur', () => release(performance.now()));
   tapBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); if (!started && player) { startBtn.click(); return; } tap(e.timeStamp); });
   document.addEventListener('keydown', (e) => {
     if (e.code !== 'Space' || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -128,15 +141,19 @@ function run({ chart, config: cfg, mode, from, to, backHref, preview }: Data) {
     if (!started && player) { startBtn.click(); return; }
     tap(e.timeStamp);
   });
-  document.addEventListener('keyup', (e) => { if (e.code === 'Space' && e.target === tapBtn) e.preventDefault(); });
+  document.addEventListener('keyup', (e) => {
+    if (e.code !== 'Space') return;
+    if (e.target === tapBtn) e.preventDefault();
+    release(e.timeStamp);
+  });
 
   // ── 판정 표시 ──
   const judgeEl = $('g-judge');
   const WORD: Record<Judge, string> = { perfect: 'PERFECT', good: 'GOOD', miss: 'MISS' };
-  function showJudge(j: Judge, r?: TapResult) {
+  function showJudge(j: Judge, r?: TapResult, note?: string) {
     if (judgeEl) {
       judgeEl.className = `${judgeEl.id === 'g-judge' && mode === 'live' ? 'game-live-judge' : 'game-judge'} is-${j}`;
-      judgeEl.innerHTML = `${WORD[j]}${r ? `<small>${r.points ? `+${nf(r.points)}` : ''} ${r.deltaMs > 0 ? `+${r.deltaMs}` : r.deltaMs}ms</small>` : ''}`;
+      judgeEl.innerHTML = `${WORD[j]}${r ? `<small>${r.points ? `+${nf(r.points)}` : ''} ${r.deltaMs > 0 ? `+${r.deltaMs}` : r.deltaMs}ms${r.hold ? ' · 꾹 누르고 있기' : ''}</small>` : note ? `<small>${esc(note)}</small>` : ''}`;
       void judgeEl.offsetWidth;
       judgeEl.classList.add('is-show');
     }
@@ -166,31 +183,37 @@ function run({ chart, config: cfg, mode, from, to, backHref, preview }: Data) {
     const ahead = mode === 'step2' ? cfg.step2LookaheadMs / 1000 : approach;
     const behind = mode === 'step2' ? cfg.step2LingerMs / 1000 : 0.25;
     const keep = new Set<number>();
-    for (let i = judger.nextIndex > 3 ? judger.nextIndex - 3 : 0; i < cues.length; i++) {
+    const pxPerSec = (laneW * (1 - HIT_X)) / approach;
+    const held = judger.holding?.index ?? -1;
+    for (let i = Math.max(0, Math.min(judger.nextIndex, held < 0 ? Infinity : held) - 6); i < cues.length; i++) {
       const d = cues[i].t - st;
       if (d > ahead) break;
+      const hold = cues[i].hold ?? 0;
       const res = judger.results[i];
-      if (d < -behind || res?.judge === 'skip' || (res && res.judge !== 'miss')) continue;
+      const holding = i === held;
+      if (!holding && (d + (res?.judge === 'miss' ? hold : 0) < -behind || res?.judge === 'skip' || (res && res.judge !== 'miss'))) continue;
       keep.add(i);
       let el = noteEls.get(i);
       if (!el) {
         el = document.createElement('div');
-        el.className = `game-note${mode === 'step2' ? ' is-plain is-ghost' : ''}`;
-        if (mode === 'step1') el.innerHTML = `<span class="game-note-lab">${esc(cues[i].text)}</span>`;
+        el.className = `game-note${mode === 'step2' ? ' is-plain is-ghost' : ''}${hold ? ' is-hold' : ''}`;
+        el.innerHTML = `${hold ? '<span class="game-note-tail"></span>' : ''}${mode === 'step1' ? `<span class="game-note-lab">${esc(cues[i].text)}</span>` : ''}`;
         notesEl.append(el);
         noteEls.set(i, el);
       }
       if (res?.judge === 'miss') el.classList.add('is-miss');
-      // 1단계는 approach 동안 오른쪽 끝에서 판정선까지, 2단계도 같은 속도로 보이는 구간만
-      const x = HIT_X * laneW + (d / approach) * (laneW * (1 - HIT_X));
+      el.classList.toggle('is-holding', holding);
+      // 1단계는 approach 동안 오른쪽 끝에서 판정선까지, 2단계도 같은 속도로 보이는 구간만. 누르고 있는 길게 노트는 판정선에 붙어서 꼬리가 줄어든다
+      const x = HIT_X * laneW + (holding ? 0 : d * pxPerSec);
       el.style.transform = `translateX(${x.toFixed(1)}px)`;
+      if (hold) (el.firstElementChild as HTMLElement).style.width = `${Math.max(0, (holding ? cues[i].t + hold - st : hold) * pxPerSec).toFixed(1)}px`;
     }
     for (const [i, el] of noteEls) if (!keep.has(i)) { el.remove(); noteEls.delete(i); }
   }
   function drawChant() {
     if (mode !== 'step1') return;
     const n = judger.nextIndex;
-    const now = cues[n]?.text ?? '';
+    const now = cues[n] ? `${cues[n].text}${cues[n].hold ? ' ~' : ''}` : '';
     const next = cues.slice(n + 1, n + 5).map((c) => c.text).join(' ');
     const nowEl = $('g-chant-now')!;
     if (nowEl.textContent !== now) nowEl.textContent = now;
@@ -209,11 +232,13 @@ function run({ chart, config: cfg, mode, from, to, backHref, preview }: Data) {
       if (clock.jumpedAt !== lastJump) {
         lastJump = clock.jumpedAt;
         const win = cfg.goodMs / 1000;
+        const was = tainted;
         if (st > lastSt + 0.5 && Number.isFinite(lastSt)) {
           if (judger.skip((t) => t < st - win)) tainted = true;
         } else if (st < lastSt - 0.5 && judger.results.some((r, i) => r && r.judge !== 'skip' && cues[i].t > st)) {
           tainted = true;
         }
+        if (tainted && !was && !practice) notice('영상 위치가 바뀌어서 이번 판은 기록에 남지 않아요. 처음부터 하려면 다시 하기', true);
       }
       if (clock.playing && performance.now() - clock.jumpedAt > 300) {
         const missed = judger.advance(st - inputOffset / 1000);
@@ -261,7 +286,7 @@ function run({ chart, config: cfg, mode, from, to, backHref, preview }: Data) {
           <p class="game-result-mode">${MODE_LABEL[mode]}${practice ? ' · 구간 연습' : ''} · ${esc(chart.title)}</p>
           <h2>${practice ? '구간 연습 끝' : s.cleared ? `${MODE_LABEL[mode]} 클리어` : '클리어 실패'}</h2>
           <p class="game-score"><b>${nf(s.score)}</b> / ${nf(s.maxScore)}</p>
-          <p class="game-result-sub">정확도 ${(s.accuracy * 100).toFixed(1)}% · 최대 콤보 ${s.maxCombo}${record ? (prev ? ` · 이전 최고 ${nf(prev.score)}에서 ${diff >= 0 ? '+' : ''}${nf(diff)}` : ' · 첫 기록') : ''}</p>
+          <p class="game-result-sub">정확도 ${(s.accuracy * 100).toFixed(1)}% · 최대 콤보 ${s.maxCombo}${s.holds ? ` · 길게 누르기 ${s.holdOk}/${s.holds} 끝까지` : ''}${record ? (prev ? ` · 이전 최고 ${nf(prev.score)}에서 ${diff >= 0 ? '+' : ''}${nf(diff)}` : ' · 첫 기록') : ''}</p>
           ${!record ? `<p class="game-result-sub">${preview ? '시험 플레이라 기록은 남기지 않아요' : practice ? '구간 연습은 기록에 남기지 않아요' : tainted ? '건너뛴 구간이 있어서 기록에 남기지 않았어요' : ''}</p>` : ''}
         </div>
       </div>

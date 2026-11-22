@@ -79,3 +79,29 @@ test('놓친 구간: 8초 안끼리 묶고 MISS 많은 순', () => {
   assert.equal(g[0].label, '후렴');
   assert.equal(g[1].label, 'a');
 });
+
+test('길게 누르기: 끝까지 누르면 성공, 일찍 떼면 PERFECT → GOOD (점수도 낮춤)', () => {
+  const j = new Judger([{ t: 1, hold: 2 }, { t: 5, hold: 1 }, { t: 8 }], cfg);
+  const a = j.tap(1)!;
+  assert.equal(a.hold, 2);
+  assert.ok(j.holding);
+  assert.equal(j.release(2.9), null); // 끝(3.0) − 150ms 안이면 성공
+  assert.equal(j.holdOk, 1);
+  const before = j.score;
+  const b = j.tap(5)!;
+  assert.equal(b.judge, 'perfect');
+  assert.equal(j.release(5.3), 1); // 너무 일찍 뗌
+  assert.equal(j.results[1]!.judge, 'good');
+  assert.equal(j.results[1]!.early, true);
+  assert.equal(j.score - before, 500 + 2 * 5);
+  assert.equal(j.holdEarly, 1);
+  // 떼지 않아도 끝이 지나면 성공
+  const k = new Judger([{ t: 1, hold: 1 }], cfg);
+  k.tap(1);
+  k.advance(2.01);
+  assert.equal(k.holding, null);
+  assert.equal(k.holdOk, 1);
+  assert.equal(k.release(2.5), null);
+  const s = j.summary();
+  assert.equal(s.holds, 2);
+});
