@@ -17,12 +17,14 @@ interface SeriesLite { id: string; type: string; name: string; count: number; fr
 const ANNIV = JSON.parse(readFileSync(join(ROOT, 'config', 'anniversaries.json'), 'utf8')) as { items: { date: string; title: string; member?: string; born?: string }[] };
 const FANCAM_RE = /focus|직캠|fancam|facecam|페이스캠|얼빡/i;
 const STAGE = new Set([...GROUP.youtube.channels.map((c) => c.name), ...(GROUP.youtube.stageChannels ?? [])]);
+/** 채널별 직캠 썸네일 구도: 얼굴이 있는 가로 위치 (MBC 음중직캠은 왼쪽 자막·오른쪽 얼굴). 없으면 가운데 */
+const THUMB_FOCUS: Record<string, number> = { MBCkpop: 80 };
 const LATIN = (aliases: string[]) => aliases.find((a) => /^[A-Z][A-Z\s]+$/.test(a)) ?? '';
 
 export interface MemberDoc {
   slug: string; name: string; en: string; kind: '그룹' | '멤버';
   realName?: string; position?: string; birthday?: string; born?: string; debut?: string; groups: string[];
-  photo?: { thumb: string; url: string; title: string };
+  photo?: { thumb: string; url: string; title: string; focus?: number };
   timeline: { year: string; items: { date: string; kind: string; title: string; eraId: string; owner: string }[] }[];
   eras: string[];
   variety: { id: string; name: string; type: string; count: number; to: string }[];
@@ -44,7 +46,7 @@ export function buildMemberDocs(input: { events: PublicEvent[]; eras: EraPage[];
     const groupThumb = myEras.find((e) => e.thumb)?.thumb;
     return {
       slug, name, en, kind, groups: [], ...extra,
-      photo: fan ? { thumb: `https://i.ytimg.com/vi/${fan.videoId}/hqdefault.jpg`, url: fan.url, title: fan.title } : groupThumb ? { thumb: groupThumb, url: `/archive/${myEras.find((e) => e.thumb)!.id}/`, title: myEras.find((e) => e.thumb)!.title } : undefined,
+      photo: fan ? { thumb: `https://i.ytimg.com/vi/${fan.videoId}/hqdefault.jpg`, url: fan.url, title: fan.title, focus: THUMB_FOCUS[fan.channel] } : groupThumb ? { thumb: groupThumb, url: `/archive/${myEras.find((e) => e.thumb)!.id}/`, title: myEras.find((e) => e.thumb)!.title } : undefined,
       timeline: years.map((y) => ({ year: y, items: myEras.filter((e) => e.from.startsWith(y)).map((e) => ({ date: e.from, kind: e.kind, title: e.title, eraId: e.id, owner: e.owner.label })) })),
       eras: myEras.filter((e) => e.kind === '컴백' || e.kind === '콘서트·투어' || e.kind === '팬미팅').map((e) => e.id),
       variety: series.filter((s) => (kind === '그룹' ? !s.members.length : s.members.includes(name)) && s.count > 0).sort((a, b) => b.to.localeCompare(a.to)).slice(0, 12).map((s) => ({ id: s.id, name: s.name, type: s.type, count: s.count, to: s.to })),

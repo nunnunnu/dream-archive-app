@@ -2,7 +2,7 @@
 export interface MemberDoc {
   slug: string; name: string; en: string; kind: '그룹' | '멤버';
   realName?: string; position?: string; birthday?: string; born?: string; debut?: string; groups: string[];
-  photo?: { thumb: string; url: string; title: string };
+  photo?: { thumb: string; url: string; title: string; focus?: number };
   timeline: { year: string; items: { date: string; kind: string; title: string; eraId: string; owner: string }[] }[];
   eras: string[];
   variety: { id: string; name: string; type: string; count: number; to: string }[];

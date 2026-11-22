@@ -7,7 +7,7 @@ const c = MEMBER_COLOR[m.slug] ?? MEMBER_COLOR.nctdream;
 const t = m.photo ? thumbs(m.photo.thumb) : null;
 ---
 <div class={`mcard mcard-${size}${highlight ? ' hl' : ''}`} style={`--from:${c.from};--to:${c.to}`}>
-  {t && <img src={t.big} alt={`${m.name} 직캠 영상 썸네일`} loading="lazy" referrerpolicy="no-referrer" onerror={`if(!this.dataset.hq){this.dataset.hq=1;this.src='${t.hq}';this.classList.add('lb')}else{this.remove()}`} />}
+  {t && <img style={`object-position:${m.photo?.focus ?? 50}% center`} src={t.big} alt={`${m.name} 직캠 영상 썸네일`} loading="lazy" referrerpolicy="no-referrer" onerror={`if(!this.dataset.hq){this.dataset.hq=1;this.src='${t.hq}';this.classList.add('lb')}else{this.remove()}`} />}
   <span class="initial">{(m.en || m.name).slice(0, 1)}</span>
   <span class="en">{m.en}</span>
 </div>
