@@ -6,7 +6,7 @@ import { similarTarget, type ExtractedItem, type SourceRef } from './consolidate
 import { isSpecificFocus } from './news.ts';
 import { mentionsGroup, NOTICE_PROMPT_VERSION } from './llm.ts';
 import { noticeSource } from './noticeImages.ts';
-import { isHidden, whoOfNotice } from './members.ts';
+import { isHidden, mentionedMembers, whoOfNotice } from './members.ts';
 import type { Repo } from './repo.ts';
 import { noticeTopic, parseScheduleFromBody, parseScheduleFromTitle } from './scheduleParser.ts';
 import { kstDate, kstTime, toKstParts } from './time.ts';
@@ -66,6 +66,8 @@ export async function buildItems(repo: Repo, opts: { guestVideoIds?: Set<string>
   for (const ext of await repo.listExtractions('submission')) {
     // 제보는 사용자가 고른 글이라 참여 문장 없이도 쓴다 (멤버 미확인 예고는 합치기 단계에서 추측 목록으로)
     for (const e of ext.checked) items.push({ ...e, source: ext.source, by: 'ai' });
+    // 유튜브 영상 제보는 영상 공개 자체가 일정이다: 설명에 날짜가 없어 AI가 일정을 못 뽑았으면 공개 시각으로 (제목에 멤버·그룹이 나올 때만)
+    if (!ext.checked.length) { const v = submittedVideoItem(ext.source); if (v) items.push(v); }
   }
   for (const ext of await repo.listExtractions('article')) {
     const a = articles.get(ext.docId);
@@ -94,6 +96,24 @@ const shortTitle = (t: string) =>
   t.replace(/\[(SUB|ENG?|EN\/[A-Z]+|[A-Z]{2}(\/[A-Z]{2})*)\]/gi, '').replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, '').replace(/\s{2,}/g, ' ').trim().slice(0, 50);
 
 /** AI 해석이 아직 없는 출연 영상만 공개 시각에 "보기" 일정으로 (AI 키가 없거나 비용 상한에 걸렸을 때) */
+/** 유튜브 제보("채널: 영상 제목", 공개 시각)를 영상 공개 일정으로 */
+function submittedVideoItem(src: SourceRef): ExtractedItem | null {
+  let host = '';
+  try { host = new URL(src.url).hostname.replace(/^(www|m)\./, ''); } catch { return null; }
+  if (host !== 'youtube.com' && host !== 'youtu.be') return null;
+  const m = /^(.+?):\s+(.+)$/.exec(src.title);
+  if (!m || !src.publishedAt || isHidden(src.title)) return null;
+  const [, channel, title] = m;
+  const members = mentionedMembers(title).members;
+  if (!members.length && !mentionsGroup(title)) return null;
+  const p = toKstParts(new Date(src.publishedAt));
+  return {
+    date: kstDate(p.year, p.month, p.day), time: kstTime(p.hour, p.minute), end_date: null, end_time: null, timezone: null,
+    target: `유튜브 ${channel}`, step: `${shortTitle(title)} 공개`, kind: '발매', members, evidence: title,
+    verified: true, problems: [], source: src, by: 'rule',
+  };
+}
+
 export function itemsFromGuestVideos(videos: Video[], interpreted: Set<string> = new Set()): ExtractedItem[] {
   return videos
     .filter((v) => v.guest && !isHidden(v.title) && !interpreted.has(v.videoId))
