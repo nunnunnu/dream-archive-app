@@ -1,0 +1,12 @@
+{
+  "_설명": "매년 반복되는 일정 (생일·데뷔 기념일). date는 MM-DD, since는 처음 시작한 해 (n주년 계산). 작년~내년 일정으로 만든다",
+  "items": [
+    { "date": "08-25", "title": "NCT DREAM 데뷔 기념일", "since": 2016, "step": "데뷔 {n}주년" },
+    { "date": "02-05", "title": "지성 생일", "member": "지성", "step": "생일" },
+    { "date": "03-23", "title": "런쥔 생일", "member": "런쥔", "step": "생일" },
+    { "date": "04-23", "title": "제노 생일", "member": "제노", "step": "생일" },
+    { "date": "06-06", "title": "해찬 생일", "member": "해찬", "step": "생일" },
+    { "date": "08-13", "title": "재민 생일", "member": "재민", "step": "생일" },
+    { "date": "11-22", "title": "천러 생일", "member": "천러", "step": "생일" }
+  ]
+}

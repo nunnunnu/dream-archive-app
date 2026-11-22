@@ -14,6 +14,7 @@ import { GROUP_NAME_RE } from './group.ts';
 import { kstDate, kstTime, toKstParts } from './time.ts';
 
 export type EventKind =
+  | '기념일'
   | '본인 확인'
   | '당첨 발표'
   | '신청'
