@@ -8,8 +8,9 @@ import { toKstParts } from './time.ts';
 type Usage = Record<string, { costUsd: number; calls: number }>;
 
 export class Budget {
-  /** 일회성 개발 작업(과거 자료 채우기)은 운영 월 상한과 따로 센다: LLM_BUDGET_BUCKET=dev → 누적 상한 LLM_DEV_BUDGET_USD(기본 $35 ≈ 5만원) */
-  private readonly bucket = process.env.LLM_BUDGET_BUCKET;
+  /** 개발 비용은 운영 월 상한과 따로 센다: 노트북에서 돌린 것(GitHub Actions가 아닌 실행)과 LLM_BUDGET_BUCKET=dev는 'dev' 누적(상한 LLM_DEV_BUDGET_USD, 기본 $35 ≈ 5만원).
+   *  운영 월 상한(LLM_MONTHLY_BUDGET_USD)은 Actions 자동 수집에만 */
+  private readonly bucket = process.env.LLM_BUDGET_BUCKET ?? (process.env.GITHUB_ACTIONS === 'true' ? undefined : 'dev');
   readonly monthlyLimitUsd = this.bucket ? Number(process.env.LLM_DEV_BUDGET_USD ?? 35) : Number(process.env.LLM_MONTHLY_BUDGET_USD ?? 5);
   readonly perRunCalls = Number(process.env.LLM_MAX_CALLS_PER_RUN ?? 40);
   private usage: Usage = {};
@@ -22,7 +23,7 @@ export class Budget {
     now: Date,
   ) {
     const p = toKstParts(now);
-    this.month = process.env.LLM_BUDGET_BUCKET ? `${process.env.LLM_BUDGET_BUCKET}` : `${p.year}-${String(p.month).padStart(2, '0')}`;
+    this.month = this.bucket ?? `${p.year}-${String(p.month).padStart(2, '0')}`;
   }
 
   async load() {
