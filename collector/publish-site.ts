@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { loadAskData } from './lib/ask.ts';
+import { syncFanchant } from './lib/fanchant-publish.ts';
 import { JsonRepo } from './lib/repo.ts';
 import { ROOT } from './lib/store.ts';
 
@@ -25,7 +26,7 @@ if (!url || !key) {
 const headers: Record<string, string> = key.startsWith('sb_secret_') ? { apikey: key } : { Authorization: `Bearer ${key}`, apikey: key };
 const PUBLIC_DIR = join(ROOT, 'data', 'public');
 // 사이트가 쓰는 파일만 (확인 대기·추측 목록 등 내부용은 올리지 않는다)
-const INCLUDE = /^(events|feed|tags|meta|site|eras|series|discography|members)\.json$|^(eras|series|events)\/[^/]+\.json$|^calendar\/.+\.ics$/;
+const INCLUDE = /^(events|feed|tags|meta|site|eras|series|discography|members)\.json$|^(eras|series|events|fanchant)\/[^/]+\.json$|^calendar\/.+\.ics$/;
 
 const sha = (b: Buffer | string) => createHash('sha1').update(b).digest('hex').slice(0, 12);
 const typeOf = (p: string) => (p.endsWith('.ics') ? 'text/calendar; charset=utf-8' : 'application/json; charset=utf-8');
@@ -52,6 +53,18 @@ function walk(dir: string): string[] {
     const p = join(dir, f);
     return statSync(p).isDirectory() ? walk(p) : [relative(PUBLIC_DIR, p).split('\\').join('/').normalize('NFC')];
   });
+}
+
+// Cloudflare (KV): 응원법 채보 읽기·질문 자료 올리기
+const account = process.env.CLOUDFLARE_ACCOUNT_ID;
+const token = process.env.CLOUDFLARE_API_TOKEN;
+const toml = existsSync(join(ROOT, 'site', 'wrangler.toml')) ? readFileSync(join(ROOT, 'site', 'wrangler.toml'), 'utf8') : '';
+const ns = process.env.CF_KV_REPORTS_ID ?? toml.match(/binding\s*=\s*"REPORTS"\s*\nid\s*=\s*"([0-9a-f]{32})"/)?.[1];
+
+// 응원법 채보: 어드민에서 공개(verified)로 바꾼 것만 data/public/fanchant/ 로
+if (account && token && ns) {
+  const slugs = existsSync(join(PUBLIC_DIR, 'members.json')) ? ((JSON.parse(readFileSync(join(PUBLIC_DIR, 'members.json'), 'utf8')) as { members?: { slug: string }[] }).members ?? []).map((m) => m.slug) : [];
+  for (const line of await syncFanchant(ROOT, { accountId: account, token, namespaceId: ns }, slugs)) console.log(line);
 }
 
 await ensurePublicBucket();
@@ -95,10 +108,6 @@ for (let i = 0; i < old.length; i += 100) {
 if (old.length) console.log(`지난 파일 ${old.length}개 지움`);
 
 // 질문 자료 묶음 → KV (비공개)
-const account = process.env.CLOUDFLARE_ACCOUNT_ID;
-const token = process.env.CLOUDFLARE_API_TOKEN;
-const toml = existsSync(join(ROOT, 'site', 'wrangler.toml')) ? readFileSync(join(ROOT, 'site', 'wrangler.toml'), 'utf8') : '';
-const ns = process.env.CF_KV_REPORTS_ID ?? toml.match(/binding\s*=\s*"REPORTS"\s*\nid\s*=\s*"([0-9a-f]{32})"/)?.[1];
 if (account && token && ns) {
   const data = await loadAskData(new JsonRepo(), { articleDays: Number(process.env.ASK_INDEX_ARTICLE_DAYS ?? 120) });
   const index = JSON.stringify({

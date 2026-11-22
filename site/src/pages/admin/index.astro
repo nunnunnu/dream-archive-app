@@ -1,10 +1,16 @@
 ---
 /**
- * 어드민: 확인 대기 제보 승인·거절, 물어보기 👎 확인, (다음 차례) 응원법 채보
+ * 어드민: 확인 대기 제보 승인·거절, 물어보기 👎 확인, 응원법 채보 도구
  * 로그인은 Cloudflare Access + middleware.ts 확인. 사이트 메뉴에는 링크를 두지 않는다.
  */
 import Base from '../../layouts/Base.astro';
+import { loadPublic } from '../../lib/data';
 const email = Astro.locals.admin?.email ?? '';
+// 채보 큐의 멤버 고르기용 (slug·이름)
+const memberData = await loadPublic<{ members?: { slug: string; name: string }[] }>(Astro.locals, 'members.json', {}).catch(() => ({ members: [] }));
+const members = (memberData.members ?? []).map((m) => ({ slug: m.slug, name: m.name }));
+// 채보 상수 (config/fanchant.json → publish 때 fanchant/index.json 의 config)
+const fanchantIndex = await loadPublic<{ config?: Record<string, unknown> }>(Astro.locals, 'fanchant/index.json', {}).catch(() => ({ config: {} }));
 ---
 <Base title="어드민" current="admin" noindex>
   <main class="wrap admin">
@@ -43,8 +49,121 @@ const email = Astro.locals.admin?.email ?? '';
       <div id="feedback-list" class="admin-list"><div class="card admin-item" aria-hidden="true"><span class="skel-line w60"></span><span class="skel-line w80"></span><span class="skel-line w40"></span></div></div>
     </section>
 
-    <section id="panel-charts" role="tabpanel" aria-labelledby="tab-charts" hidden>
-      <div class="card admin-empty">응원법 게임 채보 도구는 게임과 함께 다음 차례에 붙여요.</div>
+    <section id="panel-charts" role="tabpanel" aria-labelledby="tab-charts" hidden data-members={JSON.stringify(members)} data-config={JSON.stringify(fanchantIndex.config ?? {})}>
+      <div id="charts-home">
+        <div class="admin-bar">
+          <p class="admin-hint">공식 응원법 가이드를 보며 손으로 찍는 채보예요. "공개"를 켠 채보만 다음 수집(30분 안) 때 게임에 나와요.</p>
+          <div class="admin-actions">
+            <button type="button" class="admin-btn is-primary" id="chart-new">새 채보</button>
+            <label class="admin-btn">JSON 불러오기<input type="file" id="chart-import" accept="application/json,.json" hidden /></label>
+          </div>
+        </div>
+        <div id="chart-draft-note"></div>
+        <div id="charts-list" class="admin-list"><div class="card admin-item" aria-hidden="true"><span class="skel-line w60"></span><span class="skel-line w40"></span></div></div>
+      </div>
+
+      <div id="chart-editor" hidden>
+        <div class="ed-top">
+          <button type="button" class="admin-btn" id="ed-back">← 목록</button>
+          <strong id="ed-title" class="ed-title">새 채보</strong>
+          <span id="ed-status" class="admin-status" aria-live="polite"></span>
+          <span class="ed-top-actions">
+            <button type="button" class="admin-btn" id="ed-download">JSON 내려받기</button>
+            <button type="button" class="admin-btn" id="ed-delete" hidden>지우기</button>
+            <button type="button" class="admin-btn is-primary" id="ed-save">저장</button>
+          </span>
+        </div>
+        <div id="ed-conflict" class="admin-reason" hidden></div>
+
+        <details class="card ed-meta" id="ed-meta" open>
+          <summary>곡 정보 · 영상</summary>
+          <div class="ed-fields">
+            <label>곡 ID <input data-f="songId" placeholder="when-im-with-you" autocomplete="off" spellcheck="false" /></label>
+            <label class="w2">제목 <input data-f="title" placeholder="곡 제목" /></label>
+            <label>앨범 <input data-f="album" /></label>
+            <label>연도 <input data-f="year" inputmode="numeric" /></label>
+            <label>노래 길이(초) <span class="ed-inline"><input data-f="durationSec" inputmode="decimal" /><button type="button" class="admin-btn ed-mini" id="ed-dur">영상에서</button></span></label>
+            <label>BPM <input data-f="bpm" inputmode="decimal" /></label>
+            <label>난이도 <select data-f="difficulty"><option value="1">1 · 쉬움</option><option value="2">2 · 보통</option><option value="3">3 · 보통</option><option value="4">4 · 조금 어려움</option><option value="5">5 · 어려움</option></select></label>
+            <label>제작자 표시명 <input data-f="author" placeholder="@dreamarchive" /></label>
+            <label class="ed-check"><input type="checkbox" data-f="verified" /> 공개 (게임에 나옴)</label>
+          </div>
+          <div class="ed-videos">
+            <div class="ed-video" data-mode="guide">
+              <h3>연습용 · 공식 응원법 가이드</h3>
+              <label>유튜브 주소 <input data-v="youtubeId" placeholder="https://www.youtube.com/watch?v=…" spellcheck="false" /></label>
+              <label>노래 시작 오프셋(초) <span class="ed-inline"><input data-v="offset" inputmode="decimal" /><button type="button" class="admin-btn ed-mini" data-act="offset-now">지금 위치로</button></span></label>
+              <div class="ed-segs"></div>
+              <button type="button" class="admin-btn ed-mini" data-act="seg-add">구간 오프셋 추가</button>
+            </div>
+            <div class="ed-video" data-mode="mv">
+              <h3>실전용 · 공식 뮤비</h3>
+              <label>유튜브 주소 <input data-v="youtubeId" placeholder="없으면 비워 두기 (실전 꺼짐)" spellcheck="false" /></label>
+              <label>노래 시작 오프셋(초) <span class="ed-inline"><input data-v="offset" inputmode="decimal" /><button type="button" class="admin-btn ed-mini" data-act="offset-now">지금 위치로</button></span></label>
+              <div class="ed-segs"></div>
+              <button type="button" class="admin-btn ed-mini" data-act="seg-add">구간 오프셋 추가</button>
+            </div>
+          </div>
+          <p class="admin-hint">오프셋은 그 영상에서 노래가 시작되는 시각이에요. 큐는 노래 시각으로 저장되니까, 뮤비는 오프셋만 맞추면 같은 채보가 그대로 맞아요. 드라마 장면처럼 중간에 어긋나는 곳만 구간 오프셋(영상 시각 시작~끝)을 넣어 주세요.</p>
+        </details>
+
+        <div class="ed-grid">
+          <div class="ed-player-col">
+            <div class="ed-modes" role="radiogroup" aria-label="재생할 영상">
+              <button type="button" role="radio" data-mode="guide" aria-checked="true">가이드</button>
+              <button type="button" role="radio" data-mode="mv" aria-checked="false">뮤비</button>
+            </div>
+            <div class="ed-yt"><div id="ed-player"><div class="ed-yt-empty">위 "곡 정보 · 영상"에 유튜브 주소를 넣으면 여기서 재생돼요</div></div></div>
+            <p class="ed-yt-badge">YouTube 플레이어 · 항상 보이기</p>
+            <div class="ed-now">
+              <span id="ed-clock" class="ed-clock">영상 0:00.00 · 노래 0:00.00</span>
+              <span id="ed-state" class="admin-status"></span>
+            </div>
+            <div id="ed-flash" class="ed-flash" aria-hidden="true"></div>
+            <div class="ed-controls">
+              <button type="button" class="admin-btn" data-seek="-5">−5초</button>
+              <button type="button" class="admin-btn" data-seek="-1">−1초</button>
+              <button type="button" class="admin-btn is-primary" id="ed-play">▶ 재생</button>
+              <button type="button" class="admin-btn" data-seek="1">+1초</button>
+              <button type="button" class="admin-btn" data-seek="5">+5초</button>
+              <label class="admin-days">속도 <select id="ed-rate"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option></select></label>
+              <label class="admin-days"><input type="checkbox" id="ed-tick" /> 큐마다 틱 소리</label>
+            </div>
+            <div class="ed-rec">
+              <button type="button" class="admin-btn" id="ed-rec" aria-pressed="false"><span class="ed-rec-dot"></span> 녹음 시작</button>
+              <button type="button" class="admin-btn" id="ed-undo" disabled>한 박자 되돌리기</button>
+              <button type="button" class="ed-tap" id="ed-tap">TAP</button>
+            </div>
+            <p id="ed-focus" class="admin-reason" hidden>영상 밖 빈 곳을 한 번 눌러 주세요. 그래야 스페이스로 찍을 수 있어요.</p>
+            <p class="admin-hint ed-help">녹음을 켜고 재생하면서 스페이스(또는 TAP)로 큐를 찍고, 찍힌 줄에 문구(예: 런쥔!)를 적어 주세요. 키: 스페이스 찍기·재생, ←/→ 2초, Z 되돌리기, 쉼표/마침표 선택한 큐 −/+10ms.</p>
+          </div>
+
+          <div class="card ed-cue-panel">
+            <div class="ed-cue-head">
+              <strong id="ed-cue-count">큐 0개</strong>
+              <span class="ed-inline">
+                <input id="ed-shift" inputmode="numeric" placeholder="±ms" aria-label="전체 큐 옮기기 (ms)" />
+                <button type="button" class="admin-btn ed-mini" id="ed-shift-go">전체 옮기기</button>
+              </span>
+            </div>
+            <ol id="ed-cues" class="ed-cues"></ol>
+            <details class="ed-bulk">
+              <summary>문구 한꺼번에 채우기</summary>
+              <textarea id="ed-bulk" rows="5" placeholder="한 줄에 한 문구씩&#10;런쥔!&#10;제노!&#10;해찬!"></textarea>
+              <button type="button" class="admin-btn ed-mini" id="ed-bulk-go">선택한 큐부터 차례로 채우기</button>
+            </details>
+          </div>
+        </div>
+
+        <div class="ed-tl-block">
+          <div class="ed-tl" id="ed-tl" role="slider" aria-label="타임라인 (누르면 그 위치로)" aria-valuemin="0" tabindex="0">
+            <div class="ed-tl-marks" id="ed-tl-marks"></div>
+            <div class="ed-tl-head" id="ed-tl-head"></div>
+          </div>
+          <div class="ed-tl-times"><span>0:00</span><span id="ed-tl-end"></span></div>
+        </div>
+        <ul id="ed-issues" class="ed-issues"></ul>
+      </div>
     </section>
   </main>
 </Base>
@@ -88,6 +207,89 @@ const email = Astro.locals.admin?.email ?? '';
   .admin-fb:first-of-type { border-top: 0; padding-top: 0; }
   .admin-srcs { font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
   .admin-srcs a { color: var(--sub); }
+  /* 응원법 채보 도구 */
+  .ed-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .ed-title { font-size: 17px; }
+  .ed-top-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+  .ed-meta { padding: 12px 16px; margin-bottom: 14px; }
+  .ed-meta summary { cursor: pointer; font-weight: 700; }
+  .ed-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 12px; margin: 12px 0; }
+  .ed-fields .w2 { grid-column: span 2; }
+  .ed-meta label, .ed-video label { display: grid; gap: 4px; font-size: 12px; color: var(--sub); min-width: 0; }
+  .ed-meta input:not([type='checkbox']), .ed-meta select, .ed-cue-panel input, .ed-cue-panel select, .ed-bulk textarea { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 13px; color: var(--text); background: var(--card); min-width: 0; width: 100%; box-sizing: border-box; }
+  .ed-meta .ed-check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); font-weight: 600; }
+  .ed-inline { display: flex; gap: 6px; align-items: center; min-width: 0; }
+  .admin-btn.ed-mini { padding: 4px 10px; min-height: 30px; font-size: 12px; white-space: nowrap; }
+  .ed-videos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 8px; }
+  .ed-video { display: grid; gap: 8px; align-content: start; border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; }
+  .ed-video h3 { margin: 0; font-size: 13px; }
+  .ed-seg { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: end; }
+  .ed-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+  @media (max-width: 900px) { .ed-grid { grid-template-columns: minmax(0, 1fr); } .ed-fields .w2 { grid-column: auto; } }
+  .ed-modes { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; margin-bottom: 8px; background: var(--card); }
+  .ed-modes button { border: 0; background: none; border-radius: 999px; padding: 5px 14px; font: inherit; font-size: 13px; font-weight: 600; color: var(--sub); cursor: pointer; }
+  .ed-modes button[aria-checked='true'] { background: var(--dark); color: #fff; }
+  .ed-yt { position: relative; aspect-ratio: 16 / 9; background: var(--dark); border-radius: 12px; overflow: hidden; }
+  .ed-yt > div, .ed-yt iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .ed-yt-empty { display: grid; place-items: center; color: #bbb; font-size: 13px; padding: 20px; text-align: center; }
+  .ed-yt-badge { font-size: 11px; color: var(--faint); margin: 4px 0 8px; }
+  .ed-now { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+  .ed-clock { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .ed-flash { height: 44px; display: grid; place-items: center; font-size: 22px; font-weight: 800; border-radius: 10px; margin: 8px 0; background: var(--line-soft); color: var(--sub); transition: background .25s, color .25s; }
+  .ed-flash.is-on { background: var(--accent); color: var(--accent-ink); transition: none; }
+  .ed-controls, .ed-rec { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .ed-rec-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--faint); vertical-align: middle; margin-right: 2px; }
+  #ed-rec[aria-pressed='true'] { border-color: #e5484d; color: #c62a2f; }
+  #ed-rec[aria-pressed='true'] .ed-rec-dot { background: #e5484d; animation: ed-blink 1s steps(2) infinite; }
+  @keyframes ed-blink { 50% { opacity: .2; } }
+  .ed-tap { margin-left: auto; min-width: 96px; min-height: 52px; border-radius: 14px; border: 0; background: var(--dark); color: var(--accent); font: inherit; font-size: 18px; font-weight: 800; letter-spacing: .06em; cursor: pointer; touch-action: manipulation; }
+  .ed-tap:active, .ed-tap.is-hit { background: var(--accent); color: var(--accent-ink); }
+  .ed-help { margin-top: 4px; }
+  .ed-cue-panel { padding: 12px; display: grid; gap: 10px; min-width: 0; }
+  .ed-cue-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ed-cue-head input { width: 80px; }
+  .ed-cues { list-style: none; margin: 0; padding: 0; max-height: 520px; overflow: auto; display: grid; gap: 4px; }
+  .ed-cue { display: grid; grid-template-columns: auto minmax(0, 1fr) 88px auto; gap: 6px; align-items: center; padding: 5px 6px; border-radius: 8px; border: 1px solid transparent; }
+  .ed-cue.is-sel { border-color: var(--text); }
+  .ed-cue.is-now { background: var(--today); }
+  .ed-cue.is-close .ed-t { color: #c62a2f; }
+  .ed-t { border: 0; background: none; font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; text-align: left; cursor: pointer; padding: 2px; line-height: 1.25; color: var(--text); }
+  .ed-t small { display: block; color: var(--faint); }
+  .ed-cue .ed-sec { grid-column: 2 / 4; font-size: 12px; padding: 4px 8px; }
+  .ed-cue-btns { display: flex; gap: 2px; }
+  .ed-cue-btns button { border: 1px solid var(--line); background: var(--card); border-radius: 6px; font: inherit; font-size: 11px; padding: 3px 5px; cursor: pointer; min-width: 30px; min-height: 28px; }
+  .ed-cue-empty { color: var(--sub); font-size: 13px; padding: 12px 4px; }
+  .ed-bulk summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+  .ed-bulk textarea { margin: 8px 0; resize: vertical; }
+  .ed-tl-block { background: var(--dark); border-radius: 12px; padding: 12px 14px 8px; margin-top: 14px; }
+  .ed-tl { position: relative; height: 54px; cursor: pointer; border-radius: 6px; background: #1d1d1d; overflow: hidden; touch-action: none; }
+  .ed-tl-marks { position: absolute; inset: 0; }
+  .ed-tl-mark { position: absolute; top: 8px; bottom: 8px; width: 2px; margin-left: -1px; background: #777; }
+  .ed-tl-mark.has-text { background: var(--accent); }
+  .ed-tl-mark.is-sel { background: #fff; width: 3px; }
+  .ed-tl-seg { position: absolute; top: 0; bottom: 0; background: rgba(197, 240, 58, .12); border-left: 1px dashed rgba(197, 240, 58, .5); border-right: 1px dashed rgba(197, 240, 58, .5); }
+  .ed-tl-start { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dotted #e5484d; }
+  .ed-tl-head { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.4); pointer-events: none; }
+  .ed-tl-times { display: flex; justify-content: space-between; color: #9a9a9a; font-size: 11px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .ed-issues { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 4px; font-size: 13px; }
+  .ed-issues .is-err { color: #c62a2f; }
+  .ed-issues .is-warn { color: var(--sub); }
+  @media (max-width: 600px) {
+    .ed-cue { grid-template-columns: minmax(0, 1fr) auto; }
+    .ed-cue .ed-t { grid-column: 1; }
+    .ed-cue .ed-cue-btns { grid-column: 2; grid-row: 1; }
+    .ed-cue input[data-k='text'] { grid-column: 1; }
+    .ed-cue select { grid-column: 2; width: 92px; }
+    .ed-cue .ed-sec { grid-column: 1 / -1; }
+    .ed-cue-btns button { min-width: 36px; min-height: 34px; }
+    .ed-cues { max-height: 60vh; }
+    .ed-rec { position: sticky; bottom: 0; z-index: 2; background: var(--bg); padding: 8px 0 calc(8px + env(safe-area-inset-bottom)); margin: 0; }
+    .ed-tap { min-width: 120px; min-height: 60px; }
+    .ed-top-actions { margin-left: 0; width: 100%; }
+    .ed-seg { grid-template-columns: 1fr 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) { #ed-rec[aria-pressed='true'] .ed-rec-dot { animation: none; } .ed-flash { transition: none; } }
 </style>
 
+<script src="../../scripts/game/editor.ts"></script>
 <script src="../../scripts/admin.ts"></script>

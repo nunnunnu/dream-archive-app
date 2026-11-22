@@ -1,4 +1,4 @@
-// 어드민 화면: 제보 승인·거절, 물어보기 👎 확인 (API는 로그인한 운영자만)
+// 어드민 화면: 제보 승인·거절, 물어보기 👎 확인 (API는 로그인한 운영자만). 응원법 채보는 game/editor.ts
 interface Report {
   id: string; type: 'add' | 'delete' | 'fix' | 'news'; title?: string; url: string; message: string; eventId: string; eventTitle: string;
   date: string; time: string; endDate?: string; endTime?: string; reasonCode?: string; members: string[];
@@ -45,6 +45,8 @@ function show(tab: HTMLButtonElement) {
   const key = tab.id.replace('tab-', '');
   try { localStorage.setItem('admin.tab', key); } catch { /* 저장 안 돼도 괜찮음 */ }
   if (key === 'feedback' && !loaded.has('feedback')) loadFeedback();
+  // 채보 도구(game/editor.ts)는 탭을 처음 열 때 시작
+  document.dispatchEvent(new CustomEvent('admin:tab', { detail: key }));
 }
 tabs.forEach((t) => t.addEventListener('click', () => show(t)));
 

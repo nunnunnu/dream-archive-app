@@ -21,6 +21,8 @@ interface Env {
   /** 어드민 로그인(Cloudflare Access): 팀 도메인(예: xxx.cloudflareaccess.com)과 앱 AUD 태그. 비밀값 아님 */
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
+  /** 어드민을 여는 주소 (Access가 걸린 곳). 다른 주소로 온 /admin 은 여기로 넘긴다 */
+  ADMIN_HOST?: string;
 }
 type Runtime = import('@astrojs/cloudflare').Runtime<Env>;
 declare namespace App {

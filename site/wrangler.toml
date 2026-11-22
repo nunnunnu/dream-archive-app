@@ -23,3 +23,5 @@ ASK_DAILY_LIMIT = "50"
 # ACCESS_TEAM_DOMAIN: Zero Trust 팀 도메인 (예: 팀이름.cloudflareaccess.com), ACCESS_AUD: Access 앱의 Application Audience (AUD) 태그
 ACCESS_TEAM_DOMAIN = "dream-archive-pages.cloudflareaccess.com"
 ACCESS_AUD = "eccb09dc2320cf535142cb75bb53d7d1f05a2c6f90e212fbfc0be1e32e8a2a04"
+# 어드민을 여는 주소. Access가 이 주소에만 걸려 있어서 dreamlog.kro.kr/admin 은 여기로 넘긴다
+ADMIN_HOST = "dream-archive.pages.dev"

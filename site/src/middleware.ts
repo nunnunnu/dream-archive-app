@@ -10,9 +10,16 @@ const deny = (msg: string, api: boolean) => api
   : new Response(msg, { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-robots-tag': 'noindex' } });
 
 export const onRequest = defineMiddleware(async (ctx, next) => {
-  const path = new URL(ctx.request.url).pathname;
+  const url = new URL(ctx.request.url);
+  const path = url.pathname;
   if (!isAdminPath(path)) return next();
   const api = path.startsWith('/api/');
+  // Access는 ADMIN_HOST(pages.dev 주소)에만 걸려 있다. 다른 주소(dreamlog.kro.kr 등)로 온 어드민 화면은 그쪽으로 넘긴다
+  const adminHost = ctx.locals.runtime?.env?.ADMIN_HOST?.trim();
+  if (adminHost && url.hostname !== adminHost && !['localhost', '127.0.0.1'].includes(url.hostname)) {
+    if (api) return deny(`어드민은 https://${adminHost}/admin 에서만 쓸 수 있어요`, api);
+    return Response.redirect(`https://${adminHost}${path}${url.search}`, 302);
+  }
   const cfg = accessConfig(ctx.locals.runtime?.env);
   if (!cfg) return deny('어드민 로그인 설정(ACCESS_TEAM_DOMAIN·ACCESS_AUD)이 아직 없어요', api);
   const checked = await checkAccess(tokenFrom(ctx.request), cfg);
