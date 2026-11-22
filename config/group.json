@@ -44,7 +44,9 @@
       ],
       "emojis": [
         "🦊"
-      ]
+      ],
+      "realName": "황런쥔 (黄仁俊)",
+      "position": ""
     },
     {
       "name": "제노",
@@ -59,7 +61,9 @@
       ],
       "emojis": [
         "🐶"
-      ]
+      ],
+      "realName": "이제노",
+      "position": ""
     },
     {
       "name": "해찬",
@@ -80,7 +84,9 @@
       ],
       "otherGroups": [
         "NCT 127"
-      ]
+      ],
+      "realName": "이동혁",
+      "position": ""
     },
     {
       "name": "재민",
@@ -96,7 +102,9 @@
       ],
       "emojis": [
         "🐰"
-      ]
+      ],
+      "realName": "나재민",
+      "position": ""
     },
     {
       "name": "천러",
@@ -111,7 +119,9 @@
       ],
       "emojis": [
         "🐬"
-      ]
+      ],
+      "realName": "종천러 (钟辰乐)",
+      "position": ""
     },
     {
       "name": "지성",
@@ -127,7 +137,9 @@
       ],
       "emojis": [
         "🐹"
-      ]
+      ],
+      "realName": "박지성",
+      "position": ""
     }
   ],
   "formerMembers": [
@@ -260,5 +272,7 @@
     ],
     "_agencyChannels설명": "소속사·레이블 쪽 채널 이름 (수집 등록과 별개). 여기 영상은 외부 출연으로 치지 않는다"
   },
-  "_otherGroups설명": "members[].otherGroups: 이 그룹 밖 활동(예: NCT 127). 그 일정은 수집하지 않아서 질문 답변에 \"빠질 수 있음\"으로 알린다"
+  "_otherGroups설명": "members[].otherGroups: 이 그룹 밖 활동(예: NCT 127). 그 일정은 수집하지 않아서 질문 답변에 \"빠질 수 있음\"으로 알린다",
+  "_멤버프로필설명": "멤버 문서 프로필 표: realName(본명)·otherGroups(드림 밖 소속)은 공개된 사실, position(포지션)은 운영자가 직접 적는다 (비어 있으면 '작성 전'). 생일은 config/anniversaries.json",
+  "debut": "2016-08-25"
 }

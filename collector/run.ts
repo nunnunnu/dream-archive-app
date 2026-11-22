@@ -50,6 +50,7 @@ import { finalizeReports, pullReports, queueReports, type Report } from './lib/r
 import { judgeDeleteReports } from './lib/reportDelete.ts';
 import { publishLinkWake, runLinkWatch } from './lib/linkWatch.ts';
 import { anniversaryEvents } from './lib/anniversaries.ts';
+import { archiveSummary, buildMemberDocs } from './lib/memberDocs.ts';
 import { isHidden } from './lib/members.ts';
 import { transcribeNoticeImages } from './lib/noticeImages.ts';
 // 커뮤니티(더쿠) 수집은 비공개 레포에만 있다. 파일이 없으면(공개 레포) 건너뛴다
@@ -178,6 +179,12 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   const series = buildSeries(await loadRecentVideos(now, 130), events, acts, eras);
   for (const sr of series) await repo.publish(`series/${sr.id}.json`, sr);
   await repo.publish('series.json', { series: series.map(({ seasons, episodes, activities, ...rest }) => rest) });
+  // 멤버 문서(그룹 + 멤버) · 아카이브 첫 화면 요약
+  {
+    const seriesLite = series.map(({ seasons, episodes, activities, ...rest }) => rest) as unknown as Parameters<typeof buildMemberDocs>[0]['series'];
+    const docs = buildMemberDocs({ events, eras, series: seriesLite, feed, videos: allVideos });
+    await repo.publish('members.json', { ...docs, ...archiveSummary(events, eras, feed, today) });
+  }
   // 목록에 없는 지난 파일은 지운다 (주소가 바뀐 활동의 옛 파일이 남아 옛 내용이 보이지 않게)
   {
     const { readdirSync, rmSync, existsSync } = await import('node:fs');

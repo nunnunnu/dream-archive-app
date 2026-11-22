@@ -11,6 +11,9 @@ export interface MemberConfig {
   slug: string;
   aliases: string[];
   nicknames?: string[];
+  /** 멤버 문서 프로필: 본명·드림 밖 소속(공개된 사실), 포지션(운영자가 직접) */
+  realName?: string;
+  position?: string;
   /** 팬 커뮤니티에서 멤버를 표시하는 이모지 (예: 지성 🐹) */
   emojis?: string[];
   /** 이 그룹 밖 활동 (예: NCT 127). 그 일정은 수집하지 않는다 */
@@ -19,6 +22,8 @@ export interface MemberConfig {
 
 export interface GroupConfig {
   id: string;
+  /** 데뷔일 (YYYY-MM-DD) */
+  debut?: string;
   name: string;
   nameVariants: string[];
   parentNames: string[];

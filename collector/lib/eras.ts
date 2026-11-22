@@ -21,6 +21,8 @@ interface EraConfig {
   cover?: { from: string; to: string; text: string };
   /** 수집한 일정이 없어도 활동을 만든다 (해외 발매처럼 국내 기사·공지가 거의 없는 것). member: 멤버 솔로, source: 날짜 근거 */
   create?: boolean; member?: string; source?: string;
+  /** 활동 기간을 사실대로 고친다 (수집한 일정이 일부 기간뿐일 때: 드림쇼2 첫 공연 2022-09-08) */
+  start?: string; end?: string;
 }
 
 /**
@@ -227,6 +229,8 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
   // 예능 출연은 활동 페이지로 만들지 않는다 (단발 출연은 컴백의 "활동 기간 중 출연", 고정 예능은 시리즈 쪽)
   for (const act of acts.filter((a) => a.kind !== '예능')) {
     const cfg = CONFIG.eras.find((e) => [e.title ?? '', ...e.keywords].some((k) => act.keys.some((ak) => sq(ak) === sq(k))));
+    if (cfg?.start && cfg.start < act.from) act.from = cfg.start;
+    if (cfg?.end && cfg.end > act.to) act.to = cfg.end;
     // 활동 이름 + 설정의 다른 표기(한글 표기 "붐" = BOOM 등). 한글 표기는 짧아도 쓴다 (활동 기간 안의 영상에만 적용)
     // 활동 이름 + 다른 표기(config/song-aliases.json: "붐" = BOOM) + 설정 키워드. 한글 표기는 짧아도 쓴다 (활동 기간 안의 영상에만 적용)
     const aliasKeys = Object.entries(SONG_ALIASES).filter(([name]) => act.keys.some((k) => sq(k).includes(sq(name)))).flatMap(([, a]) => a);
