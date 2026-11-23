@@ -83,6 +83,7 @@ const SONG_ALIASES: Record<string, string[]> = JSON.parse(readFileSync(join(ROOT
 const CONFIG: { eras: EraConfig[] } = JSON.parse(readFileSync(join(ROOT, 'config', 'tags.json'), 'utf8'));
 type VerifiedVideo = Pick<EraVideo, 'id' | 'title' | 'date' | 'channel'>;
 const VERIFIED_VIDEOS: {
+  showcases: Record<string, { titleMatch: string; date: string }>;
   stages: Record<string, (VerifiedVideo & { program: string })[]>;
   related: Record<string, (VerifiedVideo & { group: string })[]>;
 } = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-activity-videos.json'), 'utf8'));
@@ -138,6 +139,11 @@ export function videoKind(v: { title: string; duration?: number }): VideoKind {
 }
 const OFFICIAL_KINDS: VideoKind[] = ['MV·티저', '퍼포먼스'];
 const OWN_ORDER: VideoKind[] = ['비하인드', '라이브', '응원법', '자컨 시리즈', '기타'];
+export const SHOWCASE_GROUPS = [
+  ['쇼케이스', '본편·무대'],
+  ['쇼케이스 직캠', '멤버 직캠'],
+  ['쇼케이스 비하인드', '비하인드'],
+] as const;
 /** 쇼츠 칸 (자체 콘텐츠와 따로): 챌린지 + 멤버 쇼츠 */
 const SHORT_KINDS: VideoKind[] = ['챌린지', '쇼츠'];
 const ownGroupOf = (title: string, duration?: number) => videoKind({ title, duration });
@@ -222,6 +228,7 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       .map((a) => ({ date: kstDate(a.publishedAt), title: a.title, url: a.link, publisher: a.source }));
   };
   const byId = new Map(events.map((e) => [e.id, e]));
+  const videoById = new Map(videos.map((v) => [v.videoId, v]));
   // 어느 활동에도 안 묶인 일정 (제목에 곡 이름이 없는 "KBS 뮤직뱅크 사전녹화"·"인기가요 사전투표" 등) → 컴백 활동 가이드에 넣는다
   const assigned = new Set(acts.flatMap((a) => a.eventIds));
   // 다른 활동(드라마·팬미팅·고정 예능 등)으로 묶인 일정은 컴백의 외부 출연에서 뺀다. 며칠짜리 단발 예능은 홍보 출연이라 남긴다
@@ -278,12 +285,23 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     const trailerIds = new Set(events.filter((e) => /트레일러|trailer|티저|teaser/i.test(`${e.title} ${e.step}`)).flatMap((e) => e.sources.map((s) => s.url.match(/(?:v=|youtu\.be\/)([\w-]{11})/)?.[1]).filter(Boolean) as string[]));
     const trailerSeries = new Set(vids.filter((v) => trailerIds.has(v.videoId)).map(seriesKey).filter(Boolean));
     const isTrailer = (v: Video) => trailerIds.has(v.videoId) || (seriesKey(v) !== null && trailerSeries.has(seriesKey(v)));
-    const ownVids = vids.filter((v) => OWN.has(v.channel) && !/react|reaction|리액션/i.test(v.title));
+    const showcase = VERIFIED_VIDEOS.showcases[act.id];
+    const showcaseVideos = showcase ? [...videoById.values()].filter((v) => v.channel === GROUP.name && !unavailableIds.has(v.videoId)
+      && sq(v.title).includes(sq(showcase.titleMatch)))
+      .map((v) => {
+        const clip = toVid(v);
+        if (videoKind(v) === '비하인드') return { ...clip, group: '쇼케이스 비하인드' };
+        const group = /^\[#[^\]]+\b(?:Cam|Focus)\]/i.test(v.title) ? '쇼케이스 직캠' : '쇼케이스';
+        return { ...clip, date: showcase.date, group };
+      }) : [];
+    const showcaseIds = new Set(showcaseVideos.map((v) => v.id));
+    const ownVids = vids.filter((v) => OWN.has(v.channel) && !showcaseIds.has(v.videoId) && !/react|reaction|리액션/i.test(v.title));
     const isOfficial = (v: Video) => isTrailer(v) || OFFICIAL_KINDS.includes(videoKind(v));
     const official = ownVids.filter(isOfficial);
     const isShort = (v: Video) => SHORT_KINDS.includes(videoKind(v));
     const shorts = ownVids.filter((v) => !isOfficial(v) && isShort(v));
     const own = ownVids.filter((v) => !isOfficial(v) && !isShort(v));
+    const ownVideos = [...showcaseVideos, ...own.map((v) => ({ ...toVid(v), group: ownGroupOf(v.title, v.duration) })).reverse()];
     const isBroadcaster = (ch: string) => BROADCASTERS.has(ch);
     const allStage = vids.filter((v) => isBroadcaster(v.channel) && !STAGE_MIX_RE.test(v.title) && !/🔴|라이브\]|LIVE\s*[|ㅣ]/i.test(v.title)
       && (STAGE_RE.test(v.title) || (programName(v.channel) && /\|\s*SBS\s+\d{6}\s+방송\s*$/i.test(v.title))));
@@ -323,7 +341,6 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     const guestVids = act.kind !== '컴백' ? [] : vids.filter((v) => !AGENCY.has(v.channel) && !isBroadcaster(v.channel) && v.guest
       && isAppearance(v.title, v.description ?? '') && !STAGE_CLIP_RE.test(v.title) && !/\bM\/?V\b|뮤직비디오|뮤비|teaser|티저/i.test(v.title));
     // 출연 칸은 "출연 하나 = 한 줄": 같은 채널·3일 안의 영상(본편·쇼츠·예고)은 한 줄로 묶고, 대표는 본 영상(쇼츠·예고가 아닌 가장 긴 것)
-    const vidById = new Map(videos.map((v) => [v.videoId, v]));
     const idOf = (u = '') => u.match(/(?:v=|youtu\.be\/|shorts\/|live\/)([\w-]{11})/)?.[1];
     const near = (a: string, b: string) => Math.abs(Date.parse(a) - Date.parse(b)) <= 3 * 864e5;
     const pickMain = (list: Video[]) => [...list].sort((a, b) => Number(isTeaserVid(a)) - Number(isTeaserVid(b)) || Number(isShortVid(a)) - Number(isShortVid(b)) || (b.duration ?? 0) - (a.duration ?? 0))[0];
@@ -334,7 +351,7 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     const used = new Set<string>();
     const outside = outsideEvents.map((e) => {
       // 일정 출처 영상 + 같은 채널·가까운 날짜의 출연 영상을 모아 대표를 고른다
-      const own = e.sources.map((s) => vidById.get(idOf(s.url) ?? '')).filter((v): v is Video => Boolean(v));
+      const own = e.sources.map((s) => videoById.get(idOf(s.url) ?? '')).filter((v): v is Video => Boolean(v));
       const channels = new Set(own.map((v) => v.channel));
       const extra = guestVids.filter((v) => channels.has(v.channel) && near(kstDate(v.publishedAt), e.date));
       const all = [...new Map([...own, ...extra].map((v) => [v.videoId, v])).values()];
@@ -395,7 +412,7 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       owner: act.owner, keys: act.keys, parts: act.parts, from: act.from, to: act.to,
       cover: cfg?.cover ?? KIND_COVER[act.kind] ?? { from: '#cccccc', to: '#1a1a1a', text: '#ffffff' },
       status: today < act.from ? '예정' : today > act.to ? '종료' : '활동 중',
-      counts: { official: official.length, stages: stageIds.size, fancams: fancamVids.length, own: own.length, shorts: shorts.length, outside: outside.length, events: actEvents.length },
+      counts: { official: official.length, stages: stageIds.size, fancams: fancamVids.length, own: ownVideos.length, shorts: shorts.length, outside: outside.length, events: actEvents.length },
       shorts: shorts.map((v) => ({ ...toVid(v), group: videoKind(v) === '챌린지' ? ('챌린지' as const) : ('멤버 쇼츠' as const) })).reverse(),
       timeline: marks,
       schedule: actEvents.filter((e) => e.audience === 'all').map((e) => ({ date: e.date, time: e.time, endDate: e.endDate, title: e.title, step: e.step, kind: e.kind, url: e.sources[0]?.url, group: scheduleGroupOf(e, act.parts) })),
@@ -408,11 +425,11 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
         return [...actEvents, ...loose].map(guideOf).filter((g): g is GuideItem => g !== null)
           .sort((a, b) => `${a.due} ${a.dueTime ?? '99'}`.localeCompare(`${b.due} ${b.dueTime ?? '99'}`));
       })(),
-      ownGroups: OWN_ORDER.filter((g) => own.some((v) => ownGroupOf(v.title, v.duration) === g)),
+      ownGroups: [...SHOWCASE_GROUPS.map(([group]) => group), ...OWN_ORDER].filter((g) => ownVideos.some((v) => v.group === g)),
       stages: [...byProg.entries()].map(([program, videos]) => ({ program, videos })),
       fancams,
       related,
-      own: own.map((v) => ({ ...toVid(v), group: ownGroupOf(v.title, v.duration) })).reverse(),
+      own: ownVideos,
       official: official.map((v) => ({ ...toVid(v), group: isTrailer(v) ? 'MV·티저' : videoKind(v) })).reverse(),
       outside: [...outside, ...outsideFromVideos].sort((a, b) => b.date.localeCompare(a.date)),
       news: articlesFor(act.keys, act.from, act.to),
