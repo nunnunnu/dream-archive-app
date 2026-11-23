@@ -379,18 +379,197 @@
       "singleSeason": true
     },
     {
+      "id": "starstruck",
+      "name": "STARSTRUCK",
+      "match": ["[STARSTRUCK]"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-boy-video",
+      "name": "NCT DREAM BOY VIDEO",
+      "match": ["NCT DREAM BOY VIDEO", "NCT DREAM BOY #HAECHAN VIDEO"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "stay-away-from-blanket",
+      "name": "이불 속은 위험해",
+      "match": ["이불 속은 위험해", "Stay Away From the Blanket"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "dreamy-night-room",
+      "name": "Dreamy Night Room",
+      "match": ["Dreamy Night Room"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-bangkok",
+      "name": "Dream in Bangkok",
+      "match": ["Dream in Bangkok #"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "day-in-dream",
+      "name": "day in DREAM",
+      "match": ["day in DREAM #"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "dreamy-day-us",
+      "name": "Our Dreamy day in the US",
+      "match": ["Our Dreamy day in the US"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "friendship-village",
+      "name": "7번지 우정빌리지",
+      "match": ["7번지 우정빌리지"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-loop",
+      "name": "DREAM LOOP : The Last Midnight",
+      "match": ["DREAM LOOP : The Last Midnight"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "ohayo-dream",
+      "name": "Ohayo! DREAM",
+      "match": ["Ohayo! DREAM"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "wangmeori-vs-00",
+      "name": "왕머리즈 VS 공공즈",
+      "match": ["왕머리즈 VS 공공즈"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-everland",
+      "name": "DREAM in EVERLAND",
+      "match": ["DREAM in EVERLAND"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-jakarta",
+      "name": "DREAM di JAKARTA",
+      "match": ["DREAM di JAKARTA"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "glitch-love-simulation",
+      "name": "GLITCH LOVE SIMULATION",
+      "match": ["GLITCH LOVE SIMULATION"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "hotel-the-dream",
+      "name": "HOTEL THE DREAM",
+      "match": ["HOTEL THE DREAM"],
+      "channels": ["NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-verse",
+      "name": "DREAM-VERSE",
+      "match": ["DREAM-VERSE Chapter", "DREAM-VERSE Bonus Chapter"],
+      "channels": ["NCT DREAM"],
+      "type": "종류별 모아보기",
+      "singleSeason": true
+    },
+    {
+      "id": "scape-film",
+      "name": "( )SCAPE Film",
+      "match": ["( )SCAPE Film : Chapter"],
+      "channels": ["NCT DREAM"],
+      "type": "종류별 모아보기",
+      "singleSeason": true
+    },
+    {
+      "id": "dream-show-4-behind",
+      "name": "THE DREAM SHOW 4 비하인드",
+      "match": ["THE DREAM SHOW 4"],
+      "behindOnly": true,
+      "channels": ["NCT DREAM"],
+      "type": "콘서트·팬미팅 비하인드",
+      "singleSeason": true
+    },
+    {
+      "id": "dream-show-3-behind",
+      "name": "THE DREAM SHOW 3 비하인드",
+      "match": ["THE DREAM SHOW 3"],
+      "behindOnly": true,
+      "channels": ["NCT DREAM"],
+      "type": "콘서트·팬미팅 비하인드",
+      "singleSeason": true
+    },
+    {
+      "id": "dream-show-2-behind",
+      "name": "THE DREAM SHOW 2 비하인드",
+      "match": ["THE DREAM SHOW 2"],
+      "behindOnly": true,
+      "channels": ["NCT DREAM"],
+      "type": "콘서트·팬미팅 비하인드",
+      "singleSeason": true
+    },
+    {
+      "id": "dream-show-behind",
+      "name": "THE DREAM SHOW 비하인드",
+      "match": [],
+      "videoIds": ["IG7VqZFbGE4", "01uAQuoPrlM"],
+      "type": "콘서트·팬미팅 비하인드",
+      "singleSeason": true
+    },
+    {
+      "id": "dream-10th-anniversary-behind",
+      "name": "NCT DREAM 10주년 비하인드",
+      "match": ["DREAM PIECE"],
+      "behindOnly": true,
+      "channels": ["NCT DREAM"],
+      "type": "콘서트·팬미팅 비하인드",
+      "singleSeason": true
+    },
+    {
+      "id": "dream-after-service",
+      "name": "DREAM AFTER DREAM 컴백 영상",
+      "match": [],
+      "videoIds": ["ploSPy3sVHg", "dSbrdGHuxu4"],
+      "type": "종류별 모아보기",
+      "singleSeason": true
+    },
+    {
+      "id": "nct-no-46",
+      "name": "00+00+00+00=LOVE",
+      "match": ["[N'-46] 00+00+00+00=LOVE"],
+      "singleSeason": true
+    },
+    {
       "id": "winter-dream",
       "name": "WINTER DREAM 팬미팅",
       "match": [],
       "videoIds": ["ZLo1Ngap060"],
-      "type": "종류별 모아보기",
+      "type": "콘서트·팬미팅 비하인드",
       "singleSeason": true
     },
     {
       "id": "drector",
       "name": "D[●REC]TOR",
       "match": ["D[●REC]TOR"],
-      "type": "종류별 모아보기",
+      "type": "콘서트·팬미팅 비하인드",
       "singleSeason": true
     },
     {

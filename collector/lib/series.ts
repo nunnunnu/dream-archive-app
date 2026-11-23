@@ -25,7 +25,8 @@ export interface SeriesVideo { id: string; title: string; url: string; thumb: st
 interface SeriesEpisode { date: string; time: string | null; title: string; step: string; members: string[]; url?: string; thumb?: string }
 export interface SeriesPage {
   id: string;
-  type: '자체 콘텐츠 시리즈' | 'NCT 단체' | '종류별 모아보기' | '고정 출연' | '반복 활동' | '외부활동' | '광고' | '라디오';
+  type: '자체 콘텐츠 시리즈' | 'NCT 단체' | '종류별 모아보기' | '고정 출연' | '반복 활동' | '외부활동' | '광고' | '라디오'
+    | '콘서트·팬미팅 비하인드' | '시상식·연말 무대';
   name: string;
   count: number;
   from: string;
@@ -39,7 +40,8 @@ export interface SeriesPage {
 
 interface SeriesGroup {
   id: string; name: string; match: string[]; singleSeason?: boolean; channels?: string[]; videoIds?: string[];
-  type?: '종류별 모아보기' | '광고';
+  type?: '종류별 모아보기' | '광고' | '콘서트·팬미팅 비하인드';
+  behindOnly?: boolean;
   shortEpisodes?: boolean;
   seasons?: { name: string; videoIds: string[] }[];
 }
@@ -71,8 +73,11 @@ const sourceKey = (url: string) => youtubeId(url) ?? normUrl(url);
 const TRACK_VIDEO_RE = /\btrack\s*video\b|트랙\s*비디오/i;
 const PROMO_VIDEO_RE = /\b(?:trailer|teaser|preview|sneak\s*peek)\b|트레일러|티저|프리뷰|예고(?:편|\s*영상)/i;
 const DANCE_PRACTICE_RE = /\b(?:dance|performance|choreography)\s+(?:practice|rehearsal)\b|\bchoreography\s+video\b|(?:안무|댄스)\s*(?:연습|리허설|영상)/i;
-const STAGE_VIDEO_RE = /\b(?:stage clip|performance stage|NCT DREAM THE STAGE|DREAM STAGE\s*:\s*GLITCH MODE)\b/i;
+const STAGE_VIDEO_RE = /\b(?:stage clip|performance stage|NCT DREAM THE STAGE|DREAM STAGE\s*:\s*GLITCH MODE)\b|@[^|]*?(?:THE\s+DREAM\s+SHOW|NCT\s*DREAM\s*10TH\s*ANNIVERSARY\s*PARTY)/i;
 const EVENT_BEHIND_RE = /\bVCR\s+Shooting\b|\bDREAM PIECE\b.*\b(?:REHEARSAL|D-DAY)\b/i;
+const CONCERT_BEHIND_RE = /\b(?:behind|recap|lookbook|ticketing|takes japan)\b|\bpage\s*#?\s*\d+|\bposter\s+shoot|비하인드|티켓팅|리캡|촬영\s*현장/i;
+const AWARD_EVENT_RE = /가요\s*대(?:전|축제|제전)|뮤직뱅크\s*글로벌\s*페스티벌|골든\s*디스크|서울\s*가요\s*대상|시상식|연말\s*무대|year[\s-]*end\s*(?:stage|award)|\b(?:MMA|MAMA|AAA|GDA|TMA|Melon Music Awards|Golden Disc Awards|Asian Artist Awards|Asia Artist Awards|The Fact Music Awards)\b/i;
+const AUDIO_RE = /\(\s*Official Audio\s*\)|공식\s*오디오/i;
 const FANMEETING_RE = /\bfan\s*meeting\b|팬\s*미팅/i;
 const NCT_PROJECTS: [string, RegExp][] = [
   ['THE NCT SHOW', /\bTHE NCT SHOW\b/i],
@@ -109,7 +114,6 @@ const COLLECTIONS: [string, RegExp][] = [
   ['응원법', /응원법|cheering\s*guide/i],
 ];
 const CHANNEL_COLLECTIONS: { id: string; name: string; kinds: VideoKind[] }[] = [
-  { id: 'channel-performance', name: '퍼포먼스 영상', kinds: ['퍼포먼스'] },
   { id: 'channel-behind', name: '비하인드·리액션', kinds: ['비하인드'] },
   { id: 'channel-live', name: '라이브', kinds: ['라이브'] },
   { id: 'channel-other', name: '기타 채널 영상', kinds: ['기타', '자컨 시리즈', '응원법'] },
@@ -124,7 +128,8 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     if (nctProjectOf(v) === '어색하지만 괜찮아' && !mentionedMembers(v.title).members.length) return false;
     const title = sq(v.title);
     const group = groups.find((g) => g.videoIds?.includes(v.videoId) ||
-      ((!g.channels || g.channels.includes(v.channel)) && g.match.some((key) => title.includes(key))));
+      ((!g.channels || g.channels.includes(v.channel)) && g.match.some((key) => title.includes(key))
+        && (!g.behindOnly || CONCERT_BEHIND_RE.test(v.title) || seriesVideoKind(v) === '비하인드')));
     if (group) configuredByVideo.set(v.videoId, group);
     return Boolean(group) || STANDALONE_VIDEOS.has(v.videoId) || v.channel === GROUP.name ||
       (isDreamRelated(`${v.title}\n${v.description ?? ''}`) && !/react|리액션/i.test(v.title));
@@ -142,13 +147,25 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
       && (/#(?:shorts?\b|쇼츠)/i.test(v.title) ||
         (!configuredByVideo.get(v.videoId)?.shortEpisodes && ['쇼츠', '챌린지'].includes(videoKind(v)))))
     .map((v) => [v.videoId, v]));
-  const seriesVideos = own.filter((v) => !trackVideos.has(v.videoId) && !musicVideos.has(v.videoId) && !shortVideos.has(v.videoId));
+  const audio = own.filter((v) => AUDIO_RE.test(v.title.normalize('NFKC')));
+  const audioIds = new Set(audio.map((v) => v.videoId));
+  const available = own.filter((v) => !audioIds.has(v.videoId) && !trackVideos.has(v.videoId) &&
+    !musicVideos.has(v.videoId) && !shortVideos.has(v.videoId));
+  const awards = available.filter((v) => AWARD_EVENT_RE.test(v.title.normalize('NFKC')));
+  const awardBehind = awards.filter((v) => seriesVideoKind(v) === '비하인드' || CONCERT_BEHIND_RE.test(v.title));
+  const awardIds = new Set(awardBehind.map((v) => v.videoId));
+  const awardPractice = awards.filter((v) => !awardIds.has(v.videoId) && DANCE_PRACTICE_RE.test(v.title.normalize('NFKC')));
+  for (const v of awardPractice) awardIds.add(v.videoId);
+  const awardStages = awards.filter((v) => !awardIds.has(v.videoId) && seriesVideoKind(v) === '퍼포먼스');
+  for (const v of awardStages) awardIds.add(v.videoId);
+  const seriesVideos = available.filter((v) => !awardIds.has(v.videoId));
   const pages: SeriesPage[] = [];
   const videoById = new Map(videos.map((v) => [v.videoId, v]));
 
   // 1) 자체 콘텐츠 시리즈
   const byFamily = new Map<string, { name: string; type?: SeriesGroup['type']; seasons: Map<string, Video[]> }>();
   for (const v of seriesVideos) {
+    if (seriesVideoKind(v) === '퍼포먼스' || (seriesVideoKind(v) !== '비하인드' && DANCE_PRACTICE_RE.test(v.title.normalize('NFKC')))) continue;
     // 설정 묶음은 제목 전체에서 찾는다 (회차 표시가 없는 "[Dream VS Dream] …"도)
     const cfg = configuredByVideo.get(v.videoId);
     const configuredSeason = cfg?.seasons?.find((season) => season.videoIds.includes(v.videoId))?.name;
@@ -181,7 +198,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     const name = key.startsWith('cfg:') ? fam.name : seasons.length > 1 ? seasons.slice().sort((a, b) => b.videos.length - a.videos.length)[0].name : fam.name;
     const r = range(all.map((v) => kst(v.publishedAt)));
     const latest = all.slice().sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
-    const type = fam.type ?? (FANMEETING_RE.test(name) ? '종류별 모아보기' : all.some(nctProjectOf) ? 'NCT 단체' : '자체 콘텐츠 시리즈');
+    const type = fam.type ?? (FANMEETING_RE.test(name) ? '콘서트·팬미팅 비하인드' : all.some(nctProjectOf) ? 'NCT 단체' : '자체 콘텐츠 시리즈');
     pages.push({ id: `s-${slug(name)}`, type, name, count: all.length, ...r, thumb: `https://i.ytimg.com/vi/${latest.videoId}/mqdefault.jpg`, members: [], seasons });
   }
 
@@ -215,6 +232,10 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   addVideoCollection('트랙 비디오', [...trackVideos.values()].map(toVid), [], 'channel-track-video');
   addVideoCollection('뮤직비디오·티저', [...musicVideos.values()].map(toVid), [], 'channel-music');
   addVideoCollection('쇼츠·챌린지', [...shortVideos.values()].map(toVid), [], 'channel-shorts');
+  addVideoCollection('공식 오디오', audio.map(toVid), [], 'channel-audio');
+  addVideoCollection('시상식·연말 무대 안무', awardPractice.map(toVid), [], 'award-practice', '시상식·연말 무대');
+  addVideoCollection('시상식·연말 무대 비하인드', awardBehind.map(toVid), [], 'award-behind', '시상식·연말 무대');
+  addVideoCollection('시상식·연말 무대 영상', awardStages.map(toVid), [], 'award-stages', '시상식·연말 무대');
 
   for (const era of eras) {
     const seasons = SHOWCASE_GROUPS.map(([group, name]) => ({
@@ -225,7 +246,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     const clips = seasons.flatMap((season) => season.videos);
     if (!clips.length) continue;
     pages.push({
-      id: `showcase-${era.id}`, name: `${era.title} 컴백 쇼케이스`, type: '자체 콘텐츠 시리즈', count: clips.length,
+      id: `showcase-${era.id}`, name: `${era.title} 컴백 쇼케이스`, type: '종류별 모아보기', count: clips.length,
       ...range(clips.map((v) => v.date)), thumb: clips[0].thumb, members: [], seasons,
     });
   }
@@ -237,6 +258,9 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     addVideoCollection(name, clips, [], `nct-${slug(name)}`, 'NCT 단체');
   }
   const grouped = new Set(pages.flatMap((page) => page.seasons.flatMap((season) => season.videos.map((v) => v.id))));
+  const performance = seriesVideos.filter((v) => !grouped.has(v.videoId) && seriesVideoKind(v) === '퍼포먼스');
+  addVideoCollection('퍼포먼스 영상', performance.map(toVid), [], 'channel-performance');
+  for (const v of performance) grouped.add(v.videoId);
   const ungrouped = [...videoById.values()].filter((v) =>
     (v.channel === GROUP.name || STANDALONE_VIDEOS.has(v.videoId)) && !grouped.has(v.videoId));
   const kinds = new Map(ungrouped.map((v) => [v.videoId, seriesVideoKind(v)]));
@@ -308,7 +332,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     const list = eras.filter(pred).sort((a, b) => b.from.localeCompare(a.from));
     if (!list.length) continue;
     pages.push({
-      id: `r-${slug(name)}`, type: '반복 활동', name, count: list.length, ...range(list.flatMap((e) => [e.from, e.to])), thumb: list.find((e) => e.thumb)?.thumb,
+      id: `r-${slug(name)}`, type: name === '시상식' ? '시상식·연말 무대' : '반복 활동', name, count: list.length, ...range(list.flatMap((e) => [e.from, e.to])), thumb: list.find((e) => e.thumb)?.thumb,
       members: [...new Set(list.flatMap((e) => e.owner.members))], seasons: [], activities: list.map(card),
     });
   }

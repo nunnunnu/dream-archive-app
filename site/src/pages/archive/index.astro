@@ -84,7 +84,7 @@ const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}�
         <div class="year-row" data-year={y}>
           <div class="year-col"><h3>{y}</h3><i></i><small>{yearSummary(y)}</small></div>
           <div class="era-grid">
-            {eras.filter((e) => yearOf(e) === y).sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || b.from.localeCompare(a.from)).map((e) => (
+            {eras.filter((e) => yearOf(e) === y).sort((a, b) => b.from.localeCompare(a.from)).map((e) => (
               <a class="era" href={`/archive/${e.id}/`} data-kind={e.kind} data-name={`${e.title} ${e.subtitle ?? ''} ${e.keys.join(' ')} ${e.kind} ${e.owner.label}`}>
                 <Cover title={e.title} sub={e.subtitle} cover={e.cover} image={e.thumb} />
                 <span class="era-tags"><span class="t lime">{KIND_SHORT[e.kind] ?? e.kind}</span>{e.owner.scope !== '단체' && <span class="t">{e.owner.label}</span>}{e.status === '활동 중' && <span class="t dark">활동 중</span>}</span>
