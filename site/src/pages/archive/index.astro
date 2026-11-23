@@ -7,7 +7,7 @@ import Base from '../../layouts/Base.astro';
 import Cover from '../../components/Cover.astro';
 import MemberCard from '../../components/MemberCard.astro';
 import { loadPublic, md, type EraSummary } from '../../lib/data';
-import { categoryHref, SERIES_CATEGORIES } from '../../lib/series-categories';
+import { categoryHref } from '../../lib/series-categories';
 import { daysUntil, dday, EMPTY_MEMBERS, type MembersData } from '../../lib/members';
 
 const [{ eras }, data] = await Promise.all([
@@ -25,7 +25,7 @@ const yearSummary = (y: string) => {
 };
 const debutNext = data.group.debut ? daysUntil(data.group.debut.slice(5)) : null;
 const quick = [data.members[1]?.name, eras.find((e) => e.status === '활동 중' && e.kind === '컴백')?.title, eras.find((e) => e.kind === '콘서트·투어')?.title].filter(Boolean) as string[];
-const seriesLinks = SERIES_CATEGORIES.filter(({ id }) => id !== 'collections' && id !== 'recurring');
+const seriesLinks = [['external', '외부활동'], ['drama', '드라마'], ['ads', '광고'], ['radio', '라디오']];
 const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 ---
 <Base title="아카이브" current="archive">
@@ -117,7 +117,7 @@ const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}�
     <section class="arc-sec">
       <div class="sec-head"><h2>시리즈 바로가기</h2><a href="/series/">시리즈 전체 →</a></div>
       <div class="series-grid">
-        {seriesLinks.map(({ id, name }) => <a class="series" href={categoryHref(id)}><b>{name} →</b></a>)}
+        {seriesLinks.map(([id, name]) => <a class="series" href={categoryHref(id)}><b>{name} →</b></a>)}
       </div>
     </section>
   </main>

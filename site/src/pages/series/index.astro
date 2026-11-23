@@ -14,12 +14,16 @@ const sections = SERIES_CATEGORIES.map((category) => ({ ...category, cards: seri
 <Base title="시리즈" current="series">
   <main class="wrap series-index">
     <h1>시리즈</h1>
-    <nav class="series-category-grid" aria-label="시리즈 분류">
-      {sections.map(({ id, name, cards }) => (
-        <a id={id} class="card series-category-card" href={categoryHref(id)}>
-          <b>{name}</b><small>{cards.length}개 묶음</small><span aria-hidden="true">→</span>
-        </a>
-      ))}
+    <nav class="series-grid" aria-label="시리즈 분류">
+      {sections.map(({ id, name, cards }) => {
+        const thumb = cards.find((card) => card.thumb)?.thumb;
+        return (
+          <a id={id} class="card series-card" href={categoryHref(id)}>
+            <span class="poster">{thumb ? <img src={thumb} alt="" loading="lazy" /> : <em>{name}</em>}</span>
+            <span class="sc-body">{thumb && <b>{name}</b>}<small>{cards.length}개 묶음</small></span>
+          </a>
+        );
+      })}
     </nav>
   </main>
 </Base>
