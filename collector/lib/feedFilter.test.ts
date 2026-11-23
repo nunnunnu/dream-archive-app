@@ -55,3 +55,9 @@ test('일정 파생 기사: 일정 콘텐츠 이름·같은 멤버·며칠 안�
   ];
   assert.deepEqual([...eventDerivatives(items, ev)].map((x) => x.title), ['리정, NCT 드림 천러 향한 남다른 애정']);
 });
+
+test('매체가 YouTube인 기사, 주가 영상도 뺀다', () => {
+  const feed = buildFeed([], [{ title: '틀어놓고 주무세요 (NCT DREAM 런쥔)', url: 'https://news.google.com/rss/articles/x', publishedAt: '2026-11-19T13:00:00Z', publisher: 'YouTube', count: 1 }],
+    [{ videoId: 'a', title: '[에스엠 주가전망] 엔시티 드림 컴백', url: 'https://www.youtube.com/watch?v=a', channel: 'sinchana', publishedAt: '2026-11-19T13:00:00Z', guest: true, who: { members: [] } } as never], new Date('2026-11-22'));
+  assert.equal(feed.length, 0);
+});
