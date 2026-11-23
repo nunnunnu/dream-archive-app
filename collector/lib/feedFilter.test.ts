@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildFeed } from './publish.ts';
+import { eventDerivatives, eventKeywords } from './feedDerivatives.ts';
 import { isFillerArticle, isNegative, topicOf } from './topics.ts';
 
 test('화보: 룩북·잡지 커버는 화보로, 매체 이름·노래 커버는 아님', () => {
@@ -30,4 +31,27 @@ test('주가·실적 기사는 빼고, 차트 기사는 남김', () => {
   assert.equal(isNegative('에스엠, 3분기 영업이익 개선…엔시티 드림 효과'), true);
   assert.equal(isNegative('엔시티 드림, 한터 11월 2주 차 1위'), false);
   assert.equal(isNegative('NCT DREAM 정규 6집 초동 판매량 100만 장'), false);
+});
+
+test('유튜브 링크 기사는 빼서 영상과 겹치지 않게', () => {
+  const feed = buildFeed([], [{ title: '틀어놓고 주무세요 (NCT DREAM 런쥔, 제노, 지성)', url: 'https://www.youtube.com/watch?v=abc', publishedAt: '2026-11-19T13:00:00Z', publisher: 'YouTube', count: 1 }], [], new Date('2026-11-22'));
+  assert.equal(feed.length, 0);
+});
+
+test('사진 근황 기사: 포즈·병행 활약 류도 뺀다', () => {
+  assert.equal(isFillerArticle('NCT 런쥔, 장미 들고 포즈…솔로·그룹 병행 활약', 1), true);
+});
+
+test('일정 파생 기사: 일정 콘텐츠 이름·같은 멤버·며칠 안이면 소식에서 뺀다', () => {
+  assert.ok(eventKeywords('유튜브 슈퍼댄서 LEE리정 천러야 우리집 놀러 올래? 공개').includes('리정'));
+  assert.ok(!eventKeywords('2026 NCT DREAM 월드 투어 앵콜 콘서트').length);
+  const ev = [{ date: '2026-11-20', title: '유튜브 슈퍼댄서 LEE리정 천러야 우리집 놀러 올래? 공개', members: ['천러'] }];
+  const f = (title: string, at: string, members: string[], topic?: '광고') => ({ type: 'news' as const, title, url: `https://n.com/${at}`, publishedAt: at, members, ...(topic ? { topic } : {}) });
+  const items = [
+    f('리정, NCT 드림 천러 향한 남다른 애정', '2026-11-21T03:00:00Z', ['천러']),
+    f('리정, 천러와 광고 촬영', '2026-11-21T03:00:00Z', ['천러'], '광고'),
+    f('리정, NCT 드림 천러 칭찬', '2026-12-10T03:00:00Z', ['천러']),
+    f('리정, 지성 칭찬', '2026-11-21T03:00:00Z', ['지성']),
+  ];
+  assert.deepEqual([...eventDerivatives(items, ev)].map((x) => x.title), ['리정, NCT 드림 천러 향한 남다른 애정']);
 });

@@ -25,7 +25,7 @@ export const topicOf = (raw: string): FeedTopic | undefined => {
  * 드림·멤버 이름이 없는 기사는 publish.ts가 그룹·멤버 이름으로 따로 뺀다.
  */
 export const LINEUP_RE = /라인업/;
-export const FILLER_RE = /근황|셀카|셀피|SNS|인스타|외모|비주얼|미모|자태|잘생|넘사벽|조각|꽃미남|훈남|심쿵|미소/;
+export const FILLER_RE = /근황|셀카|셀피|SNS|인스타|외모|비주얼|미모|자태|잘생|넘사벽|조각|꽃미남|훈남|심쿵|미소|포즈|병행\s*활약|활약\s*잇|활동\s*잇|동시\s*활약|행보|여유|감성|무드|분위기|카리스마|올블랙|일상\s*사진|사진\s*공개|순간\s*공개/;
 const FILLER_KEEP_RE = /티저|콘셉트|컨셉|무대|일문일답|인터뷰|쇼케이스|뮤직비디오|MV|발매|출연|캐스팅|포스터/;
 export function isFillerArticle(title: string, outlets: number, topic?: FeedTopic): boolean {
   if (LINEUP_RE.test(title)) return true;

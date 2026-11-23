@@ -225,6 +225,8 @@ export function buildFeed(
   for (const it of items) if (it.type === 'news' && !leadsWithGroup(it.title)) { it.shared = true; delete it.image; }
   // 부정적인 기사(논란·가십)는 올리지 않는다. 잡다한 기사(라인업·한 매체 근황·드림 이름이 없는 다른 가수 기사)도 소식 탭에서 뺀다
   return items
+    // 구글 뉴스가 유튜브 영상을 기사로 가져온 것: 영상은 유튜브에서 따로 모아서 겹친다
+    .filter((it) => it.type !== 'news' || !/^https?:\/\/([^/]+\.)?(youtube\.com|youtu\.be)\//i.test(it.url))
     .filter((it) => it.type !== 'news' || (!isNegative(it.title) && !isFillerArticle(it.title, it.count ?? 1, it.topic) && !(it.shared && !it.topic && !it.members.length && !GROUP_NAME_RE.test(it.title))))
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }

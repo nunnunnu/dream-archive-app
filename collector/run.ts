@@ -49,6 +49,7 @@ import { applyOverrides, loadOverrides, mergeOverrides, type Overrides } from '.
 import { applyReportDecisions, finalizeReports, pullReports, pushPendingReasons, queueReports, type Report } from './lib/reports.ts';
 import { judgeDeleteReports } from './lib/reportDelete.ts';
 import { hideNews, judgeNewsDeleteReports, NEWS_HIDE_STATE, type NewsHide } from './lib/newsHide.ts';
+import { eventDerivatives } from './lib/feedDerivatives.ts';
 import { judgeNewsReports, reportedFeed } from './lib/reportNews.ts';
 import { publishLinkWake, runLinkWatch } from './lib/linkWatch.ts';
 import { anniversaryEvents } from './lib/anniversaries.ts';
@@ -159,6 +160,9 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   for (const l of await judgeNewsDeleteReports(repo, savedReports, feed, budget, now)) console.log(l);
   const shownFeed = hideNews(feed, await repo.getState<NewsHide[]>(NEWS_HIDE_STATE, []));
   if (shownFeed.length !== feed.length) { console.log(`소식 삭제 제보로 숨긴 소식 ${feed.length - shownFeed.length}개`); feed.splice(0, feed.length, ...shownFeed); }
+  // 일정에 이미 있는 콘텐츠를 보고 쓴 파생 기사는 소식 탭에서 뺀다 (소식 탭은 일정엔 못 넣는 소식 자리)
+  const derived = eventDerivatives(feed, events);
+  if (derived.size) { console.log(`일정 파생 기사 ${derived.size}개는 소식에서 뺌`); feed.splice(0, feed.length, ...feed.filter((f) => !derived.has(f))); }
   for (const f of feed) f.tags = tagger.feed(f);
   const tags = tagger.index([...events.map((e) => e.tags ?? []), ...feed.map((f) => f.tags ?? [])]);
   const changes = await publishAll(repo, { events, pending, rumors, review, feed, tags }, now);
