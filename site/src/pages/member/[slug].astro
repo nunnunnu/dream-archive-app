@@ -139,7 +139,7 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
           ))}
           <div class="unit">
             <span class="unit-badge solo">SOLO</span>
-            <span><small>개인</small><b>솔로·개인 활동</b><em>{soloActs.length ? soloActs.map((a) => a.title).slice(0, 3).join(' · ') : '아직 모은 개인 활동이 없어요'}</em></span>
+            <span><small>개인</small><b>솔로·개인 활동</b><em>{soloActs.length ? soloActs.slice(0, 3).map((a, i) => <>{i > 0 && ' · '}<a href={`/archive/${a.eraId}/`}>{a.title}</a></>) : '아직 모은 개인 활동이 없어요'}</em></span>
           </div>
         </div>
       </section>
@@ -147,7 +147,7 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
 
     <section id="records" class="sec">
       <div class="sec-head"><h2>기록</h2></div>
-      <p class="sec-sub">예능·자컨, 방송 출연, 화보·광고, 최근 소식이에요.</p>
+      <p class="sec-sub">예능·방송 출연·화보·광고와 최근 소식을 모았어요.</p>
       <h3 class="sub-h">예능·자컨</h3>
       {m.variety.length ? (
         <table class="tbl">

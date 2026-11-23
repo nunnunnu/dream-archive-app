@@ -132,7 +132,7 @@ const live = era.status === '활동 중';
         </div>
         <aside class="g-side">
           <div class="card g-week">
-            <b>이번 주 마감, 캘린더에도 있어요</b>
+            <b>이번 주 마감은 캘린더에도 있어요</b>
             <small>체크리스트의 마감일은 일정 캘린더에도 표시돼요.</small>
             <div class="wk">
               {week.map((d) => <span class={`wk-h${d === today ? ' on' : ''}${wd(d) === '일' ? ' sun' : wd(d) === '토' ? ' sat' : ''}`}><em>{wd(d)}</em><i>{Number(d.slice(8))}</i></span>)}

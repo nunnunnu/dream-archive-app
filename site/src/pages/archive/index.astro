@@ -6,13 +6,12 @@
 import Base from '../../layouts/Base.astro';
 import Cover from '../../components/Cover.astro';
 import MemberCard from '../../components/MemberCard.astro';
-import { loadPublic, md, type EraSummary, type SeriesSummary } from '../../lib/data';
+import { loadPublic, md, type EraSummary } from '../../lib/data';
 import { daysUntil, dday, EMPTY_MEMBERS, type MembersData } from '../../lib/members';
 
-const [{ eras }, data, { series }] = await Promise.all([
+const [{ eras }, data] = await Promise.all([
   loadPublic<{ eras: EraSummary[] }>(Astro.locals, 'eras.json', { eras: [] }),
   loadPublic<MembersData>(Astro.locals, 'members.json', EMPTY_MEMBERS),
-  loadPublic<{ series: SeriesSummary[] }>(Astro.locals, 'series.json', { series: [] }),
 ]);
 const yearOf = (e: EraSummary) => e.from.slice(0, 4);
 const years = [...new Set(eras.map(yearOf))].sort().reverse();
@@ -25,8 +24,7 @@ const yearSummary = (y: string) => {
 };
 const debutNext = data.group.debut ? daysUntil(data.group.debut.slice(5)) : null;
 const quick = [data.members[1]?.name, eras.find((e) => e.status === '활동 중' && e.kind === '컴백')?.title, eras.find((e) => e.kind === '콘서트·투어')?.title].filter(Boolean) as string[];
-// 시리즈 바로가기: 종류마다 가장 최근 것 하나
-const seriesPick = [...new Map([...series].sort((a, b) => b.to.localeCompare(a.to)).map((s) => [s.type, s] as const)).values()].slice(0, 4);
+const seriesLinks = [['external', '외부활동'], ['drama', '드라마'], ['ads', '광고'], ['radio', '라디오']];
 const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}월`;
 ---
 <Base title="아카이브" current="archive">
@@ -35,7 +33,7 @@ const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}�
       <div>
         <p class="eyebrow">ARCHIVE</p>
         <h1>아카이브</h1>
-        <p class="lead">멤버 문서부터 컴백·투어·공백기까지, NCT DREAM의 활동을 한곳에서 봐요. </p>
+        <p class="lead">멤버 문서부터 컴백·투어·공백기까지 NCT DREAM의 활동을 한곳에서 봐요.</p>
         <form class="arc-search" role="search" onsubmit="return false">
           <input type="search" id="arc-q" placeholder="멤버, 앨범, 투어, 예능 검색" aria-label="아카이브 검색" autocomplete="off" />
           <button type="button" id="arc-go">검색</button>
@@ -85,7 +83,7 @@ const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}�
           <div class="year-col"><h3>{y}</h3><i></i><small>{yearSummary(y)}</small></div>
           <div class="era-grid">
             {eras.filter((e) => yearOf(e) === y).sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || b.from.localeCompare(a.from)).map((e) => (
-              <a class="era" href={`/archive/${e.id}/`} data-kind={e.kind} data-name={`${e.title} ${e.subtitle ?? ''} ${e.kind} ${e.owner.label}`}>
+              <a class="era" href={`/archive/${e.id}/`} data-kind={e.kind} data-name={`${e.title} ${e.subtitle ?? ''} ${e.keys.join(' ')} ${e.kind} ${e.owner.label}`}>
                 <Cover title={e.title} sub={e.subtitle} cover={e.cover} image={e.thumb} />
                 <span class="era-tags"><span class="t lime">{KIND_SHORT[e.kind] ?? e.kind}</span>{e.owner.scope !== '단체' && <span class="t">{e.owner.label}</span>}{e.status === '활동 중' && <span class="t dark">활동 중</span>}</span>
                 <b>{e.title}</b>
@@ -115,17 +113,12 @@ const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}�
       </section>
     )}
 
-    {seriesPick.length > 0 && (
-      <section class="arc-sec">
-        <p class="eyebrow">SERIES</p>
-        <div class="sec-head"><h2>시리즈 바로가기</h2><a href="/series/">시리즈 전체 →</a></div>
-        <div class="series-grid">
-          {seriesPick.map((s) => (
-            <a class="series" href={`/series/${s.id}/`}><span class="t">{s.type}</span><b>{s.name}</b><small>{s.from.slice(0, 4)}{s.to.slice(0, 4) !== s.from.slice(0, 4) && ` – ${s.to.slice(0, 4)}`} · {s.count}편</small></a>
-          ))}
-        </div>
-      </section>
-    )}
+    <section class="arc-sec">
+      <div class="sec-head"><h2>시리즈 바로가기</h2><a href="/series/">시리즈 전체 →</a></div>
+      <div class="series-grid">
+        {seriesLinks.map(([id, name]) => <a class="series" href={`/series/#${id}`}><b>{name} →</b></a>)}
+      </div>
+    </section>
   </main>
 </Base>
 
