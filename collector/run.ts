@@ -58,7 +58,13 @@ import { isHidden } from './lib/members.ts';
 import { transcribeNoticeImages } from './lib/noticeImages.ts';
 // 커뮤니티(더쿠) 수집은 비공개 레포에만 있다. 파일이 없으면(공개 레포) 건너뛴다
 const community = await import('./lib/theqoo.ts').catch(() => null);
-const communityFeed: (r: typeof repo) => Promise<never[]> = community ? (community.communityFeed as never) : async () => [];
+type CommunityFeedPost = NonNullable<Parameters<typeof buildFeed>[4]>[number];
+async function communityFeed(r: JsonRepo): Promise<CommunityFeedPost[]> {
+  if (community) return community.communityFeed(r);
+  // 공개용 수집기는 비공개 수집기가 확인한 원문 링크만 읽는다.
+  const posts = await r.getState<Record<string, CommunityFeedPost & { status: string }>>('community/theqoo', {});
+  return Object.values(posts).filter((p) => p.link && (p.status === 'read' || p.status === 'archived'));
+}
 import { readOpenNotice } from './lib/weverse.ts';
 import { itemsFromTracked, loadTracked, syncTracked } from './lib/tracked.ts';
 import { kstDate, toKstParts } from './lib/time.ts';
@@ -186,7 +192,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   await repo.publish('discography.json', { releases });
   const keptIds = await stabilizeEraIds(repo, acts);
   if (keptIds) console.log(`활동 주소 유지 ${keptIds}개`);
-  const eras = buildEraPages(events, allVideos, acts, today, allArticles);
+  const eras = buildEraPages(events, allVideos, acts, today, allArticles, goneIds);
   for (const era of eras) await repo.publish(`eras/${era.id}.json`, era);
   await repo.publish('eras.json', { eras: eras.map(({ official, stages, fancams, related, own, shorts, outside, timeline, schedule, ownGroups, news, guide, ...rest }) => ({ ...rest, guideCount: guide?.length ?? 0 })) });
   // 시리즈: 자체 콘텐츠 시리즈 · 종류별 모아보기 · 고정 출연 · 반복 활동

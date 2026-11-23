@@ -310,6 +310,12 @@ const squashName = (t: string) => t.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu
 
 /** 고정 편성 프로그램 (config/programs.json) */
 const PROGRAMS: { names: string[]; weekday: string; time: string }[] = JSON.parse(readFileSync(join(ROOT, 'config', 'programs.json'), 'utf8')).programs;
+const BROADCAST_EPISODES = JSON.parse(readFileSync(join(ROOT, 'config', 'broadcast-episodes.json'), 'utf8')) as {
+  title: string; members: string[]; publisher: string; source: string; dates: string[];
+  videos?: Record<number, { id: string; publisher: string; title: string }>;
+}[];
+const CONFIRMED_SHOWS = new Set(BROADCAST_EPISODES.map((show) => showKey(show.title)));
+const SPORTS_SPECIAL = /아육대|아이돌\s*스타.*선수권/;
 const programOf = (title: string) => PROGRAMS.find((p) => p.names.some((n) => title.toLowerCase().includes(n.toLowerCase())));
 const weekdayOf = (date: string) => ['일', '월', '화', '수', '목', '금', '토'][new Date(`${date}T00:00:00Z`).getUTCDay()];
 
@@ -441,10 +447,11 @@ export function consolidate(
   // 날짜 미정으로 왔지만 시기 표현에 날짜가 적혀 있으면 날짜 일정으로
   const items = rawItems.flatMap((x) => {
     if (x.date || !x.when_text) return [x];
-    // "매주 화요일 저녁 8시" → 글 작성일 다음 그 요일부터 매주 반복 (예: 아이돌스 테이블)
-    // 회차마다 출연자가 바뀔 수 있어서 반복 일정으로 펼치지 않고 다음 회 하나만 만든다 (고정 출연은 recurrence로 따로 온다)
+    // 요일 안내만으로 과거 방송 날짜나 첫 회를 추정하지 않는다.
     const weekly = weeklyFromWhen(x.when_text, x.source.publishedAt);
-    if (weekly) return [{ ...x, date: weekly.date, time: x.time ?? weekly.time, when_text: null }];
+    if (weekly) return weekly.date >= opts.today && !SPORTS_SPECIAL.test(x.target)
+      ? [{ ...x, date: weekly.date, time: x.time ?? weekly.time, when_text: null, recurrence: null }]
+      : [x];
     const dates = datesFromWhen(x.when_text, opts.today);
     return dates.length ? dates.map((d) => ({ ...x, date: d, when_text: null })) : [x];
   });
@@ -486,6 +493,7 @@ export function consolidate(
   for (const g of groups) {
     if (g.every((x) => x.fillOnly)) continue;
     const e = mergeGroup(g);
+    if (e.kind === '방송' && CONFIRMED_SHOWS.has(showKey(e.title)) && !/녹화|촬영|결방/.test(e.step)) continue;
     if (!e.time && opts.videos?.length) {
       const v = timeFromVideos(e, opts.videos);
       if (v) {
@@ -499,7 +507,12 @@ export function consolidate(
       continue;
     }
     // 직접 등록한 고정 출연(추적 목록)이 있으면 같은 프로그램의 기사 속 반복 정보로 또 펼치지 않는다 (아이돌스 테이블이 화·수 두 개로 생기던 문제)
-    if (!g.some((x) => x.evidence.startsWith('추적 목록')) && manualShows.has(showKey(e.title))) continue;
+    const manual = g.some((x) => x.evidence.startsWith('추적 목록'));
+    if (!manual && manualShows.has(showKey(e.title))) continue;
+    if (SPORTS_SPECIAL.test(e.title) || (!manual && !rec.episodes && !rec.end_date)) {
+      events.push(e);
+      continue;
+    }
     const weekdays = rec.weekdays.map((w) => WEEKDAY_INDEX[w]).filter((n) => n !== undefined);
     // 결방이 있으면 그만큼 회차가 뒤로 밀리므로 넉넉히 만든 뒤 결방일을 빼고 번호를 다시 매긴다
     const extra = cancellations.length;
@@ -519,6 +532,29 @@ export function consolidate(
         episode: ep.episode,
         // 회차마다 출처 목록을 따로 (한 회차에 붙인 영상이 다른 회차에 섞이지 않게)
         sources: [...e.sources],
+      });
+    }
+  }
+
+  for (const show of BROADCAST_EPISODES) {
+    const seriesId = stableId('broadcast-episodes', showKey(show.title), show.dates[0]);
+    for (const [i, date] of show.dates.entries()) {
+      const episode = i + 1;
+      const step = `${episode}회${i === 0 ? ' (첫 방송)' : episode === show.dates.length ? ' (마지막 회)' : ''}`;
+      const sources: SourceRef[] = [{
+        type: 'submission', id: `${seriesId}-guide`, url: show.source, title: `${show.title} 공식 회차 목록`,
+        publisher: show.publisher, publishedAt: `${date}T00:00:00+09:00`,
+      }];
+      const clip = show.videos?.[episode];
+      if (clip) sources.push({
+        type: 'youtube', id: clip.id, url: `https://www.youtube.com/watch?v=${clip.id}`, title: clip.title,
+        publisher: clip.publisher, publishedAt: `${date}T00:00:00+09:00`,
+      });
+      events.push({
+        id: `${seriesId}-${episode}`, seriesId, episode, date, time: null, endDate: null, endTime: null, timezone: null,
+        title: show.title, step, kind: '방송', members: [...show.members], scope: scopeOf(show.members),
+        status: 'confirmed', evidence: `${show.publisher} 공식 회차 목록`, sources,
+        extractedBy: 'rule', category: '공식', calendars: [], audience: 'all',
       });
     }
   }

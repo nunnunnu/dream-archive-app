@@ -81,6 +81,8 @@ export interface EraPage {
 
 const SONG_ALIASES: Record<string, string[]> = JSON.parse(readFileSync(join(ROOT, 'config', 'song-aliases.json'), 'utf8')).aliases;
 const CONFIG: { eras: EraConfig[] } = JSON.parse(readFileSync(join(ROOT, 'config', 'tags.json'), 'utf8'));
+const VERIFIED_STAGES: Record<string, (Pick<EraVideo, 'id' | 'title' | 'date' | 'channel'> & { program: string })[]> =
+  JSON.parse(readFileSync(join(ROOT, 'config', 'verified-activity-stages.json'), 'utf8'));
 const PROGRAMS: { names: string[] }[] = JSON.parse(readFileSync(join(ROOT, 'config', 'programs.json'), 'utf8')).programs;
 const OWN = new Set(GROUP.youtube.channels.filter((c) => !c.guest).map((c) => c.name));
 const AGENCY = new Set([...OWN, ...(GROUP.youtube.agencyChannels ?? [])]);
@@ -200,7 +202,7 @@ const sq = (t: string) => t.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '').to
  * 활동 페이지: 자동으로 묶은 활동(findActivities)마다 영상·일정을 모은다.
  * config/tags.json eras 에 같은 이름(키워드)이 있으면 표지 색·타이틀곡·부제만 덧씌운다.
  */
-export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Activity[], today: string, articles: { title: string; link: string; source: string; publishedAt: string }[] = []): EraPage[] {
+export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Activity[], today: string, articles: { title: string; link: string; source: string; publishedAt: string }[] = [], unavailableIds: ReadonlySet<string> = new Set()): EraPage[] {
   const articlesFor = (keys: string[], from: string, to: string) => {
     const ks = keys.map(sq).filter((k) => k.length >= 3);
     const seen = new Set<string>();
@@ -284,9 +286,18 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     for (const v of fancamVids) { const m = fancamOwner(v.title); byMember.set(m, [...(byMember.get(m) ?? []), toVid(v)]); }
     const fancams = ['단체', ...GROUP.members.map((m) => m.name)].filter((m) => byMember.has(m)).map((member) => ({ member, videos: byMember.get(member)! }));
     const byProg = new Map<string, EraVideo[]>();
+    const stageIds = new Set(stageVids.map((v) => v.videoId));
     for (const v of stageVids) {
       const p = programName(v.title) ?? v.channel;
       byProg.set(p, [...(byProg.get(p) ?? []), toVid(v)]);
+    }
+    for (const { program, ...v } of VERIFIED_STAGES[act.id] ?? []) {
+      if (unavailableIds.has(v.id) || stageIds.has(v.id)) continue;
+      stageIds.add(v.id);
+      const clips = byProg.get(program) ?? [];
+      clips.push({ ...v, url: `https://www.youtube.com/watch?v=${v.id}`, thumb: `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`, members: act.owner.members });
+      clips.sort((a, b) => a.date.localeCompare(b.date));
+      byProg.set(program, clips);
     }
     const actEvents = act.eventIds.map((id) => byId.get(id)!).filter(Boolean).sort((a, b) => `${a.date} ${a.time ?? ''}`.localeCompare(`${b.date} ${b.time ?? ''}`));
 
@@ -374,7 +385,7 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       owner: act.owner, keys: act.keys, parts: act.parts, from: act.from, to: act.to,
       cover: cfg?.cover ?? KIND_COVER[act.kind] ?? { from: '#cccccc', to: '#1a1a1a', text: '#ffffff' },
       status: today < act.from ? '예정' : today > act.to ? '종료' : '활동 중',
-      counts: { official: official.length, stages: stageVids.length, fancams: fancamVids.length, own: own.length, shorts: shorts.length, outside: outside.length, events: actEvents.length },
+      counts: { official: official.length, stages: stageIds.size, fancams: fancamVids.length, own: own.length, shorts: shorts.length, outside: outside.length, events: actEvents.length },
       shorts: shorts.map((v) => ({ ...toVid(v), group: videoKind(v) === '챌린지' ? ('챌린지' as const) : ('멤버 쇼츠' as const) })).reverse(),
       timeline: marks,
       schedule: actEvents.filter((e) => e.audience === 'all').map((e) => ({ date: e.date, time: e.time, endDate: e.endDate, title: e.title, step: e.step, kind: e.kind, url: e.sources[0]?.url, group: scheduleGroupOf(e, act.parts) })),
