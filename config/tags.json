@@ -199,17 +199,124 @@
       "singleSeason": true
     },
     {
-      "id": "travel",
-      "name": "여행 자컨",
-      "match": [
-        "RAINBOW DREAM STAY",
-        "DREAM HAUS",
-        "Finding 7-UJEONG",
-        "JEJU DREAM",
-        "OFF TO DREAM"
-      ]
+      "id": "rainbow-dream-stay",
+      "name": "RAINBOW DREAM STAY",
+      "match": ["RAINBOW DREAM STAY"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-haus",
+      "name": "DREAM HAUS",
+      "match": ["DREAM HAUS"]
+    },
+    {
+      "id": "finding-7-ujeong",
+      "name": "Finding 7-UJEONG",
+      "match": ["Finding 7-UJEONG"],
+      "singleSeason": true
+    },
+    {
+      "id": "jeju-dream",
+      "name": "JEJU DREAM",
+      "match": ["JEJU DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "off-to-dream",
+      "name": "OFF TO DREAM",
+      "match": ["OFF TO DREAM"]
+    },
+    {
+      "id": "rooftop-fight",
+      "name": "박지성! 옥상으로 따라와",
+      "match": ["박지성! 옥상으로 따라와", "Rooftop Fight"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-mystery-lab",
+      "name": "드림 연구소",
+      "match": ["드림 연구소", "DREAM Mystery Lab"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-asmr",
+      "name": "DREAM ASMR",
+      "match": ["DREAM ASMR", "스윗 사운드 들려DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "cafe-7-dream",
+      "name": "Cafe 7 DREAM",
+      "match": ["Cafe 7 DREAM", "카페7드림"],
+      "singleSeason": true
+    },
+    {
+      "id": "under-the-blanket",
+      "name": "이불 속은 안전해",
+      "match": ["이불 속은 안전해", "NCT DREAM Stay Under the Blanket"],
+      "singleSeason": true
+    },
+    {
+      "id": "jisung-vlog",
+      "name": "JISUNG VLOG",
+      "match": ["JISUNG VLOG"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-un-cut",
+      "name": "[Un Cut] Behind the Scene DREAM",
+      "match": ["[Un Cut]"],
+      "channels": ["NCT DREAM"],
+      "videoIds": ["kHiVTIWjrqw", "jXnbNUh6Stw", "1e14Grn12BE", "kePrJSkNPo4", "WB-DiRmUZI0", "Qj4FvPN6SoU"],
+      "singleSeason": true
+    },
+    {
+      "id": "dchelin",
+      "name": "드슐랭 미식회",
+      "match": ["드슐랭 미식회", "D’chelin Gourmet Party"],
+      "singleSeason": true
+    },
+    {
+      "id": "nana-vlog",
+      "name": "나나의 소소한 영상 모음집",
+      "match": ["나나의 소소한 영상 모음집"],
+      "singleSeason": true
+    },
+    {
+      "id": "past-present-hello-future",
+      "name": "PAST, PRESENT, HELLO FUTURE",
+      "match": ["PAST, PRESENT, HELLO FUTURE"],
+      "singleSeason": true
+    },
+    {
+      "id": "contour-backstage",
+      "name": "CONTOUR:BACKSTAGE",
+      "match": ["CONTOUR:BACKSTAGE"],
+      "singleSeason": true
+    },
+    {
+      "id": "crazy-jalapenos",
+      "name": "Crazy Jalapeños",
+      "match": ["Crazy Jalapeños"],
+      "singleSeason": true
+    },
+    {
+      "id": "chenji",
+      "name": "천지의 이것저것",
+      "match": ["천지의 이것저것"],
+      "videoIds": ["KPLuZcer5p8"]
+    },
+    {
+      "id": "awsaz",
+      "name": "어색하지만 괜찮아",
+      "match": ["어색하지만 괜찮아", "AWSAZ"]
+    },
+    {
+      "id": "nct-nation-2023",
+      "name": "2023 NCT CONCERT - NCT NATION : To The World",
+      "match": ["NCT NATION : To The World", "여긴 NCT NATION", "INVITE YOU TO THE NCT NATION"]
     }
   ],
-  "_설명_시리즈": "seriesGroups: 이름이 제각각인 자체 콘텐츠를 한 시리즈로 묶을 때 (예: 여행 자컨). 7llin'처럼 앞 단어가 같은 시즌은 자동으로 묶인다.",
+  "_설명_시리즈": "seriesGroups: 같은 프로그램의 제목 표기나 시즌을 묶는다. singleSeason이 true면 프로그램 이름을 회차 묶음 이름으로 쓴다.",
   "_설명_create": "eras에 create: true를 적으면 수집한 일정이 없어도 활동 페이지를 만든다 (국내 기사·공지가 거의 없는 해외 발매 등). 날짜 근거는 source에. 영상·기사는 keywords로 자동으로 붙는다"
 }
