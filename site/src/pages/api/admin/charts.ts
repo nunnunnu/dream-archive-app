@@ -4,11 +4,12 @@
  *  GET  /api/admin/charts?id=<곡ID>   채보 하나 전체
  *  POST /api/admin/charts {chart}                    검사 후 KV chart:<곡ID> 에 저장 (바로 전 저장본은 chart-prev:<곡ID>)
  *  POST /api/admin/charts {action:'delete', songId}  지우기 (지운 것도 chart-prev:<곡ID> 에 30일 남김)
- * verified 가 켜진 채보만 다음 수집 때 publish:site 가 fanchant/ 로 공개한다.
+ * verified 가 켜진 채보는 저장하면 바로(엣지 캐시 1분 안) 공개 게임에 나온다. 공개 곡 목록 KV fanchant-index 도 같이 고친다.
  */
 import type { APIRoute } from 'astro';
 import { loadPublic } from '../../../lib/data';
 import { checkChart, indexEntry, SONG_ID, type FanchantChart } from '../../../lib/fanchant';
+import { updateIndex } from '../../../lib/fanchant-kv';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 const PREV_TTL = 30 * 86400;
@@ -53,6 +54,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!cur) return json({ ok: false, error: '그 채보가 없어요' }, 404);
     await kv.put(`chart-prev:${id}`, cur, { expirationTtl: PREV_TTL });
     await kv.delete(`chart:${id}`);
+    await updateIndex(kv, id, null);
     return json({ ok: true });
   }
 
@@ -69,5 +71,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
   const chart: FanchantChart = { ...checked.chart, updatedAt: new Date().toISOString(), updatedBy: by };
   if (cur) await kv.put(`chart-prev:${chart.songId}`, JSON.stringify(cur), { expirationTtl: PREV_TTL });
   await kv.put(key, JSON.stringify(chart));
+  await updateIndex(kv, chart.songId, chart);
   return json({ ok: true, chart, warnings: checked.warnings });
 };

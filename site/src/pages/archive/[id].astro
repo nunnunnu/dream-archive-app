@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import Cover from '../../components/Cover.astro';
 import { groupNameRe, loadPublic, loadSite, md, ymd, type EraPage } from '../../lib/data';
-import type { FanchantIndexSong } from '../../lib/fanchant';
+import { readIndex } from '../../lib/fanchant-kv';
 import '../../styles/era.css';
 import '../../styles/guide.css';
 
@@ -39,9 +39,8 @@ const short = (t: string) =>
   t.split(/\s+/).filter((w) => !(w.startsWith('#') && isCommonTag(w))).map((w) => (w.startsWith('#') ? w.slice(1) : w)).join(' ')
     .replace(GROUP_RE, '').replace(/\s{2,}/g, ' ').replace(/^[\s|·-]+|[\s|·-]+$/g, '').trim() || t;
 // 응원법 게임: 공개 채보 중 이 활동의 타이틀곡·활동 이름·키워드와 제목이 같은 곡
-const fanIndex = await loadPublic<{ songs?: FanchantIndexSong[] }>(Astro.locals, 'fanchant/index.json', {}).catch(() => ({ songs: [] }));
 const eraNames = new Set([era.titleSong, era.title, ...era.keys].filter((x): x is string => Boolean(x)).map(sq));
-const fanchants = (fanIndex.songs ?? []).filter((f) => f.verified && eraNames.has(sq(f.title)));
+const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() => [])).filter((f) => f.verified && eraNames.has(sq(f.title)));
 ---
 <Base title={era.title} current="archive">
   <nav class="crumbs wrap" aria-label="경로">

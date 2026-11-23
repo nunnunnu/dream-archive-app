@@ -2,6 +2,8 @@
 interface KV {
   get(key: string): Promise<string | null>;
   get<T>(key: string, type: 'json'): Promise<T | null>;
+  /** cacheTtl(초, 60 이상): 엣지에서 그만큼 캐시해서 읽는다 */
+  get<T>(key: string, opts: { type: 'json'; cacheTtl?: number }): Promise<T | null>;
   put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
   delete(key: string): Promise<void>;
   list(opts: { prefix: string; limit?: number; cursor?: string }): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;

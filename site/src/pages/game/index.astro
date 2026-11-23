@@ -1,11 +1,9 @@
 ---
-/** 응원법 게임 곡 선택: 공개(verified) 채보만 (publish:site 가 올린 fanchant/index.json) */
+/** 응원법 게임 곡 선택: 공개(verified) 채보만 (KV fanchant-index, 어드민 저장 때 갱신) */
 import Base from '../../layouts/Base.astro';
-import { loadPublic } from '../../lib/data';
-import type { FanchantIndexSong } from '../../lib/fanchant';
+import { readIndex } from '../../lib/fanchant-kv';
 import '../../styles/game.css';
-const index = await loadPublic<{ songs?: FanchantIndexSong[] }>(Astro.locals, 'fanchant/index.json', {});
-const songs = (index.songs ?? []).filter((s) => s.verified);
+const songs = (await readIndex(Astro.locals.runtime?.env?.REPORTS)).filter((s) => s.verified);
 const dots = (n: number) => '●'.repeat(n) + '○'.repeat(5 - n);
 ---
 <Base title="응원법 게임" current="game">
