@@ -1,0 +1,17 @@
+[
+  {
+    "title": "KBS2 댄싱하이",
+    "members": ["지성"],
+    "publisher": "KBS",
+    "source": "https://vod.kbs.co.kr/index.html?broadcast_complete_yn=Y&local_station_code=00&program_code=T2018-0433&program_id=PS-2018139198-01-000&section_code=04&sname=vod&source=episode&stype=vod",
+    "dates": ["2018-09-07", "2018-09-14", "2018-09-21", "2018-09-28", "2018-10-05", "2018-10-12", "2018-10-19", "2018-10-26"],
+    "videos": { "4": { "id": "QL1Mbs28AUA", "publisher": "KBS Kpop", "title": "댄싱하이 4회 · 호야팀 지성·윤준 무대" } }
+  },
+  {
+    "title": "tvN 나의 영어사춘기 100시간",
+    "members": ["재민"],
+    "publisher": "tvN",
+    "source": "https://tvn.cjenm.com/ko/tvnenglish100hours/episodes/",
+    "dates": ["2018-12-20", "2018-12-27", "2019-01-03", "2019-01-10", "2019-01-17", "2019-01-24", "2019-01-31", "2019-02-07", "2019-02-14", "2019-02-21"]
+  }
+]
