@@ -36,7 +36,7 @@ export interface SeriesPage {
   activities?: { id: string; title: string; kind: string; owner: string; from: string; to: string; cover: EraPage['cover']; thumb?: string }[];
 }
 
-const CONFIG: { seriesGroups?: { id: string; name: string; match: string[] }[] } = JSON.parse(readFileSync(join(ROOT, 'config', 'tags.json'), 'utf8'));
+const CONFIG: { seriesGroups?: { id: string; name: string; match: string[]; singleSeason?: boolean }[] } = JSON.parse(readFileSync(join(ROOT, 'config', 'tags.json'), 'utf8'));
 // 공식 업로드로 확인한 영상. 제목에 'Cover'가 없거나 제작사 채널이 수집 목록에 없어도 모아보기에 연결한다.
 const VERIFIED = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-series-videos.json'), 'utf8')) as {
   covers: string[];
@@ -92,8 +92,9 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   for (const v of own) {
     // 설정 묶음은 제목 전체에서 찾는다 (회차 표시가 없는 "[Dream VS Dream] …"도)
     const cfg = groups.find((g) => g.match.some((m) => sq(v.title).includes(sq(m))));
-    const s = seriesName(v.title) ?? (cfg ? cfg.name : null);
+    const s = cfg?.singleSeason ? cfg.name : seriesName(v.title) ?? cfg?.name;
     if (!s || (!cfg && /NCT\s*DREAM|엔시티/i.test(s))) continue;
+    if (!cfg && /^(?:\[.+?\]\s*)?TODAY[!:]/i.test(s) && /#shorts?\b/i.test(v.title)) continue;
     // 시즌 표시를 뗀 이름이 같으면 한 시리즈의 시즌 (천지의 이것저것 / 시즌2 / 시즌3)
     const base = s.replace(/\s*(시즌|season)\s*\d+|\s+S\d+\b/gi, '').trim();
     // 앞 단어가 같은 시즌 (7llin’ in the DREAM, 7llin’ in our Youth …) → "7llin'" 가족
@@ -115,7 +116,6 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   }
   for (const [key, fam] of byFamily) {
     const all = [...fam.seasons.values()].flat();
-    if (all.length < 3) continue;
     // 가족 이름: 시즌이 여럿이면 가장 영상이 많은 시즌 이름의 앞 단어 기준, 설정 묶음은 설정 이름
     const seasons = [...fam.seasons.entries()].map(([name, vs]) => ({ name, videos: sortVids(vs.map(toVid)) })).sort((a, b) => a.videos[0].date.localeCompare(b.videos[0].date));
     const name = key.startsWith('cfg:') ? fam.name : seasons.length > 1 ? seasons.slice().sort((a, b) => b.videos.length - a.videos.length)[0].name : fam.name;

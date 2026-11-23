@@ -35,7 +35,7 @@ export function seriesName(title: string): string | null {
   //   "내기를 한 번 해볼까? | Ep.1 실탄 사격 | JUST DO IT:제대로 재밌게" → JUST DO IT:제대로 재밌게
   //   "하늘을 나는 … | OFF TO DREAM in Mukho | EP.2" → OFF TO DREAM in Mukho
   const EP = /\b(?:EP|ep|Ep)\.?\s*\d+/;
-  const segs = t.split(/\s*[|｜]\s*/).map((x) => x.trim()).filter(Boolean);
+  const segs = t.split(/\s*[|｜]\s*|\s+l\s+/).map((x) => x.trim()).filter(Boolean);
   const epIdx = segs.findIndex((x) => EP.test(x));
   const tidy = (x: string) => x.replace(/^[\s\-–#]+|[\s\-–:]+$/g, '').trim();
   if (segs.length > 1 && epIdx >= 0) {
@@ -48,7 +48,7 @@ export function seriesName(title: string): string | null {
     const prev = segs[epIdx - 1];
     if (epIdx > 0 && prev && squash(tidy(prev)).length >= 2) return tidy(prev);
   }
-  const m = t.match(/(?:^|[|\[｜(/])\s*([^|\[\]｜()/]{2,40}?)\s*[|｜]?\s*(?:EP|ep|Ep)\.?\s*\d+/);
+  const m = t.match(/(?:^|[|\[｜(/])\s*([^|\[\]｜()/]{2,40}?)\s*[|｜]?\s*\bEP\.?\s*\d+/i);
   if (!m) return null;
   const name = m[1].replace(/^[\s\-–#]+|[\s\-–:]+$/g, '').trim();
   return squash(name).length >= 2 ? name : null;

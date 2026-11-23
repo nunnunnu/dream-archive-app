@@ -169,6 +169,36 @@
       ]
     },
     {
+      "id": "dreamxdream",
+      "name": "드림 바이 드림",
+      "match": ["드림 바이 드림", "DREAM x DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "as-chenle-wishes",
+      "name": "천러마음대로",
+      "match": ["천러마음대로", "As CHENLE Wishes"],
+      "singleSeason": true
+    },
+    {
+      "id": "summer-day-dream",
+      "name": "한 여름 낮의 꿈",
+      "match": ["한 여름 낮의 꿈"],
+      "singleSeason": true
+    },
+    {
+      "id": "taste-camp",
+      "name": "TASTE CAMP",
+      "match": ["TASTE CAMP"],
+      "singleSeason": true
+    },
+    {
+      "id": "best-dancer",
+      "name": "최고의 댄서를 찾아라",
+      "match": ["최고의 댄서를 찾아라"],
+      "singleSeason": true
+    },
+    {
       "id": "travel",
       "name": "여행 자컨",
       "match": [
