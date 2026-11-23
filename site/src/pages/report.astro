@@ -7,12 +7,12 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
   <section class="report-hero">
     <div class="wrap hero-inner">
       <div>
-        <p class="eyebrow">REPORT · 함께 채우기</p>
-        <h1>빠진 일정도, 잘못된 정보도<br /><em>근거와 함께</em> 알려주세요</h1>
+        <p class="eyebrow">REPORT · 제보</p>
+        <h1>빠진 일정, 틀린 정보<br /><em>알려 주세요</em></h1>
         <p class="hero-copy">링크를 같이 보내 주시면 더 빨리 확인할 수 있어요.<br />보통 30분 안에 반영돼요.</p>
       </div>
       <div class="hero-proof" aria-label="제보 처리 과정">
-        <span><b>1</b> 제보 접수</span><i></i><span><b>2</b> 내용 확인</span><i></i><span><b>3</b> 아카이브 반영</span>
+        <span><b>1</b> 보내기</span><i></i><span><b>2</b> 확인</span><i></i><span><b>3</b> 반영</span>
       </div>
     </div>
   </section>
@@ -27,15 +27,30 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
 
         <fieldset class="types">
           <legend class="sr-only">제보 종류</legend>
-          <label><input type="radio" name="type" value="add" checked /><span class="type-icon">＋</span><b>빠진 일정</b><small>새 일정·소식을 추가해요</small></label>
-          <label><input type="radio" name="type" value="fix" /><span class="type-icon">↻</span><b>정보 보완</b><small>날짜·시간·멤버를 고쳐요</small></label>
-          <label><input type="radio" name="type" value="delete" /><span class="type-icon">×</span><b>삭제 요청</b><small>잘못 들어온 일정을 알려요</small></label>
-          <label><input type="radio" name="type" value="news" /><span class="type-icon">✦</span><b>소식 알려주기</b><small>X·판매처 공지 등 소식을 알려요</small></label>
+          <label><input type="radio" name="type" value="add" checked /><span class="type-icon">＋</span><b>빠진 일정</b><small>없는 일정을 알려 주세요</small></label>
+          <label><input type="radio" name="type" value="fix" /><span class="type-icon">↻</span><b>정보 수정</b><small>날짜·시간·멤버가 틀렸어요</small></label>
+          <label><input type="radio" name="type" value="delete" /><span class="type-icon">×</span><b>삭제 요청</b><small>지워야 할 일정·소식이 있어요</small></label>
+          <label><input type="radio" name="type" value="news" /><span class="type-icon">✦</span><b>소식 알려주기</b><small>화보·광고·SNS 소식을 알려 주세요</small></label>
         </fieldset>
 
-        <div class="form-divider"><span class="step-label">STEP 2</span><b>근거를 알려주세요</b></div>
+        <div class="form-divider"><span class="step-label">STEP 2</span><b>자세히 알려 주세요</b></div>
 
         <label class="field" id="title-field"><span id="title-label">일정·소식 이름</span><input name="title" placeholder="예: SBS 인기가요 사전녹화 / 위드뮤 뮤직뱅크 팬사인회 공지" /></label>
+
+        <div class="field" id="target-field" hidden>
+          <span>무엇을 지울까요?</span>
+          <div class="seg-pick">
+            <label><input type="radio" name="target" value="event" checked /> 일정</label>
+            <label><input type="radio" name="target" value="news" /> 소식</label>
+          </div>
+        </div>
+
+        <div class="field" id="news-field" hidden>
+          <span>지울 소식</span>
+          <p class="event-box" id="news-box">소식 화면에서 "삭제 요청"을 누르면 자동으로 들어가요. 직접 넣으려면 아래에 소식 링크(원문 주소)를 붙여 주세요.</p>
+          <input type="hidden" name="newsTitle" />
+          <input name="newsUrl" type="url" placeholder="소식 원문 주소 (기사·영상·공지)" />
+        </div>
 
         <div class="field" id="event-field" hidden>
           <span>기존 일정 선택</span>
@@ -59,9 +74,9 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
           <label class="field"><span>종료·마감 시간 <small>선택</small></span><input name="endTime" type="time" /></label>
         </div>
 
-        <label class="field" id="reason-field" hidden><span>삭제 요청 이유</span><select name="reasonCode"><option value="">이유를 골라 주세요</option><option value="duplicate">같은 일정이 중복됐어요</option><option value="unrelated">NCT DREAM 관련 일정이 아니에요</option><option value="wrong">잘못 수집된 정보예요</option><option value="cancelled">취소된 일정이에요</option><option value="other">기타</option></select></label>
+        <label class="field" id="reason-field" hidden><span>삭제 요청 이유</span><select name="reasonCode"></select></label>
 
-        <div class="field"><span>멤버 <small>안 고르면 단체 일정으로 볼게요</small></span>
+        <div class="field" id="member-field"><span>멤버 <small>안 고르면 단체 일정으로 볼게요</small></span>
           <div class="chips">{members.map((m) => <label class="chip-check"><input type="checkbox" name="members" value={m} />{m}</label>)}</div>
         </div>
 
@@ -89,8 +104,8 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
         </section>
         <section class="card guide-card">
           <span class="guide-kicker muted">삭제 요청</span>
-          <h3>확인하고 지워요</h3>
-          <p>드림 일정이 아닌 게 분명하면 바로 지우고, 애매한 건 한 번 더 확인한 뒤 지워요.</p>
+          <h3>일정도 소식도 지울 수 있어요</h3>
+          <p>드림 일정·소식이 아닌 게 분명하면 바로 지우고, 애매한 건 한 번 더 확인한 뒤 지워요. 권리자·초상권이나 사생활 요청은 바로 내려요.</p>
         </section>
         <p class="safe-note"><b>링크 없이 보내도 되나요?</b><br />네. 확인하는 데 조금 더 걸릴 수 있어요.</p>
       </aside>
@@ -99,6 +114,8 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
 </Base>
 
 <style>
+  .seg-pick { display: flex; gap: 8px; }
+  .seg-pick label { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-weight: 600; cursor: pointer; }
   .report-hero { background: var(--dark); color: #fff; border-bottom: 1px solid #292929; }
   .hero-inner { min-height: 300px; display: flex; align-items: center; justify-content: space-between; gap: 56px; padding-top: 46px; padding-bottom: 46px; }
   .report-hero .eyebrow { margin: 0 0 14px; color: var(--accent); }
@@ -194,10 +211,26 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
     if (radio) radio.checked = true;
     update();
   };
+  const REASONS = {
+    event: [['duplicate', '같은 일정이 중복됐어요'], ['unrelated', 'NCT DREAM 일정이 아니에요'], ['wrong', '틀린 정보예요'], ['cancelled', '취소된 일정이에요'], ['other', '기타']],
+    news: [['unrelated', 'NCT DREAM 소식이 아니에요'], ['duplicate', '같은 소식이 또 있어요'], ['wrong', '틀린 내용이에요'], ['rights', '권리자·초상권 요청이에요'], ['privacy', '사생활을 침해해요'], ['other', '기타']],
+  } as const;
+  let reasonFor = '';
   function update() {
-    const type = new FormData(form).get('type');
+    const fd = new FormData(form);
+    const type = fd.get('type');
+    const target = fd.get('target') === 'news' ? 'news' : 'event';
     const isNew = type === 'add' || type === 'news';
-    (document.getElementById('event-field') as HTMLElement).hidden = isNew;
+    const newsDel = type === 'delete' && target === 'news';
+    (document.getElementById('target-field') as HTMLElement).hidden = type !== 'delete';
+    (document.getElementById('news-field') as HTMLElement).hidden = !newsDel;
+    (document.getElementById('member-field') as HTMLElement).hidden = type === 'delete';
+    const sel = form.elements.namedItem('reasonCode') as HTMLSelectElement;
+    if (reasonFor !== target) {
+      reasonFor = target;
+      sel.innerHTML = '<option value="">이유를 골라 주세요</option>' + REASONS[target].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+    }
+    (document.getElementById('event-field') as HTMLElement).hidden = isNew || newsDel;
     (document.getElementById('title-field') as HTMLElement).hidden = !isNew;
     (document.getElementById('title-label') as HTMLElement).textContent = type === 'news' ? '어떤 소식인가요? (한 줄)' : '일정·소식 이름';
     (document.getElementById('time-label') as HTMLElement).closest('label')!.hidden = type === 'news';
@@ -212,6 +245,14 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
   form.addEventListener('change', update);
   if (params.get('type')) setType(params.get('type')!);
   if (params.get('date')) (form.elements.namedItem('date') as HTMLInputElement).value = params.get('date')!;
+  if (params.get('news')) {
+    (form.querySelector('input[name="target"][value="news"]') as HTMLInputElement).checked = true;
+    (form.elements.namedItem('newsUrl') as HTMLInputElement).value = params.get('news')!;
+    (form.elements.namedItem('newsTitle') as HTMLInputElement).value = params.get('title') ?? '';
+    const box = document.getElementById('news-box') as HTMLElement;
+    box.textContent = params.get('title') ?? params.get('news')!;
+    box.classList.add('selected');
+  }
   if (params.get('event')) {
     (form.elements.namedItem('eventId') as HTMLInputElement).value = params.get('event')!;
     (form.elements.namedItem('eventTitle') as HTMLInputElement).value = params.get('title') ?? '';
@@ -270,7 +311,7 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
       const res = await fetch('/api/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({ ok: false, error: '서버 응답이 없어요' }));
       result.textContent = data.ok ? '고마워요! 확인해서 보통 30분 안에 반영할게요.' : `보내지 못했어요: ${data.error}`;
-      if (data.ok) form.reset();
+      if (data.ok) { form.reset(); reasonFor = ''; update(); }
     } catch {
       result.textContent = '보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.';
     }

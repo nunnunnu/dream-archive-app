@@ -2,7 +2,7 @@
 interface Report {
   id: string; type: 'add' | 'delete' | 'fix' | 'news'; title?: string; url: string; message: string; eventId: string; eventTitle: string;
   date: string; time: string; endDate?: string; endTime?: string; reasonCode?: string; members: string[];
-  status: 'pending' | 'approved' | 'rejected'; createdAt: string; reviewedAt?: string; reviewMode?: 'auto' | 'manual'; reviewReason?: string;
+  status: 'pending' | 'approved' | 'rejected'; createdAt: string; target?: 'event' | 'news'; newsUrl?: string; reviewedAt?: string; reviewMode?: 'auto' | 'manual'; reviewReason?: string;
 }
 interface Decision { action: 'approve' | 'reject'; note: string; at: string; by: string }
 interface Feedback { id: string; at: string; reason: string; note: string; question: string; answer: string; sources: { id: string; url: string }[]; mark: string | null }
@@ -10,7 +10,7 @@ interface Group { qk: string; question: string; items: Feedback[] }
 
 const TYPE: Record<Report['type'], string> = { add: '빠진 일정', fix: '정보 보완', delete: '삭제 요청', news: '소식' };
 const STATUS: Record<Report['status'], string> = { pending: '대기', approved: '승인', rejected: '거절' };
-const REASON: Record<string, string> = { unrelated: '드림 일정이 아님', duplicate: '중복', cancelled: '취소됨', wrong: '잘못된 정보' };
+const REASON: Record<string, string> = { unrelated: '드림 일정·소식이 아님', duplicate: '중복', cancelled: '취소됨', wrong: '잘못된 정보', rights: '권리자·초상권 요청', privacy: '사생활 침해', other: '기타' };
 const MARK: Record<string, string> = { eval: '평가 세트 후보', seen: '확인함' };
 
 const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -59,6 +59,7 @@ function reportRow(r: Report, decision?: Decision) {
   if (r.reasonCode) rows.push(['이유', esc(REASON[r.reasonCode] ?? r.reasonCode)]);
   if (r.message) rows.push(['내용', esc(r.message)]);
   if (r.url) rows.push(['링크', link(r.url)]);
+  if (r.newsUrl) rows.push(['지울 소식', link(r.newsUrl)]);
   const pending = r.status === 'pending';
   const node = el(`
     <article class="card admin-item ${pending ? '' : 'is-done'}">

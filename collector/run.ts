@@ -48,6 +48,7 @@ import { buildSeries } from './lib/series.ts';
 import { applyOverrides, loadOverrides, mergeOverrides, type Overrides } from './lib/overrides.ts';
 import { applyReportDecisions, finalizeReports, pullReports, pushPendingReasons, queueReports, type Report } from './lib/reports.ts';
 import { judgeDeleteReports } from './lib/reportDelete.ts';
+import { hideNews, judgeNewsDeleteReports, NEWS_HIDE_STATE, type NewsHide } from './lib/newsHide.ts';
 import { judgeNewsReports, reportedFeed } from './lib/reportNews.ts';
 import { publishLinkWake, runLinkWatch } from './lib/linkWatch.ts';
 import { anniversaryEvents } from './lib/anniversaries.ts';
@@ -154,6 +155,10 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   // 비공개·삭제된 영상을 가리키는 소식(커뮤니티 글의 유튜브 링크 포함)은 뺀다
   const goneIds = await unavailableVideoIds();
   for (let i = feed.length - 1; i >= 0; i--) if ([...goneIds].some((id) => JSON.stringify(feed[i]).includes(id))) feed.splice(i, 1);
+  // 소식 삭제 제보: 판정(권리자·사생활은 바로, 그 밖에는 AI가 확실할 때만) → 숨긴 소식은 내보내기 전에 뺀다
+  for (const l of await judgeNewsDeleteReports(repo, savedReports, feed, budget, now)) console.log(l);
+  const shownFeed = hideNews(feed, await repo.getState<NewsHide[]>(NEWS_HIDE_STATE, []));
+  if (shownFeed.length !== feed.length) { console.log(`소식 삭제 제보로 숨긴 소식 ${feed.length - shownFeed.length}개`); feed.splice(0, feed.length, ...shownFeed); }
   for (const f of feed) f.tags = tagger.feed(f);
   const tags = tagger.index([...events.map((e) => e.tags ?? []), ...feed.map((f) => f.tags ?? [])]);
   const changes = await publishAll(repo, { events, pending, rumors, review, feed, tags }, now);

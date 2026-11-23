@@ -33,7 +33,7 @@ const isOfficial = (e: PublicEvent) =>
   e.sources.some((s) => s.type === 'weverse-notice' || (s.type === 'youtube' && GROUP.youtube.channels.some((c) => !c.guest && s.title.startsWith(c.name))));
 
 export async function judgeDeleteReports(repo: Repo, reports: Record<string, Report>, events: PublicEvent[], budget: Budget, now: Date): Promise<string[]> {
-  const todo = Object.values(reports).filter((r) => r.type === 'delete' && r.status === 'pending' && r.reviewMode !== 'manual');
+  const todo = Object.values(reports).filter((r) => r.type === 'delete' && r.target !== 'news' && r.status === 'pending' && r.reviewMode !== 'manual');
   if (!todo.length) return [];
   const overrides = await repo.getState<Overrides>('report-overrides', { hide: [], patch: [] });
   const log: string[] = [];

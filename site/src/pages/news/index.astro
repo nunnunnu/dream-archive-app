@@ -96,7 +96,7 @@ const featureIdx = list[0] && day(list[0].publishedAt) === today && visual(list[
                   <h3><a href={i.url} target="_blank" rel="noopener">{clean(i.title)}</a></h3>
                   {i.members.length > 0 && <p class="mrow">{i.members.map((m) => <span class={`mchip ${mc(m)}`}>{m}</span>)}</p>}
                   <p class="foot"><span>{i.publisher ?? (i.type === 'weverse-notice' ? '위버스' : '')}{grouped && ` 외 ${outlets(i) - 1}곳`}</span>
-                    {grouped ? <button type="button" class="toggle" data-toggle aria-expanded="false">{outlets(i)}개 매체 펼치기 ⌄</button> : <a class="src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>}</p>
+                    <span class="foot-act"><a class="del" href={`/report/?type=delete&news=${encodeURIComponent(i.url)}&title=${encodeURIComponent(clean(i.title).slice(0, 80))}`}>삭제 요청</a>{grouped ? <button type="button" class="toggle" data-toggle aria-expanded="false">{outlets(i)}개 매체 펼치기 ⌄</button> : <a class="src" href={i.url} target="_blank" rel="noopener">원문 ↗</a>}</span></p>
                 </div>
                 {grouped && <div class="outlets" hidden>
                   {i.articles!.map((a) => <a href={a.url} target="_blank" rel="noopener"><b>{a.publisher}</b><span>{clean(a.title)}<small>{hm(a.publishedAt)}</small></span><em>원문 ↗</em></a>)}
@@ -225,6 +225,9 @@ const featureIdx = list[0] && day(list[0].publishedAt) === today && visual(list[
   .mrow { margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
   .mchip { position: relative; padding: 2px 8px 2px 18px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; background: #fff; }
   .mchip::before { content: ''; position: absolute; left: 7px; top: 50%; width: 6px; height: 6px; border-radius: 50%; transform: translateY(-50%); background: var(--mc); }
+  .foot-act { display: flex; align-items: center; gap: 12px; }
+  .foot .del { color: var(--faint); text-decoration: none; font-size: 11px; }
+  .foot .del:hover { color: var(--sub); text-decoration: underline; }
   .foot { margin: auto 0 0; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding-top: 4px; color: var(--sub); font-size: 12px; }
   .src { color: var(--text); font-weight: 800; text-decoration: none; font-size: 12px; }
   .toggle { border: 0; background: var(--dark); color: #fff; font: inherit; font-size: 11.5px; font-weight: 800; border-radius: 999px; padding: 6px 11px; cursor: pointer; white-space: nowrap; }

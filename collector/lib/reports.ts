@@ -8,6 +8,7 @@ import { GROUP } from './group.ts';
 import type { ExtractionRecord, Repo } from './repo.ts';
 import { submissionId, addSubmission, type Submission } from './submissions.ts';
 import type { OverrideTarget, Overrides } from './overrides.ts';
+import { hideEntry, isNewsDelete, NEWS_HIDE_STATE, type NewsHide } from './newsHide.ts';
 
 export interface Report {
   id: string;
@@ -18,6 +19,10 @@ export interface Report {
   message: string;
   eventId: string;
   eventTitle: string;
+  /** 삭제 요청 대상: 없으면 일정, 'news'면 소식 (newsUrl 로 찾는다, newsHide.ts) */
+  target?: 'event' | 'news';
+  newsUrl?: string;
+  newsTitle?: string;
   date: string;
   time: string;
   endDate?: string;
@@ -187,11 +192,11 @@ export function reportTarget(r: Report, year: string): OverrideTarget {
 
 /**
  * 운영자 결정 하나를 적용한다 (덮어쓰기는 overrides에 직접 반영, 저장은 부르는 쪽에서).
- *  승인: 삭제 → 숨기기, 보완 → 고치기, 추가 → 링크를 제보 처리 대기열에(submit), 소식 → 소식 탭에 (reportedFeed가 approved를 읽음)
+ *  승인: 삭제 → 숨기기(소식이면 소식 탭에서 빼기), 보완 → 고치기, 추가 → 링크를 제보 처리 대기열에(submit), 소식 → 소식 탭에 (reportedFeed가 approved를 읽음)
  *  거절: 상태만 바꾼다
  *  링크 없는 추가 요청은 자동으로 넣을 수 없어서 대기로 두고 이유를 남긴다
  */
-export function decideReport(r: Report, d: ReportDecision, overrides: Overrides, now: Date): { applied: boolean; submit?: string; message: string } {
+export function decideReport(r: Report, d: ReportDecision, overrides: Overrides, now: Date, newsHidden: NewsHide[] = []): { applied: boolean; submit?: string; message: string } {
   const by = d.note ? ` (메모: ${d.note})` : '';
   if (d.action === 'reject') {
     Object.assign(r, { status: 'rejected', reviewedAt: now.toISOString(), reviewMode: 'manual', reviewReason: `운영자가 거절했어요${by}` });
@@ -204,6 +209,10 @@ export function decideReport(r: Report, d: ReportDecision, overrides: Overrides,
       return { applied: false, message: `제보 ${r.id}: 링크 없는 추가 요청이라 직접 넣어야 함` };
     }
     submit = r.url;
+  } else if (isNewsDelete(r)) {
+    const kept = newsHidden.filter((h) => h.reportId !== r.id);
+    newsHidden.length = 0;
+    newsHidden.push(...kept, hideEntry(r, undefined, `운영자 승인${by}`, now));
   } else if (r.type === 'delete') {
     const t = reportTarget(r, now.toISOString().slice(0, 4));
     overrides.hide = overrides.hide.filter((h) => h.reportId !== r.id);
@@ -226,6 +235,7 @@ export async function applyReportDecisions(repo: Repo, reports: Record<string, R
   const keys = ((await res.json()) as { result?: { name: string }[] }).result ?? [];
   if (!keys.length) return [];
   const overrides = await repo.getState<Overrides>('report-overrides', { hide: [], patch: [] });
+  const newsHidden = await repo.getState<NewsHide[]>(NEWS_HIDE_STATE, []);
   const log: string[] = [];
   for (const k of keys) {
     const id = k.name.slice('report-decision:'.length);
@@ -238,7 +248,7 @@ export async function applyReportDecisions(repo: Repo, reports: Record<string, R
       await drop();
       continue;
     }
-    const out = decideReport(r, d, overrides, now);
+    const out = decideReport(r, d, overrides, now, newsHidden);
     // 자동 검증 때 이미 대기열에 들어간 링크는 다시 읽지 않는다 (addSubmission은 처리 상태를 처음으로 되돌린다)
     if (out.submit && !(await repo.getState<Submission[]>('submissions', [])).some((s) => s.id === submissionId(out.submit!))) {
       await addSubmission(repo, out.submit, undefined, now, `[운영자 승인 ${r.id}] ${r.title ?? ''} ${r.message}`.trim());
@@ -249,6 +259,7 @@ export async function applyReportDecisions(repo: Repo, reports: Record<string, R
     log.push(out.message);
   }
   await repo.putState('report-overrides', overrides);
+  await repo.putState(NEWS_HIDE_STATE, newsHidden);
   await repo.putState('reports', reports);
   return log;
 }

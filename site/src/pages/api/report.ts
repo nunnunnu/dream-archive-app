@@ -1,7 +1,7 @@
 /**
  * 제보 받기 (Astro API, Cloudflare에서 실행): POST /api/report
  * 받은 제보는 KV(REPORTS)에 저장한다. 공식 원문 대조를 통과한 추가·보완 제보는 수집기가 자동 승인하고,
- * 그 밖의 제보와 삭제 요청은 운영자가 확인한다.
+ * 그 밖의 제보와 삭제 요청은 운영자가 확인한다. 삭제 요청은 일정 또는 소식(target: 'news', newsUrl).
  * 개인정보는 받지 않는다. 같은 IP에서 1분에 5번까지만 (IP는 해시로만 잠깐 쓴다).
  */
 import type { APIRoute } from 'astro';
@@ -44,6 +44,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     endDate: clip(body.endDate, 10),
     endTime: clip(body.endTime, 5),
     reasonCode: clip(body.reasonCode, 40),
+    // 삭제 요청 대상: 일정(기본) 또는 소식 (소식은 원문 주소로 찾는다)
+    target: body.target === 'news' ? 'news' : 'event',
+    newsUrl: clip(body.newsUrl, 500),
+    newsTitle: clip(body.newsTitle, 200),
     eventSnapshot: body.eventSnapshot && typeof body.eventSnapshot === 'object' ? body.eventSnapshot : null,
     members: Array.isArray(body.members) ? (body.members as unknown[]).map((m) => clip(m, 10)).slice(0, 7) : [],
   };
@@ -51,7 +55,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (type === 'add' && !report.url && !report.message) return json({ ok: false, error: '근거 링크나 내용을 적어 주세요' }, 400);
   if (type === 'news' && !report.title) return json({ ok: false, error: '어떤 소식인지 한 줄로 적어 주세요' }, 400);
   if (type === 'news' && !report.url && !report.message) return json({ ok: false, error: '링크나 내용을 적어 주세요' }, 400);
-  if ((type === 'fix' || type === 'delete') && !report.eventId) return json({ ok: false, error: '기존 일정을 선택해 주세요' }, 400);
+  const newsDelete = type === 'delete' && report.target === 'news';
+  if (newsDelete && !/^https?:\/\//i.test(report.newsUrl)) return json({ ok: false, error: '지울 소식의 링크를 넣어 주세요' }, 400);
+  if (newsDelete) report.eventTitle = `소식 · ${report.newsTitle || report.newsUrl}`.slice(0, 200);
+  if ((type === 'fix' || (type === 'delete' && !newsDelete)) && !report.eventId) return json({ ok: false, error: '기존 일정을 선택해 주세요' }, 400);
   if (type === 'delete' && !report.reasonCode) return json({ ok: false, error: '삭제 요청 이유를 골라 주세요' }, 400);
   if (report.url && !/^https?:\/\//i.test(report.url)) return json({ ok: false, error: '링크는 http로 시작해야 해요' }, 400);
 
