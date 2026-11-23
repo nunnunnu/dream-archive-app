@@ -16,8 +16,8 @@ const [{ eras }, data, { series }] = await Promise.all([
 ]);
 const yearOf = (e: EraSummary) => e.from.slice(0, 4);
 const years = [...new Set(eras.map(yearOf))].sort().reverse();
-const KIND_ORDER = ['컴백', '콘서트·투어', '팬미팅', '드라마', '예능', '시상식', '페스티벌', '팝업', '활동'];
-const KIND_SHORT: Record<string, string> = { 컴백: '컴백', '콘서트·투어': '투어', 팬미팅: '팬미팅', 드라마: '드라마', 시상식: '시상식', 페스티벌: '페스티벌', 팝업: '팝업', 활동: '활동', 예능: '예능' };
+const KIND_ORDER = ['컴백', 'NCT 단체', '콘서트·투어', '팬미팅', '드라마', '예능', '시상식', '페스티벌', '팝업', '활동'];
+const KIND_SHORT: Record<string, string> = { 컴백: '컴백', 'NCT 단체': 'NCT 단체', '콘서트·투어': '투어', 팬미팅: '팬미팅', 드라마: '드라마', 시상식: '시상식', 페스티벌: '페스티벌', 팝업: '팝업', 활동: '활동', 예능: '예능' };
 const kinds = KIND_ORDER.filter((k) => eras.some((e) => e.kind === k));
 const yearSummary = (y: string) => {
   const list = eras.filter((e) => yearOf(e) === y);

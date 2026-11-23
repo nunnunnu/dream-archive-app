@@ -9,7 +9,7 @@
 import type { PublicEvent } from './consolidate.ts';
 import { GROUP } from './group.ts';
 
-export type ActivityKind = '컴백' | '팬미팅' | '콘서트·투어' | '드라마' | '예능' | '팝업' | '시상식' | '페스티벌' | '활동';
+export type ActivityKind = '컴백' | '팬미팅' | '콘서트·투어' | '드라마' | '예능' | '팝업' | '시상식' | '페스티벌' | '활동' | 'NCT 단체';
 export interface Activity {
   id: string;
   name: string;

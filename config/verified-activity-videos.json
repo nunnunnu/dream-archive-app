@@ -15,6 +15,26 @@
       {"id":"NqW1uuttv-E","title":"Boogie Woogie - NCT DREAM | SBS 261122 방송","date":"2026-11-22","channel":"SBSKPOP X INKIGAYO","program":"인기가요"}
     ]
   },
+  "official": {
+    "nct-2020": [
+      {"id":"0IpbvXVbBYA","title":"NCT 2020 'RESONANCE' MV","date":"2020-12-04","channel":"SMTOWN","group":"MV·티저","members":["런쥔","제노","해찬","재민","천러","지성"]},
+      {"id":"A5H8zBb3iao","title":"NCT U '90's Love' MV","date":"2020-11-23","channel":"SMTOWN","group":"MV·티저","members":["제노","해찬"]},
+      {"id":"3p7s7Rjh4fg","title":"NCT U 'From Home' MV","date":"2020-10-19","channel":"SMTOWN","group":"MV·티저","members":["런쥔","해찬","천러"]},
+      {"id":"QyKe4VXDx5I","title":"NCT DREAM '무대로 (Déjà Vu; 舞代路)' Track Video","date":"2020-10-08","channel":"NCT","group":"퍼포먼스","members":["런쥔","제노","해찬","재민","천러","지성"]}
+    ],
+    "nct-2021": [
+      {"id":"nAvjYapdSxk","title":"NCT 2021 'Beautiful' MV","date":"2021-12-14","channel":"SMTOWN","group":"MV·티저","members":["런쥔","제노","해찬","재민","천러","지성"]},
+      {"id":"SCK8yBLqQJc","title":"NCT U 'Universe (Let's Play Ball)' MV","date":"2021-12-10","channel":"SMTOWN","group":"MV·티저","members":["제노","해찬","재민"]},
+      {"id":"qS7e7FmVRo0","title":"NCT DREAM 'Dreaming' Track Video","date":"2021-12-02","channel":"NCT","group":"퍼포먼스","members":["런쥔","제노","해찬","재민","천러","지성"]}
+    ],
+    "nct-2023": [
+      {"id":"jZpr7hfeEVE","title":"NCT 2023 'Golden Age' MV","date":"2023-08-23","channel":"SMTOWN","group":"MV·티저","members":["런쥔","제노","해찬","재민","천러","지성"]},
+      {"id":"qOgOmAsDEw8","title":"NCT U 'Kangaroo' Archiving Video","date":"2023-08-29","channel":"NCT","group":"퍼포먼스","members":["런쥔","천러","지성"]},
+      {"id":"PhmPnUtwNTA","title":"NCT U 'Alley Oop' Archiving Video","date":"2023-08-30","channel":"NCT","group":"퍼포먼스","members":["제노","재민","지성"]},
+      {"id":"6BawyJf4aKs","title":"NCT U 'PADO' Archiving Video","date":"2023-08-30","channel":"NCT","group":"퍼포먼스","members":["해찬"]},
+      {"id":"zS1jKIsAOmM","title":"NCT U 'The BAT' Archiving Video","date":"2023-08-29","channel":"NCT","group":"퍼포먼스","members":["제노","지성"]}
+    ]
+  },
   "related": {
     "2026-와인드업": [
       {"id":"KAuzMTKwmdQ","title":"와인드업: 더 무비 | 극장판 공식 예고편","date":"2026-06-15","channel":"KITZ 킷츠","group":"예고·클립"}

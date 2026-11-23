@@ -15,7 +15,7 @@ const OWN_PREVIEW = 8;
 const STAGE_PREVIEW = 8;
 const fancams = era.fancams ?? [];
 // 끝난 활동인데 무대 영상이 하나도 없으면(일본 활동 등) 음방 칸을 숨긴다
-const showStages = era.kind === '컴백' && (era.stages.length > 0 || fancams.length > 0 || era.status !== '종료');
+const showStages = (era.kind === '컴백' || era.kind === 'NCT 단체') && (era.stages.length > 0 || fancams.length > 0 || (era.kind === '컴백' && era.status !== '종료'));
 const relatedBy = ['OST', '예고·클립', '현장·인터뷰', '기타'].map((name) => ({ name, videos: (era.related ?? []).filter((v) => v.group === name) })).filter((g) => g.videos.length);
 // 일정 묶음: 묶음 안 첫 일정 날짜 순, 다가오는 일정이 있으면 펼침
 const groupNames = [...new Set(era.schedule.map((s) => s.group))];
@@ -26,7 +26,7 @@ const schedGroups = groupNames
   })
   .sort((a, b) => Number(b.upcoming) - Number(a.upcoming) || a.items[0].date.localeCompare(b.items[0].date));
 const ownBy = (era.ownGroups ?? []).map((g) => ({ name: g, videos: era.own.filter((v) => v.group === g) }));
-const ownTitle = era.kind === '팬미팅' ? '팬미팅 영상' : '자체 콘텐츠';
+const ownTitle = era.kind === '팬미팅' ? '팬미팅 영상' : era.kind === 'NCT 단체' ? 'NCT 단체 콘텐츠' : '자체 콘텐츠';
 const shortGroups = ['챌린지', '멤버 쇼츠'].map((name) => ({ name, videos: (era.shorts ?? []).filter((v) => v.group === name) })).filter((g) => g.videos.length);
 // 영상 제목 정리: 그룹 이름·공통 해시태그는 떼고, 남은 해시태그(#EXO #KAI 등)는 낱말로
 // 공통 해시태그 = 그룹 이름·상위 그룹 이름·이 활동 키워드로 시작하는 태그 (#NCTDREAM, #NCTDREAM_BoogieWoogie, #BoogieWoogie …)
@@ -73,7 +73,7 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
         </dl>
         <p class="counts">
           <span><b>{era.counts.official}</b> 공식 영상</span><span><b>{era.counts.stages}</b> 음방 무대</span>{(era.counts.fancams ?? 0) > 0 && <span><b>{era.counts.fancams}</b> 직캠</span>}
-          <span><b>{era.counts.own}</b> 자체 콘텐츠</span><span><b>{era.counts.shorts ?? 0}</b> 쇼츠</span><span><b>{era.counts.outside}</b> 외부 콘텐츠</span>
+          <span><b>{era.counts.own}</b> {era.kind === 'NCT 단체' ? ownTitle : '자체 콘텐츠'}</span><span><b>{era.counts.shorts ?? 0}</b> 쇼츠</span><span><b>{era.counts.outside}</b> 외부 콘텐츠</span>
           <a href="/">일정 {era.counts.events}개 보기 →</a>
         </p>
         {fanchants.map((f, i) => (
@@ -224,7 +224,7 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
 
   {era.own.length > 0 && <section class="dark" id="own">
     <div class="wrap">
-      <p class="eyebrow">{era.kind === '팬미팅' ? 'FAN MEETING' : 'ORIGINAL'}</p>
+      <p class="eyebrow">{era.kind === '팬미팅' ? 'FAN MEETING' : era.kind === 'NCT 단체' ? 'NCT' : 'ORIGINAL'}</p>
       <div class="section-head"><h2>{ownTitle}</h2><span class="note">{ownBy.map((g) => `${g.name} ${g.videos.length}`).join(' · ')}</span></div>
       <nav class="own-jump">{ownBy.map((g) => <a href={`#own-${g.name}`}>{g.name} <span>{g.videos.length}</span></a>)}</nav>
       {ownBy.map((g) => (

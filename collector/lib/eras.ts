@@ -17,12 +17,13 @@ import type { Activity } from './activities.ts';
 
 interface EraConfig {
   id: string; name: string; from: string; to: string; keywords: string[];
-  kind?: string; title?: string; subtitle?: string; titleSong?: string; release?: string;
+  kind?: Activity['kind']; title?: string; subtitle?: string; titleSong?: string; release?: string;
   cover?: { from: string; to: string; text: string };
   /** 수집한 일정이 없어도 활동을 만든다 (해외 발매처럼 국내 기사·공지가 거의 없는 것). member: 멤버 솔로, source: 날짜 근거 */
   create?: boolean; member?: string; source?: string;
   /** 활동 기간을 사실대로 고친다 (수집한 일정이 일부 기간뿐일 때: 드림쇼2 첫 공연 2022-09-08) */
   start?: string; end?: string;
+  videoIds?: string[];
 }
 
 /**
@@ -33,14 +34,22 @@ export function addConfiguredActivities(acts: Activity[], events: PublicEvent[])
   let added = 0;
   for (const c of CONFIG.eras.filter((e) => e.create)) {
     const names = [c.title ?? '', ...c.keywords].map(sq).filter((k) => k.length >= 3);
-    if (acts.some((a) => a.keys.some((k) => names.includes(sq(k))))) continue;
+    const existing = acts.find((a) => a.from <= c.to && a.to >= c.from && a.keys.some((k) => names.includes(sq(k))));
+    const nctOwner = { scope: '단체' as const, members: [], label: 'NCT' };
+    if (existing) {
+      if (c.kind === 'NCT 단체') {
+        existing.kind = c.kind;
+        existing.owner = nctOwner;
+      }
+      continue;
+    }
     const from = c.release ?? c.from;
     const eventIds = events.filter((e) => e.date >= c.from && e.date <= c.to && names.some((n) => sq(`${e.title} ${e.step}`).includes(n))).map((e) => e.id);
     acts.push({
       id: `${from.slice(0, 4)}-${sq(c.title ?? c.keywords[0]).replace(/[^a-z0-9가-힣]/g, '').slice(0, 30) || c.id}`,
-      name: c.title ?? c.keywords[0], kind: (c.kind as Activity['kind']) ?? '컴백', keys: [...new Set([c.title ?? '', ...c.keywords].filter(Boolean))],
+      name: c.title ?? c.keywords[0], kind: c.kind ?? '컴백', keys: [...new Set([c.title ?? '', ...c.keywords].filter(Boolean))],
       parts: [], videoKeys: [],
-      owner: c.member ? { scope: '멤버', members: [c.member], label: c.member } : { scope: '단체', members: [], label: '단체' },
+      owner: c.kind === 'NCT 단체' ? nctOwner : c.member ? { scope: '멤버', members: [c.member], label: c.member } : { scope: '단체', members: [], label: '단체' },
       from, to: c.to, eventIds, subtitle: c.subtitle,
     });
     added++;
@@ -87,6 +96,7 @@ const VERIFIED_VIDEOS: {
   fanmeetings: Record<string, string>;
   stages: Record<string, (VerifiedVideo & { program: string })[]>;
   related: Record<string, (VerifiedVideo & { group: string })[]>;
+  official?: Record<string, (VerifiedVideo & { group: string; members: string[] })[]>;
 } = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-activity-videos.json'), 'utf8'));
 const PROGRAMS: { names: string[] }[] = JSON.parse(readFileSync(join(ROOT, 'config', 'programs.json'), 'utf8')).programs;
 const OWN = new Set(GROUP.youtube.channels.filter((c) => !c.guest).map((c) => c.name));
@@ -268,7 +278,9 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       .filter((t) => /b-?day|birthday|생일/i.test(t)).map((t) => sq(t.replace(/^\s*\d{4}\s*/, ''))).filter((k) => k.length >= 8))];
     const bdayTo = new Date(Date.parse(act.to) + 120 * 864e5).toISOString().slice(0, 10);
     const fanmeetingTitle = sq(VERIFIED_VIDEOS.fanmeetings[act.id] ?? '');
+    const selectedVideos = cfg?.videoIds && new Set(cfg.videoIds);
     const vids = videos.filter((v) => {
+      if (selectedVideos) return selectedVideos.has(v.videoId) && !unavailableIds.has(v.videoId);
       const d = originalAirDate(v) ?? kstDate(v.publishedAt);
       if (d >= from && d <= videoTo && matches(v)) return true;
       if (fanmeetingTitle && OWN.has(v.channel) && !unavailableIds.has(v.videoId) && sq(v.title).includes(fanmeetingTitle)) return true;
@@ -277,7 +289,7 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     // 시리즈 채우기: EP.n 영상이 하나라도 붙었으면 같은 채널·같은 형식의 앞뒤 편도 (EP.2만 붙고 EP.1이 빠지는 일 방지)
     const seriesKey = (v: Video) => { const m = v.title.match(/^(.*?)\bEP\.?\s*\d+/i); return m ? `${v.channel}|${sq(m[1]).slice(0, 40)}|${sq(v.title.replace(/^.*?\bEP\.?\s*\d+/i, '')).length > 0 ? 'named' : ''}` : null; };
     const seriesKeys = new Set(vids.map(seriesKey).filter(Boolean));
-    const siblings = videos.filter((v) => {
+    const siblings = selectedVideos ? [] : videos.filter((v) => {
       const k = seriesKey(v);
       if (!k || !seriesKeys.has(k) || vids.includes(v)) return false;
       return vids.some((x) => seriesKey(x) === k && Math.abs(Date.parse(x.publishedAt) - Date.parse(v.publishedAt)) < 21 * 864e5);
@@ -299,8 +311,15 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       }) : [];
     const showcaseIds = new Set(showcaseVideos.map((v) => v.id));
     const ownVids = vids.filter((v) => OWN.has(v.channel) && !showcaseIds.has(v.videoId) && !/react|reaction|리액션/i.test(v.title));
-    const isOfficial = (v: Video) => isTrailer(v) || OFFICIAL_KINDS.includes(videoKind(v));
+    const verifiedOfficial = new Map((VERIFIED_VIDEOS.official?.[cfg?.id ?? act.id] ?? [])
+      .filter((v) => !unavailableIds.has(v.id)).map(({ group, members, ...v }) => [v.id, { ...verifiedVideo(v, members), group }]));
+    const isOfficial = (v: Video) => verifiedOfficial.has(v.videoId) || isTrailer(v) || OFFICIAL_KINDS.includes(videoKind(v));
     const official = ownVids.filter(isOfficial);
+    const officialVideos = [
+      ...verifiedOfficial.values(),
+      ...official.filter((v) => !verifiedOfficial.has(v.videoId)).map((v) => ({ ...toVid(v), group: isTrailer(v) ? 'MV·티저' : videoKind(v) })).reverse(),
+    ];
+    if (verifiedOfficial.size) officialVideos.sort((a, b) => b.date.localeCompare(a.date));
     const isShort = (v: Video) => SHORT_KINDS.includes(videoKind(v));
     const shorts = ownVids.filter((v) => !isOfficial(v) && isShort(v));
     const own = ownVids.filter((v) => !isOfficial(v) && !isShort(v));
@@ -394,6 +413,10 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       push(first((e) => Boolean(programName(e.title)) && (e.kind === '방송' || e.kind === '녹화')), '음방', '음악방송 활동');
       push(first((e) => /사인회|video\s*call|영상\s*통화/i.test(text(e))), '팬사인회');
     } else {
+      if (act.kind === 'NCT 단체') {
+        marks.push(cfg?.release ? { date: cfg.release, label: '발매', sub: '앨범 발매' }
+          : { date: act.from, label: '시작', sub: cfg?.subtitle ?? act.name });
+      }
       push(first((e) => e.kind === '판매' || /예매|티켓/.test(text(e))), '예매');
       for (const e of actEvents.filter((x) => x.kind === '행사' || x.kind === '방송' || x.kind === '발매')) {
         if (marks.length >= 7) break;
@@ -415,12 +438,12 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       return v ? `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg` : undefined;
     };
     pages.push({
-      thumb: pickThumb(),
+      thumb: officialVideos.find((v) => v.group === 'MV·티저' && verifiedOfficial.has(v.id))?.thumb ?? pickThumb() ?? officialVideos[0]?.thumb,
       id: act.id, kind: act.kind, title: cfg?.title ?? act.name, subtitle: cfg?.subtitle ?? act.subtitle, titleSong: cfg?.titleSong, release: cfg?.release,
       owner: act.owner, keys: act.keys, parts: act.parts, from: act.from, to: act.to,
       cover: cfg?.cover ?? KIND_COVER[act.kind] ?? { from: '#cccccc', to: '#1a1a1a', text: '#ffffff' },
       status: today < act.from ? '예정' : today > act.to ? '종료' : '활동 중',
-      counts: { official: official.length, stages: stageIds.size, fancams: fancamVids.length, own: ownVideos.length, shorts: shorts.length, outside: outside.length, events: actEvents.length },
+      counts: { official: officialVideos.length, stages: stageIds.size, fancams: fancamVids.length, own: ownVideos.length, shorts: shorts.length, outside: outside.length, events: actEvents.length },
       shorts: shorts.map((v) => ({ ...toVid(v), group: videoKind(v) === '챌린지' ? ('챌린지' as const) : ('멤버 쇼츠' as const) })).reverse(),
       timeline: marks,
       schedule: actEvents.filter((e) => e.audience === 'all').map((e) => ({ date: e.date, time: e.time, endDate: e.endDate, title: e.title, step: e.step, kind: e.kind, url: e.sources[0]?.url, group: scheduleGroupOf(e, act.parts) })),
@@ -438,7 +461,7 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       fancams,
       related,
       own: ownVideos,
-      official: official.map((v) => ({ ...toVid(v), group: isTrailer(v) ? 'MV·티저' : videoKind(v) })).reverse(),
+      official: officialVideos,
       outside: [...outside, ...outsideFromVideos].sort((a, b) => b.date.localeCompare(a.date)),
       news: articlesFor(act.keys, act.from, act.to),
     });
