@@ -2,6 +2,10 @@
   "showcases": {
     "2021-맛hotsauce": {"titleMatch":"7DREAM return! 7+맛=Show","date":"2021-05-11"}
   },
+  "fanmeetings": {
+    "2026-roommate": "2026 RENJUN&CHENLE FANMEETING [ROOMMATE]",
+    "2026-duality": "2026 NCT JNJM FANMEETING TOUR [DUALITY]"
+  },
   "stages": {
     "2025-taste": [
       {"id":"pDxS1loq9yQ","title":"CRZY - 해찬 [뮤직뱅크/Music Bank] | KBS 250912 방송","date":"2025-09-12","channel":"KBS Kpop","program":"뮤직뱅크"},

@@ -26,6 +26,7 @@ const schedGroups = groupNames
   })
   .sort((a, b) => Number(b.upcoming) - Number(a.upcoming) || a.items[0].date.localeCompare(b.items[0].date));
 const ownBy = (era.ownGroups ?? []).map((g) => ({ name: g, videos: era.own.filter((v) => v.group === g) }));
+const ownTitle = era.kind === '팬미팅' ? '팬미팅 영상' : '자체 콘텐츠';
 const shortGroups = ['챌린지', '멤버 쇼츠'].map((name) => ({ name, videos: (era.shorts ?? []).filter((v) => v.group === name) })).filter((g) => g.videos.length);
 // 영상 제목 정리: 그룹 이름·공통 해시태그는 떼고, 남은 해시태그(#EXO #KAI 등)는 낱말로
 // 공통 해시태그 = 그룹 이름·상위 그룹 이름·이 활동 키워드로 시작하는 태그 (#NCTDREAM, #NCTDREAM_BoogieWoogie, #BoogieWoogie …)
@@ -46,7 +47,7 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
   <nav class="crumbs wrap" aria-label="경로">
     <a href="/archive/">아카이브</a><span>/</span><span>{era.from.slice(0, 4)}</span><span>/</span><b>{era.title}</b>
     <div class="jump">
-      <a href="#timeline">타임라인</a><a href="#schedule">일정</a>{era.official.length > 0 && <a href="#official">공식 영상</a>}{showStages && <a href="#stages">음방 무대</a>}{relatedBy.length > 0 && <a href="#related">관련 영상</a>}{era.own.length > 0 && <a href="#own">자체 콘텐츠</a>}{(era.shorts ?? []).length > 0 && <a href="#shorts">쇼츠</a>}{era.outside.length > 0 && <a href="#outside">외부 콘텐츠</a>}{fanchants.length > 0 && <a href="#fanchant">응원법</a>}
+      <a href="#timeline">타임라인</a><a href="#schedule">일정</a>{era.official.length > 0 && <a href="#official">공식 영상</a>}{showStages && <a href="#stages">음방 무대</a>}{relatedBy.length > 0 && <a href="#related">관련 영상</a>}{era.own.length > 0 && <a href="#own">{ownTitle}</a>}{(era.shorts ?? []).length > 0 && <a href="#shorts">쇼츠</a>}{era.outside.length > 0 && <a href="#outside">외부 콘텐츠</a>}{fanchants.length > 0 && <a href="#fanchant">응원법</a>}
     </div>
   </nav>
   {(era.guide ?? []).length > 0 && <nav class="era-tabs wrap" aria-label="활동 보기">
@@ -223,8 +224,8 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
 
   {era.own.length > 0 && <section class="dark" id="own">
     <div class="wrap">
-      <p class="eyebrow">ORIGINAL</p>
-      <div class="section-head"><h2>자체 콘텐츠</h2><span class="note">{ownBy.map((g) => `${g.name} ${g.videos.length}`).join(' · ')}</span></div>
+      <p class="eyebrow">{era.kind === '팬미팅' ? 'FAN MEETING' : 'ORIGINAL'}</p>
+      <div class="section-head"><h2>{ownTitle}</h2><span class="note">{ownBy.map((g) => `${g.name} ${g.videos.length}`).join(' · ')}</span></div>
       <nav class="own-jump">{ownBy.map((g) => <a href={`#own-${g.name}`}>{g.name} <span>{g.videos.length}</span></a>)}</nav>
       {ownBy.map((g) => (
         <div class="own-group" id={`own-${g.name}`}>

@@ -84,6 +84,7 @@ const CONFIG: { eras: EraConfig[] } = JSON.parse(readFileSync(join(ROOT, 'config
 type VerifiedVideo = Pick<EraVideo, 'id' | 'title' | 'date' | 'channel'>;
 const VERIFIED_VIDEOS: {
   showcases: Record<string, { titleMatch: string; date: string }>;
+  fanmeetings: Record<string, string>;
   stages: Record<string, (VerifiedVideo & { program: string })[]>;
   related: Record<string, (VerifiedVideo & { group: string })[]>;
 } = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-activity-videos.json'), 'utf8'));
@@ -266,9 +267,11 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     const bdayKeys = [...new Set(act.eventIds.map((id) => byId.get(id)?.title ?? '').map((t) => t.normalize('NFKC').split(/[\[<〈《]/)[0])
       .filter((t) => /b-?day|birthday|생일/i.test(t)).map((t) => sq(t.replace(/^\s*\d{4}\s*/, ''))).filter((k) => k.length >= 8))];
     const bdayTo = new Date(Date.parse(act.to) + 120 * 864e5).toISOString().slice(0, 10);
+    const fanmeetingTitle = sq(VERIFIED_VIDEOS.fanmeetings[act.id] ?? '');
     const vids = videos.filter((v) => {
       const d = originalAirDate(v) ?? kstDate(v.publishedAt);
       if (d >= from && d <= videoTo && matches(v)) return true;
+      if (fanmeetingTitle && OWN.has(v.channel) && !unavailableIds.has(v.videoId) && sq(v.title).includes(fanmeetingTitle)) return true;
       return bdayKeys.length > 0 && d >= from && d <= bdayTo && bdayKeys.some((k) => sq(v.title).includes(k));
     }).sort((a, b) => a.publishedAt.localeCompare(b.publishedAt));
     // 시리즈 채우기: EP.n 영상이 하나라도 붙었으면 같은 채널·같은 형식의 앞뒤 편도 (EP.2만 붙고 EP.1이 빠지는 일 방지)
@@ -301,7 +304,12 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     const isShort = (v: Video) => SHORT_KINDS.includes(videoKind(v));
     const shorts = ownVids.filter((v) => !isOfficial(v) && isShort(v));
     const own = ownVids.filter((v) => !isOfficial(v) && !isShort(v));
-    const ownVideos = [...showcaseVideos, ...own.map((v) => ({ ...toVid(v), group: ownGroupOf(v.title, v.duration) })).reverse()];
+    const ownVideos = [...showcaseVideos, ...own.map((v) => {
+      const kind = ownGroupOf(v.title, v.duration);
+      const eventBehind = act.kind === '팬미팅' && (kind === '비하인드' ||
+        (kind === '자컨 시리즈' && fanmeetingTitle && sq(v.title).includes(fanmeetingTitle)));
+      return { ...toVid(v), group: eventBehind ? '팬미팅 비하인드' : kind };
+    }).reverse()];
     const isBroadcaster = (ch: string) => BROADCASTERS.has(ch);
     const allStage = vids.filter((v) => isBroadcaster(v.channel) && !STAGE_MIX_RE.test(v.title) && !/🔴|라이브\]|LIVE\s*[|ㅣ]/i.test(v.title)
       && (STAGE_RE.test(v.title) || (programName(v.channel) && /\|\s*SBS\s+\d{6}\s+방송\s*$/i.test(v.title))));
@@ -425,7 +433,7 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
         return [...actEvents, ...loose].map(guideOf).filter((g): g is GuideItem => g !== null)
           .sort((a, b) => `${a.due} ${a.dueTime ?? '99'}`.localeCompare(`${b.due} ${b.dueTime ?? '99'}`));
       })(),
-      ownGroups: [...SHOWCASE_GROUPS.map(([group]) => group), ...OWN_ORDER].filter((g) => ownVideos.some((v) => v.group === g)),
+      ownGroups: [...SHOWCASE_GROUPS.map(([group]) => group), '팬미팅 비하인드', ...OWN_ORDER].filter((g) => ownVideos.some((v) => v.group === g)),
       stages: [...byProg.entries()].map(([program, videos]) => ({ program, videos })),
       fancams,
       related,

@@ -63,6 +63,7 @@ const youtubeId = (url: string) => url.match(/^https?:\/\/(?:www\.|m\.)?(?:youtu
 const sourceKey = (url: string) => youtubeId(url) ?? normUrl(url);
 const TRACK_VIDEO_RE = /\btrack\s*video\b|트랙\s*비디오/i;
 const PROMO_VIDEO_RE = /\b(?:trailer|teaser)\b|트레일러|티저/i;
+const FANMEETING_RE = /\bfan\s*meeting\b|팬\s*미팅/i;
 const NCT_PROJECTS: [string, RegExp][] = [
   ['THE NCT SHOW', /\bTHE NCT SHOW\b/i],
   ['NCT NATION', /\bNCT NATION\b/i],
@@ -158,7 +159,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     const name = key.startsWith('cfg:') ? fam.name : seasons.length > 1 ? seasons.slice().sort((a, b) => b.videos.length - a.videos.length)[0].name : fam.name;
     const r = range(all.map((v) => kst(v.publishedAt)));
     const latest = all.slice().sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
-    const type = all.some(nctProjectOf) ? 'NCT 단체' : '자체 콘텐츠 시리즈';
+    const type = FANMEETING_RE.test(name) ? '종류별 모아보기' : all.some(nctProjectOf) ? 'NCT 단체' : '자체 콘텐츠 시리즈';
     pages.push({ id: `s-${slug(name)}`, type, name, count: all.length, ...r, thumb: `https://i.ytimg.com/vi/${latest.videoId}/mqdefault.jpg`, members: [], seasons });
   }
 
