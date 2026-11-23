@@ -37,12 +37,19 @@ export interface SeriesPage {
   activities?: { id: string; title: string; kind: string; owner: string; from: string; to: string; cover: EraPage['cover']; thumb?: string }[];
 }
 
-interface SeriesGroup { id: string; name: string; match: string[]; singleSeason?: boolean; channels?: string[]; videoIds?: string[] }
+interface SeriesGroup {
+  id: string; name: string; match: string[]; singleSeason?: boolean; channels?: string[]; videoIds?: string[];
+  type?: '종류별 모아보기' | '광고';
+  shortEpisodes?: boolean;
+  seasons?: { name: string; videoIds: string[] }[];
+}
 const CONFIG: { seriesGroups?: SeriesGroup[] } = JSON.parse(readFileSync(join(ROOT, 'config', 'tags.json'), 'utf8'));
 // 공식 업로드로 확인한 영상. 제목에 'Cover'가 없거나 제작사 채널이 수집 목록에 없어도 모아보기에 연결한다.
 const VERIFIED = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-series-videos.json'), 'utf8')) as {
   covers: string[];
+  standalone: string[];
 };
+const STANDALONE_VIDEOS = new Set(VERIFIED.standalone);
 const MEMBER_RECORDS = JSON.parse(readFileSync(join(ROOT, 'config', 'member-records.json'), 'utf8')) as
   { id: string; name: string; type?: '라디오'; records: Omit<SeriesEpisode, 'time'>[] }[];
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'config', 'series-catalog.json'), 'utf8')) as {
@@ -119,30 +126,33 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     const group = groups.find((g) => g.videoIds?.includes(v.videoId) ||
       ((!g.channels || g.channels.includes(v.channel)) && g.match.some((key) => title.includes(key))));
     if (group) configuredByVideo.set(v.videoId, group);
-    return Boolean(group) || v.channel === GROUP.name ||
+    return Boolean(group) || STANDALONE_VIDEOS.has(v.videoId) || v.channel === GROUP.name ||
       (isDreamRelated(`${v.title}\n${v.description ?? ''}`) && !/react|리액션/i.test(v.title));
   });
   const musicVideos = new Map(own.filter((v) => {
     const title = v.title.normalize('NFKC');
     const kind = seriesVideoKind(v);
-    return kind === 'MV·티저' || (kind !== '비하인드' && PROMO_VIDEO_RE.test(title) && !/촬영\s*현장/.test(title));
+    const countdown = /\bD-\d+\s*$/i.test(title) && (v.duration ?? Infinity) <= 60;
+    return kind === 'MV·티저' || (kind !== '비하인드' && (countdown || PROMO_VIDEO_RE.test(title)) && !/촬영\s*현장/.test(title));
   }).map((v) => [v.videoId, v]));
   const trackVideos = new Map(own.filter((v) => TRACK_VIDEO_RE.test(v.title) && videoKind(v) === '퍼포먼스')
     .map((v) => [v.videoId, v]));
-  const shortVideos = new Map(own.filter((v) => v.channel === GROUP.name || configuredByVideo.has(v.videoId))
+  const shortVideos = new Map(own.filter((v) => v.channel === GROUP.name || configuredByVideo.has(v.videoId) || STANDALONE_VIDEOS.has(v.videoId))
     .filter((v) => !trackVideos.has(v.videoId) && !musicVideos.has(v.videoId)
-      && (/#(?:shorts?\b|쇼츠)/i.test(v.title) || ['쇼츠', '챌린지'].includes(videoKind(v))))
+      && (/#(?:shorts?\b|쇼츠)/i.test(v.title) ||
+        (!configuredByVideo.get(v.videoId)?.shortEpisodes && ['쇼츠', '챌린지'].includes(videoKind(v)))))
     .map((v) => [v.videoId, v]));
   const seriesVideos = own.filter((v) => !trackVideos.has(v.videoId) && !musicVideos.has(v.videoId) && !shortVideos.has(v.videoId));
   const pages: SeriesPage[] = [];
   const videoById = new Map(videos.map((v) => [v.videoId, v]));
 
   // 1) 자체 콘텐츠 시리즈
-  const byFamily = new Map<string, { name: string; seasons: Map<string, Video[]> }>();
+  const byFamily = new Map<string, { name: string; type?: SeriesGroup['type']; seasons: Map<string, Video[]> }>();
   for (const v of seriesVideos) {
     // 설정 묶음은 제목 전체에서 찾는다 (회차 표시가 없는 "[Dream VS Dream] …"도)
     const cfg = configuredByVideo.get(v.videoId);
-    const s = cfg?.singleSeason ? cfg.name : seriesName(v.title) ?? cfg?.name;
+    const configuredSeason = cfg?.seasons?.find((season) => season.videoIds.includes(v.videoId))?.name;
+    const s = configuredSeason ?? (cfg?.singleSeason ? cfg.name : seriesName(v.title) ?? cfg?.name);
     if (!s || (!cfg && /NCT\s*DREAM|엔시티/i.test(s))) continue;
     if (!cfg && /^(?:\[.+?\]\s*)?TODAY[!:]/i.test(s) && /#shorts?\b/i.test(v.title)) continue;
     // 시즌 표시를 뗀 이름이 같으면 한 시리즈의 시즌 (천지의 이것저것 / 시즌2 / 시즌3)
@@ -151,7 +161,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     const root = sq(base.split(/\s+/)[0]);
     //   첫 단어가 연도·숫자("2026 NCT JNJM …" / "2026 RENJUN&CHENLE …")면 다른 시리즈라서 쓰지 않는다
     const famKey = cfg ? `cfg:${cfg.id}` : root.length >= 4 && !/^\d+$/.test(root) ? `root:${root}` : `name:${sq(base)}`;
-    const fam = byFamily.get(famKey) ?? { name: cfg?.name ?? base, seasons: new Map() };
+    const fam = byFamily.get(famKey) ?? { name: cfg?.name ?? base, type: cfg?.type, seasons: new Map() };
     fam.seasons.set(s, [...(fam.seasons.get(s) ?? []), v]);
     byFamily.set(famKey, fam);
   }
@@ -171,7 +181,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     const name = key.startsWith('cfg:') ? fam.name : seasons.length > 1 ? seasons.slice().sort((a, b) => b.videos.length - a.videos.length)[0].name : fam.name;
     const r = range(all.map((v) => kst(v.publishedAt)));
     const latest = all.slice().sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
-    const type = FANMEETING_RE.test(name) ? '종류별 모아보기' : all.some(nctProjectOf) ? 'NCT 단체' : '자체 콘텐츠 시리즈';
+    const type = fam.type ?? (FANMEETING_RE.test(name) ? '종류별 모아보기' : all.some(nctProjectOf) ? 'NCT 단체' : '자체 콘텐츠 시리즈');
     pages.push({ id: `s-${slug(name)}`, type, name, count: all.length, ...r, thumb: `https://i.ytimg.com/vi/${latest.videoId}/mqdefault.jpg`, members: [], seasons });
   }
 
@@ -227,7 +237,8 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     addVideoCollection(name, clips, [], `nct-${slug(name)}`, 'NCT 단체');
   }
   const grouped = new Set(pages.flatMap((page) => page.seasons.flatMap((season) => season.videos.map((v) => v.id))));
-  const ungrouped = [...videoById.values()].filter((v) => v.channel === GROUP.name && !grouped.has(v.videoId));
+  const ungrouped = [...videoById.values()].filter((v) =>
+    (v.channel === GROUP.name || STANDALONE_VIDEOS.has(v.videoId)) && !grouped.has(v.videoId));
   const kinds = new Map(ungrouped.map((v) => [v.videoId, seriesVideoKind(v)]));
   for (const { id, name, kinds: includedKinds } of CHANNEL_COLLECTIONS) {
     const list = ungrouped.filter((v) => includedKinds.includes(kinds.get(v.videoId)!)).map(toVid);

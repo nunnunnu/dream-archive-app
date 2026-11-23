@@ -307,6 +307,135 @@
       "videoIds": ["KPLuZcer5p8"]
     },
     {
+      "id": "chenle-ai-cook",
+      "name": "천러의 AI요리사",
+      "match": ["천러의 AI요리사"],
+      "singleSeason": true
+    },
+    {
+      "id": "jnjm-side-by-side",
+      "name": "Side By Side",
+      "match": [],
+      "videoIds": ["hGrY1Yij6uE"],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-mate",
+      "name": "NCT SCHOOL DREAM MATE",
+      "match": ["NCT SCHOOL DREAM MATE"],
+      "shortEpisodes": true,
+      "singleSeason": true
+    },
+    {
+      "id": "dream-minigame",
+      "name": "드림 미니게임",
+      "match": ["드림 미니게임","NCT DREAM mini game"],
+      "seasons": [{"name":"크리스마스","videoIds":["W_jDi2Jsrms","t7aqEeZvpzY"]},{"name":"여름 맞이","videoIds":["KOI-W_x-KLM","mwm1AK1yQ3Q","JjSUdwUy7uE"]}],
+      "singleSeason": true
+    },
+    {
+      "id": "dream-danang",
+      "name": "NCT DREAM in Đà Nẵng",
+      "match": ["NCT DREAM in Đà Nẵng"],
+      "singleSeason": true
+    },
+    {
+      "id": "snow-dream",
+      "name": "SNOW DREAM",
+      "match": ["SNOW DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "nana-log",
+      "name": "NANA LOG",
+      "match": ["NANA LOG"],
+      "channels": ["NCT","NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "save-nct-dream",
+      "name": "나를 구해줘: SAVE NCT DREAM",
+      "match": ["SAVE NCT DREAM"],
+      "singleSeason": true
+    },
+    {
+      "id": "nana-mystery-kitchen",
+      "name": "NANA’s Mystery Kitchen",
+      "match": ["NANA’s Mystery Kitchen"],
+      "singleSeason": true
+    },
+    {
+      "id": "nana-birthday",
+      "name": "나나 왕자님의 생일파티",
+      "match": ["나나 왕자님의 생일파티"],
+      "type": "종류별 모아보기",
+      "singleSeason": true
+    },
+    {
+      "id": "jaemin-jeno-riding",
+      "name": "재민·제노 라이딩",
+      "match": [],
+      "videoIds": ["etz2HACj72E","wj-sYxIfWp8"],
+      "singleSeason": true
+    },
+    {
+      "id": "winter-dream",
+      "name": "WINTER DREAM 팬미팅",
+      "match": [],
+      "videoIds": ["ZLo1Ngap060"],
+      "type": "종류별 모아보기",
+      "singleSeason": true
+    },
+    {
+      "id": "drector",
+      "name": "D[●REC]TOR",
+      "match": ["D[●REC]TOR"],
+      "type": "종류별 모아보기",
+      "singleSeason": true
+    },
+    {
+      "id": "dream-malaysia",
+      "name": "NCT DREAM in Malaysia",
+      "match": ["NCT DREAM in Malaysia"],
+      "singleSeason": true
+    },
+    {
+      "id": "candylab",
+      "name": "캔디랩",
+      "match": [],
+      "videoIds": ["ZQ6dgl7Hj4M"],
+      "type": "광고",
+      "singleSeason": true
+    },
+    {
+      "id": "renjun-birthday-video",
+      "name": "런쥔이를 위한 생일파티",
+      "match": ["런쥔이를 위한 생일파티"],
+      "type": "종류별 모아보기",
+      "singleSeason": true
+    },
+    {
+      "id": "jsmr",
+      "name": "JSMR",
+      "match": ["J💚SMR","R💚JSMR"],
+      "channels": ["NCT DAILY","NCT DREAM","NCT"],
+      "singleSeason": true
+    },
+    {
+      "id": "nana-joyful-day",
+      "name": "나나의 소소한 하루",
+      "match": ["나나의 소소한 하루","Nana's Joyful Day"],
+      "singleSeason": true
+    },
+    {
+      "id": "ferragamo",
+      "name": "페라가모",
+      "match": [],
+      "videoIds": ["ltsEwkBXse0"],
+      "type": "광고",
+      "singleSeason": true
+    },
+    {
       "id": "awsaz",
       "name": "어색하지만 괜찮아",
       "match": ["어색하지만 괜찮아", "AWSAZ"]
