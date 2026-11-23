@@ -1,46 +1,25 @@
 ---
 import Base from '../../layouts/Base.astro';
-import { loadPublic, ymd, type EraSummary, type SeriesSummary } from '../../lib/data';
+import { loadPublic, type EraSummary, type SeriesSummary } from '../../lib/data';
+import { categoryHref, SERIES_CATEGORIES, seriesCategoryCards } from '../../lib/series-categories';
 import '../../styles/series.css';
 
 const [{ series }, { eras }] = await Promise.all([
   loadPublic<{ series: SeriesSummary[] }>(Astro.locals, 'series.json', { series: [] }),
   loadPublic<{ eras: EraSummary[] }>(Astro.locals, 'eras.json', { eras: [] }),
 ]);
-const cards = (types: string[]) => series.filter((s) => types.includes(s.type)).map((s) => ({
-  name: s.name, href: `/series/${s.id}/`, thumb: s.thumb,
-  meta: `${s.count}${s.type === '반복 활동' ? '개 활동' : s.type === '광고' || s.type === '라디오' || s.type === '외부활동' ? '건' : '편'} · ${ymd(s.to).slice(0, 7)}`,
-}));
-const sections = [
-  { id: 'external', name: '외부활동', cards: cards(['외부활동', '고정 출연']) },
-  { id: 'drama', name: '드라마', cards: eras.filter((e) => e.kind === '드라마').sort((a, b) => b.from.localeCompare(a.from)).map((e) => ({
-    name: e.title, href: `/archive/${e.id}/`, thumb: e.thumb, meta: `${e.owner.label} · ${ymd(e.from).slice(0, 7)}`,
-  })) },
-  { id: 'ads', name: '광고', cards: cards(['광고']) },
-  { id: 'radio', name: '라디오', cards: cards(['라디오']) },
-  { id: 'originals', name: '자체 콘텐츠', cards: cards(['자체 콘텐츠 시리즈']) },
-  { id: 'collections', name: '종류별 모아보기', cards: cards(['종류별 모아보기']) },
-  { id: 'recurring', name: '반복 활동', cards: cards(['반복 활동']) },
-].filter((section) => section.cards.length > 0);
+const sections = SERIES_CATEGORIES.map((category) => ({ ...category, cards: seriesCategoryCards(category, series, eras) }))
+  .filter(({ cards }) => cards.length > 0);
 ---
 <Base title="시리즈" current="series">
   <main class="wrap series-index">
     <h1>시리즈</h1>
-    <nav class="series-nav" aria-label="시리즈 분류">
-      {sections.map(({ id, name }) => <a href={`#${id}`}>{name}</a>)}
+    <nav class="series-category-grid" aria-label="시리즈 분류">
+      {sections.map(({ id, name, cards }) => (
+        <a id={id} class="card series-category-card" href={categoryHref(id)}>
+          <b>{name}</b><small>{cards.length}개 묶음</small><span aria-hidden="true">→</span>
+        </a>
+      ))}
     </nav>
-    {sections.map(({ id, name, cards }) => (
-      <section id={id} class="series-section">
-        <div class="section-head"><h2>{name}</h2></div>
-        <div class="series-grid">
-          {cards.map((card) => (
-            <a class="card series-card" href={card.href}>
-              <span class="poster">{card.thumb ? <img src={card.thumb} alt="" loading="lazy" /> : <em>{card.name}</em>}</span>
-              <span class="sc-body">{card.thumb && <b>{card.name}</b>}<small>{card.meta}</small></span>
-            </a>
-          ))}
-        </div>
-      </section>
-    ))}
   </main>
 </Base>

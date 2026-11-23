@@ -1,9 +1,10 @@
 /* 시리즈 */
 .series-index h1 { margin: 0 0 14px; font-size: clamp(28px, 5vw, 40px); letter-spacing: -0.04em; }
-.series-nav { display: flex; flex-wrap: wrap; gap: 8px; }
-.series-nav a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; text-decoration: none; font-size: 13px; font-weight: 700; }
-.series-nav a:hover, .series-nav a:focus-visible { background: var(--dark); color: #fff; }
-.series-section { margin-top: 34px; scroll-margin-top: 80px; }
+.series-category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px; }
+.series-category-card { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 16px; text-decoration: none; scroll-margin-top: 80px; }
+.series-category-card:hover, .series-category-card:focus-visible { border-color: var(--text); }
+.series-category-card small { grid-column: 1; color: var(--sub); }
+.series-category-card span { grid-column: 2; grid-row: 1 / 3; }
 .series-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 8px; }
 .series-card { text-decoration: none; overflow: hidden; display: flex; flex-direction: column; }
 .series-card .poster { aspect-ratio: 16 / 9; background: linear-gradient(160deg, #2b2b2b, #111); display: flex; align-items: flex-end; overflow: hidden; }

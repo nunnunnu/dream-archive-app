@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Activity } from './activities.ts';
 import type { PublicEvent } from './consolidate.ts';
-import type { EraPage } from './eras.ts';
+import { videoKind, type EraPage, type VideoKind } from './eras.ts';
 import { GROUP } from './group.ts';
 import { isDreamRelated } from './news.ts';
 import { normUrl, type NewsHide } from './newsHide.ts';
@@ -39,7 +39,7 @@ export interface SeriesPage {
 const CONFIG: { seriesGroups?: { id: string; name: string; match: string[] }[] } = JSON.parse(readFileSync(join(ROOT, 'config', 'tags.json'), 'utf8'));
 // 공식 업로드로 확인한 영상. 제목에 'Cover'가 없거나 제작사 채널이 수집 목록에 없어도 모아보기에 연결한다.
 const VERIFIED = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-series-videos.json'), 'utf8')) as {
-  covers: string[]; appearances: string[];
+  covers: string[];
 };
 const MEMBER_RECORDS = JSON.parse(readFileSync(join(ROOT, 'config', 'member-records.json'), 'utf8')) as
   { id: string; name: string; type?: '라디오'; records: Omit<SeriesEpisode, 'time'>[] }[];
@@ -70,10 +70,19 @@ const COLLECTIONS: [string, RegExp][] = [
   ['Live Clip', /live\s*clip/i],
   ['응원법', /응원법|cheering\s*guide/i],
 ];
+const CHANNEL_COLLECTIONS: { id: string; name: string; kinds: VideoKind[] }[] = [
+  { id: 'channel-music', name: '뮤직비디오·티저', kinds: ['MV·티저'] },
+  { id: 'channel-performance', name: '퍼포먼스 영상', kinds: ['퍼포먼스'] },
+  { id: 'channel-behind', name: '비하인드·리액션', kinds: ['비하인드'] },
+  { id: 'channel-live', name: '라이브', kinds: ['라이브'] },
+  { id: 'channel-shorts', name: '쇼츠·챌린지', kinds: ['쇼츠', '챌린지'] },
+  { id: 'channel-other', name: '기타 채널 영상', kinds: ['기타', '자컨 시리즈', '응원법'] },
+];
 
 export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activity[], eras: EraPage[], feed: FeedItem[] = [], hidden: NewsHide[] = [], unavailableIds: ReadonlySet<string> = new Set()): SeriesPage[] {
   // 공식 채널 영상은 수집할 때 이미 드림 관련(제목·설명 해시태그)만 받았다 → 제목에 이름이 없어도(천지의 이것저것 등) 시리즈에 쓴다
-  const own = videos.filter((v) => OWN.has(v.channel) && (v.channel === GROUP.name || isDreamRelated(`${v.title}\n${v.description ?? ''}`)) && !/react|리액션/i.test(v.title));
+  const own = videos.filter((v) => OWN.has(v.channel) && (v.channel === GROUP.name ||
+    (isDreamRelated(`${v.title}\n${v.description ?? ''}`) && !/react|리액션/i.test(v.title))));
   const pages: SeriesPage[] = [];
   const videoById = new Map(videos.map((v) => [v.videoId, v]));
 
@@ -116,7 +125,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   }
 
   // 2) 종류별 모아보기 (연도별로 나눠 보여 준다)
-  const addVideoCollection = (name: string, videos: SeriesVideo[], members: string[] = []) => {
+  const addVideoCollection = (name: string, videos: SeriesVideo[], members: string[] = [], id = `c-${slug(name)}`, type: SeriesPage['type'] = '종류별 모아보기') => {
     if (!videos.length) return;
     const byYear = new Map<string, SeriesVideo[]>();
     for (const v of videos) {
@@ -125,7 +134,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     }
     const sorted = sortVids(videos).reverse();
     pages.push({
-      id: `c-${slug(name)}`, type: '종류별 모아보기', name, count: sorted.length,
+      id, type, name, count: sorted.length,
       ...range(sorted.map((v) => v.date)), thumb: sorted[0].thumb, members,
       seasons: [...byYear.entries()].sort(([a], [b]) => b.localeCompare(a))
         .map(([year, group]) => ({ name: `${year}년`, videos: sortVids(group).reverse() })),
@@ -142,24 +151,14 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     addVideoCollection(name, clips, name === 'Cover' ? [...new Set(clips.flatMap((clip) => clip.members))] : []);
   }
 
-  const soloReleaseVideoIds = new Set(eras.filter((era) => era.kind === '컴백' && era.owner.scope === '멤버')
-    .flatMap((era) => [...era.official, ...era.stages.flatMap((stage) => stage.videos)].map((v) => v.id)));
-  const appearanceIds = new Set(VERIFIED.appearances.filter((id) => !soloReleaseVideoIds.has(id)));
-  const appearances = new Map<string, SeriesVideo>();
-  for (const event of events) for (const source of event.sources) {
-    const id = source.url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/)?.[1];
-    if (!id || !appearanceIds.has(id) || appearances.has(id) || !event.members.length) continue;
-    appearances.set(id, {
-      id, title: `${event.title} · ${event.step}`, url: source.url, thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
-      date: event.date, ep: event.episode ?? null, members: event.members,
-    });
+  // 고유 시리즈나 종류별 모아보기에 들어가지 않은 공식 채널 영상도 유형과 연도별로 볼 수 있다.
+  const grouped = new Set(pages.flatMap((page) => page.seasons.flatMap((season) => season.videos.map((v) => v.id))));
+  const ungrouped = [...videoById.values()].filter((v) => v.channel === GROUP.name && !grouped.has(v.videoId));
+  const kinds = new Map(ungrouped.map((v) => [v.videoId, videoKind(v)]));
+  for (const { id, name, kinds: includedKinds } of CHANNEL_COLLECTIONS) {
+    const list = ungrouped.filter((v) => includedKinds.includes(kinds.get(v.videoId)!)).map(toVid);
+    addVideoCollection(name, list, [], id, '자체 콘텐츠 시리즈');
   }
-  for (const id of appearanceIds) {
-    const v = videoById.get(id);
-    if (v && !appearances.has(id)) appearances.set(id, toVid(v));
-  }
-  const appearanceClips = [...appearances.values()];
-  addVideoCollection('멤버 공식 영상', appearanceClips, [...new Set(appearanceClips.flatMap((clip) => clip.members))]);
   for (const { id, name, type = '종류별 모아보기', records } of MEMBER_RECORDS) {
     const episodes = records.map((record) => ({ ...record, time: null })).sort((a, b) => b.date.localeCompare(a.date));
     pages.push({
