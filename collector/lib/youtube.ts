@@ -11,6 +11,7 @@ import { isHidden, mentionedMembers, type Who } from './members.ts';
 import { isDreamRelated } from './news.ts';
 import { readJson, writeJson } from './store.ts';
 import { sleep, toKstParts } from './time.ts';
+import { EXCLUDED_VIDEO_IDS, isExcludedVideo, verifiedVideoMembers } from './videoParticipation.ts';
 
 export interface Channel {
   id: string;
@@ -128,7 +129,8 @@ export async function fetchChannel(channel: Channel, pages = 1): Promise<RawVide
   const apiKey = process.env.YOUTUBE_API_KEY;
   const list = apiKey ? await fetchViaApi(channel, apiKey, pages) : await fetchViaRss(channel);
   // 여러 그룹이 올라오는 채널(NCT·NCT DAILY·SMTOWN 등)은 제목이나 설명(유닛 해시태그 #NCTDREAM 등)에 드림·멤버가 있는 것만
-  return list.filter((v) => v.videoId && !isHidden(v.title) && (!channel.filter || isDreamRelated(`${v.title}\n${v.description ?? ''}`)));
+  return list.filter((v) => v.videoId && !isExcludedVideo(v) && !isHidden(v.title) &&
+    (!channel.filter || isDreamRelated(`${v.title}\n${v.description ?? ''}`)));
 }
 
 const monthFile = (iso: string) => monthOf(iso);
@@ -137,7 +139,7 @@ const monthFile = (iso: string) => monthOf(iso);
 const OFFICIAL_NAMES = new Set(YOUTUBE_CHANNELS.filter((c) => !c.guest).map((c) => c.name));
 
 export async function storeVideos(list: Video[]): Promise<Video[]> {
-  list = list.map((v) => (OFFICIAL_NAMES.has(v.channel) && v.guest ? { ...v, guest: false } : v));
+  list = list.filter((v) => !isExcludedVideo(v)).map((v) => (OFFICIAL_NAMES.has(v.channel) && v.guest ? { ...v, guest: false } : v));
   const byFile = new Map<string, Video[]>();
   for (const v of list) byFile.set(monthFile(v.publishedAt), [...(byFile.get(monthFile(v.publishedAt)) ?? []), v]);
   const added: Video[] = [];
@@ -235,7 +237,8 @@ export async function loadRecentVideos(now: Date, months = 3): Promise<Video[]> 
     while (m < 1) { m += 12; y -= 1; }
     out.push(...Object.values(await readVideoMonth(`${y}-${String(m).padStart(2, '0')}`)));
   }
-  return out.filter((v) => !isHidden(v.title) && !v.unavailableAt).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+  return out.filter((v) => !isExcludedVideo(v) && !isHidden(v.title) && !v.unavailableAt)
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
 
 // ── 출연 탐색: 다른 채널(예능·웹예능·라디오 등)에 나온 영상 찾기 ──────────────
@@ -520,10 +523,12 @@ export async function checkAvailability(repo: { getState<T>(k: string, f: T): Pr
   return { checked, gone, back };
 }
 
-/** 볼 수 없는 영상 ID (일정 출처에서 빼려고) */
+/** 비공개·삭제 또는 사이트에서 제외한 영상 ID (일정·소식·기획 묶음에서 사용) */
 export async function unavailableVideoIds(): Promise<Set<string>> {
-  const out = new Set<string>();
-  for (const ym of await videoMonths()) for (const v of Object.values(await readVideoMonth(ym))) if (v.unavailableAt) out.add(v.videoId);
+  const out = new Set(EXCLUDED_VIDEO_IDS);
+  for (const ym of await videoMonths()) for (const v of Object.values(await readVideoMonth(ym))) {
+    if (v.unavailableAt || isExcludedVideo(v)) out.add(v.videoId);
+  }
   return out;
 }
 
@@ -531,7 +536,9 @@ export async function unavailableVideoIds(): Promise<Set<string>> {
  * 영상에 나오는 멤버: 제목 + 설명(해시태그 #CHENLE #JISUNG 등)으로 정한다. 제목에 이름이 없는 자컨(천지의 이것저것 등)도 잡히게.
  * 다섯 명 이상이면 단체 영상이라 멤버 전원.
  */
-export function videoMembers(v: { title: string; description?: string; who: Who }): string[] {
+export function videoMembers(v: { videoId?: string; title: string; description?: string; who: Who }): string[] {
+  const verified = verifiedVideoMembers(v);
+  if (verified) return verified;
   const found = mentionedMembers(`${v.title}\n${(v.description ?? '').slice(0, 800)}`).members;
   if (found.length >= 5 || (found.length === 0 && v.who.scope === '단체')) return GROUP.members.map((m) => m.name);
   return found.length ? found : v.who.members;

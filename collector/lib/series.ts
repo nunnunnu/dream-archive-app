@@ -62,7 +62,10 @@ const range = (dates: string[]) => { const s = [...dates].sort(); return { from:
 const youtubeId = (url: string) => url.match(/^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})(?=$|[?&#/])/i)?.[1];
 const sourceKey = (url: string) => youtubeId(url) ?? normUrl(url);
 const TRACK_VIDEO_RE = /\btrack\s*video\b|트랙\s*비디오/i;
-const PROMO_VIDEO_RE = /\b(?:trailer|teaser)\b|트레일러|티저/i;
+const PROMO_VIDEO_RE = /\b(?:trailer|teaser|preview|sneak\s*peek)\b|트레일러|티저|프리뷰|예고(?:편|\s*영상)/i;
+const DANCE_PRACTICE_RE = /\b(?:dance|performance|choreography)\s+(?:practice|rehearsal)\b|\bchoreography\s+video\b|(?:안무|댄스)\s*(?:연습|리허설|영상)/i;
+const STAGE_VIDEO_RE = /\b(?:stage clip|performance stage|NCT DREAM THE STAGE|DREAM STAGE\s*:\s*GLITCH MODE)\b/i;
+const EVENT_BEHIND_RE = /\bVCR\s+Shooting\b|\bDREAM PIECE\b.*\b(?:REHEARSAL|D-DAY)\b/i;
 const FANMEETING_RE = /\bfan\s*meeting\b|팬\s*미팅/i;
 const NCT_PROJECTS: [string, RegExp][] = [
   ['THE NCT SHOW', /\bTHE NCT SHOW\b/i],
@@ -77,16 +80,24 @@ const NCT_PROJECTS: [string, RegExp][] = [
   ['NCT in CHILE', /\bNCT\s+in\s+CHILE\b/i],
   ['어색하지만 괜찮아', /어색하지만\s*괜찮아|\bAWSAZ\b/i],
   ['QUESTION BUCKET', /\bQUESTION BUCKET\b/i],
+  ['성쇼 오늘 무해?!', /성쇼\s*오늘\s*무해/i],
 ];
 const nctProjectOf = (v: Video) => NCT_PROJECTS.find(([, re]) => re.test(v.title))?.[0];
+const seriesVideoKind = (v: Video): VideoKind => {
+  const title = v.title.normalize('NFKC');
+  const kind = videoKind(v);
+  if (kind === '비하인드' || EVENT_BEHIND_RE.test(title)) return '비하인드';
+  if (STAGE_VIDEO_RE.test(title) && !PROMO_VIDEO_RE.test(title)) return '퍼포먼스';
+  return kind;
+};
 
 const COLLECTIONS: [string, RegExp][] = [
   ['MV·자켓 비하인드', /behind the scenes|비하인드|making film|jacket/i],
-  ['Dance Practice', /dance\s*practice/i],
+  ['Dance Practice', DANCE_PRACTICE_RE],
   ['Recording Behind', /recording\s*behind|recording\s*diary|녹음\s*비하인드/i],
   // 커버: "Cover | RENJUN - …", "'Soda Pop' Cover Stage", "YOUTH Cover Behind", "커버" (album cover·Undercover 는 아님)
   // 커버 비하인드는 커버가 아니라 비하인드 (MV·자켓 비하인드 쪽)
-  ['Cover', /^(?!.*album\s*cover)(?!.*cover\s*behind)(?:.*(?:^|[|｜]\s*)cover\s*[|｜:]|.*[)'’"]\s*cover\b|.*\bcover\s*(?:stage|ver)|.*커버)/i],
+  ['Cover', /^(?!.*album\s*cover)(?!.*cover\s*behind)(?:.*(?:^|[|｜]\s*)cover\s*[|｜:]|.*[)'’"]\s*cover\b|.*\bcover\s*(?:stage|ver)|.*\bdance\s+cover\b|.*커버)/i],
   ['Live Clip', /live\s*clip/i],
   ['응원법', /응원법|cheering\s*guide/i],
 ];
@@ -112,8 +123,9 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
       (isDreamRelated(`${v.title}\n${v.description ?? ''}`) && !/react|리액션/i.test(v.title));
   });
   const musicVideos = new Map(own.filter((v) => {
-    const kind = videoKind(v);
-    return kind === 'MV·티저' || (kind !== '비하인드' && PROMO_VIDEO_RE.test(v.title) && !/촬영\s*현장/.test(v.title));
+    const title = v.title.normalize('NFKC');
+    const kind = seriesVideoKind(v);
+    return kind === 'MV·티저' || (kind !== '비하인드' && PROMO_VIDEO_RE.test(title) && !/촬영\s*현장/.test(title));
   }).map((v) => [v.videoId, v]));
   const trackVideos = new Map(own.filter((v) => TRACK_VIDEO_RE.test(v.title) && videoKind(v) === '퍼포먼스')
     .map((v) => [v.videoId, v]));
@@ -180,7 +192,8 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     });
   };
   for (const [name, re] of COLLECTIONS) {
-    const list = new Map(seriesVideos.filter((v) => re.test(v.title)).map((v) => [v.videoId, v]));
+    const list = new Map(seriesVideos.filter((v) => re.test(v.title.normalize('NFKC')) &&
+      (name !== 'Dance Practice' || seriesVideoKind(v) !== '비하인드')).map((v) => [v.videoId, v]));
     if (name === 'Cover') for (const id of VERIFIED.covers) {
       const v = videoById.get(id);
       if (v) list.set(id, v);
@@ -215,7 +228,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   }
   const grouped = new Set(pages.flatMap((page) => page.seasons.flatMap((season) => season.videos.map((v) => v.id))));
   const ungrouped = [...videoById.values()].filter((v) => v.channel === GROUP.name && !grouped.has(v.videoId));
-  const kinds = new Map(ungrouped.map((v) => [v.videoId, videoKind(v)]));
+  const kinds = new Map(ungrouped.map((v) => [v.videoId, seriesVideoKind(v)]));
   for (const { id, name, kinds: includedKinds } of CHANNEL_COLLECTIONS) {
     const list = ungrouped.filter((v) => includedKinds.includes(kinds.get(v.videoId)!)).map(toVid);
     addVideoCollection(name, list, [], id, '자체 콘텐츠 시리즈');
