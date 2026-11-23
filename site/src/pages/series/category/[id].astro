@@ -1,5 +1,6 @@
 ---
 import Base from '../../../layouts/Base.astro';
+import SeriesShelf from '../../../components/SeriesShelf.astro';
 import { loadPublic, type EraSummary, type SeriesSummary } from '../../../lib/data';
 import { SERIES_CATEGORIES, seriesCategoryCards } from '../../../lib/series-categories';
 import '../../../styles/series.css';
@@ -14,15 +15,7 @@ const cards = seriesCategoryCards(category, series, eras);
 ---
 <Base title={category.name} current="series">
   <nav class="crumbs wrap" aria-label="경로"><a href="/series/">시리즈</a><span>/</span><b>{category.name}</b></nav>
-  <main class="wrap series-index">
-    <h1>{category.name}</h1>
-    {cards.length ? <div class="series-grid">
-      {cards.map((card) => (
-        <a class="card series-card" href={card.href}>
-          <span class="poster">{card.thumb ? <img src={card.thumb} alt="" loading="lazy" /> : <em>{card.name}</em>}</span>
-          <span class="sc-body">{card.thumb && <b>{card.name}</b>}<small>{card.meta}</small></span>
-        </a>
-      ))}
-    </div> : <p>아직 모은 기록이 없어요.</p>}
+  <main class="wrap">
+    <SeriesShelf category={category} cards={cards} />
   </main>
 </Base>

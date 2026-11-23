@@ -1,29 +1,19 @@
 ---
 import Base from '../../layouts/Base.astro';
+import SeriesShelf from '../../components/SeriesShelf.astro';
 import { loadPublic, type EraSummary, type SeriesSummary } from '../../lib/data';
-import { categoryHref, SERIES_CATEGORIES, seriesCategoryCards } from '../../lib/series-categories';
+import { SERIES_CATEGORIES, seriesCategoryCards } from '../../lib/series-categories';
 import '../../styles/series.css';
 
 const [{ series }, { eras }] = await Promise.all([
   loadPublic<{ series: SeriesSummary[] }>(Astro.locals, 'series.json', { series: [] }),
   loadPublic<{ eras: EraSummary[] }>(Astro.locals, 'eras.json', { eras: [] }),
 ]);
-const sections = SERIES_CATEGORIES.map((category) => ({ ...category, cards: seriesCategoryCards(category, series, eras) }))
+const sections = SERIES_CATEGORIES.map((category) => ({ category, cards: seriesCategoryCards(category, series, eras) }))
   .filter(({ cards }) => cards.length > 0);
 ---
 <Base title="시리즈" current="series">
-  <main class="wrap series-index">
-    <h1>시리즈</h1>
-    <nav class="series-grid" aria-label="시리즈 분류">
-      {sections.map(({ id, name, cards }) => {
-        const thumb = cards.find((card) => card.thumb)?.thumb;
-        return (
-          <a id={id} class="card series-card" href={categoryHref(id)}>
-            <span class="poster">{thumb ? <img src={thumb} alt="" loading="lazy" /> : <em>{name}</em>}</span>
-            <span class="sc-body">{thumb && <b>{name}</b>}<small>{cards.length}개 묶음</small></span>
-          </a>
-        );
-      })}
-    </nav>
+  <main class="wrap">
+    {sections.map(({ category, cards }) => <SeriesShelf category={category} cards={cards} preview />)}
   </main>
 </Base>

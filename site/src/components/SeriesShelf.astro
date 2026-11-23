@@ -1,0 +1,30 @@
+---
+import { categoryHref, type SeriesCategory, type seriesCategoryCards } from '../lib/series-categories';
+
+interface Props {
+  category: SeriesCategory;
+  cards: ReturnType<typeof seriesCategoryCards>;
+  preview?: boolean;
+}
+const { category, cards, preview = false } = Astro.props;
+const shown = preview ? cards.slice(0, 4) : cards;
+---
+<section id={preview ? category.id : undefined}>
+  <p class="eyebrow">SERIES</p>
+  <div class="section-head">
+    <h2>{category.name}</h2>
+    {preview ? <a class="note" href={categoryHref(category.id)}>{category.note} · 전체 보기 →</a> : <span class="note">{category.note}</span>}
+  </div>
+  {shown.length ? <div class="series-grid">
+    {shown.map((card) => (
+      <a class="card series-card" href={card.href}>
+        <span class="poster">{card.thumb ? <img src={card.thumb} alt="" loading="lazy" /> : <em>{card.name}</em>}</span>
+        <span class="sc-body">
+          <span class="sc-type">{card.badge}</span>
+          <b>{card.name}</b>
+          <small>{card.meta}</small>
+        </span>
+      </a>
+    ))}
+  </div> : <p>아직 모은 기록이 없어요.</p>}
+</section>
