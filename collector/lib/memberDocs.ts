@@ -38,9 +38,6 @@ export interface MemberDoc {
   news: { title: string; url: string; date: string; publisher?: string; topic?: string; type: string; image?: string }[];
 }
 
-const PICTORIALS = JSON.parse(readFileSync(join(ROOT, 'config', 'member-pictorials.json'), 'utf8')) as
-  (MemberDoc['pictorial'][number] & { member: string })[];
-
 export function buildMemberDocs(input: { events: PublicEvent[]; eras: EraPage[]; series: SeriesLite[]; feed: FeedItem[]; videos: Video[] }) {
   const { events, eras, series, feed, videos } = input;
   const byDateDesc = <T extends { date: string }>(a: T, b: T) => b.date.localeCompare(a.date);
@@ -52,14 +49,6 @@ export function buildMemberDocs(input: { events: PublicEvent[]; eras: EraPage[];
     const years = [...new Set(myEras.map((e) => e.from.slice(0, 4)))].sort().reverse();
     const fan = kind === '멤버' ? latestFancam(GROUP.members.find((m) => m.name === name)!.aliases) : undefined;
     const groupThumb = myEras.find((e) => e.thumb)?.thumb;
-    const pictorial = new Map<string, MemberDoc['pictorial'][number]>(feed.filter((f) => f.type === 'news' && (f.topic === '광고' || f.topic === '브랜드·화보') && !f.shared && mine(f.members))
-      .map((f) => ({ title: f.title, url: f.url, image: f.image, date: f.publishedAt.slice(0, 10), publisher: f.publisher, topic: f.topic }))
-      .sort(byDateDesc).slice(0, 8).map((f) => [f.url.replace(/\/$/, ''), f]));
-    for (const entry of PICTORIALS) {
-      if (!mine([entry.member])) continue;
-      const key = entry.url.replace(/\/$/, '');
-      pictorial.set(key, { ...entry, image: entry.image ?? pictorial.get(key)?.image });
-    }
     return {
       slug, name, en, kind, groups: [], ...extra,
       photo: fan ? { thumb: `https://i.ytimg.com/vi/${fan.videoId}/hqdefault.jpg`, url: fan.url, title: fan.title, focus: THUMB_FOCUS[fan.channel] } : groupThumb ? { thumb: groupThumb, url: `/archive/${myEras.find((e) => e.thumb)!.id}/`, title: myEras.find((e) => e.thumb)!.title } : undefined,
@@ -67,7 +56,7 @@ export function buildMemberDocs(input: { events: PublicEvent[]; eras: EraPage[];
       eras: myEras.filter((e) => e.kind === '컴백' || e.kind === '콘서트·투어' || e.kind === '팬미팅').map((e) => e.id),
       variety: series.filter((s) => (kind === '그룹' ? !s.members.length : s.members.includes(name)) && s.count > 0).sort((a, b) => b.to.localeCompare(a.to)).slice(0, 12).map((s) => ({ id: s.id, name: s.name, type: s.type, count: s.count, to: s.to })),
       appearances: events.filter((e) => e.kind === '방송' && mine(e.members) && !isMusicShow(e.title)).map((e) => ({ date: e.date, title: e.title, step: e.step, url: e.sources[0]?.url })).sort(byDateDesc).slice(0, 12),
-      pictorial: [...pictorial.values()].sort(byDateDesc),
+      pictorial: feed.filter((f) => f.type === 'news' && (f.topic === '광고' || f.topic === '브랜드·화보') && !f.shared && mine(f.members)).map((f) => ({ title: f.title, url: f.url, image: f.image, date: f.publishedAt.slice(0, 10), publisher: f.publisher, topic: f.topic })).sort(byDateDesc).slice(0, 8),
       news: feed.filter((f) => f.type !== 'youtube' && mine(f.members)).map((f) => ({ title: f.title, url: f.url, date: f.publishedAt.slice(0, 10), publisher: f.publisher, topic: f.topic, type: f.type, image: f.shared ? undefined : f.image })).sort(byDateDesc).slice(0, 8),
     };
   };

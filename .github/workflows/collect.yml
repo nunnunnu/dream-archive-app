@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'full, fast, links(공개 직후 영상 링크 찾기), site(배포만), backfill(과거 기사 채우기), publish(저장된 데이터만 내보내기)'
+        description: 'full, fast, links(공개 직후 영상 링크 찾기), site(배포만), backfill(과거 기사 채우기)'
         default: full
 
 concurrency:
@@ -70,7 +70,7 @@ jobs:
 
       - name: 수집
         id: collect
-        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill' || env.MODE == 'links' || env.MODE == 'publish'
+        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill' || env.MODE == 'links'
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_MODEL: qwen/qwen3.8-27b
@@ -90,8 +90,6 @@ jobs:
             npm run namu:watch || true
             npm run backfill:seeds -- --from-state --minutes=10 || true
             npm run backfill:news -- --minutes=20 --total-minutes=45 && npm run collect -- --publish-only
-          elif [ "$MODE" = "publish" ]; then
-            LLM_MAX_CALLS_PER_RUN=0 npm run collect -- --publish-only
           elif [ "$MODE" = "links" ]; then
             npm run collect -- --links
           elif [ "$MODE" = "fast" ]; then
@@ -110,7 +108,7 @@ jobs:
 
       # 질문 의미 검색 색인 (바뀐 조각만 임베딩, 보통 몇 원 이하)
       - name: RAG 색인
-        if: steps.collect.outcome == 'success' && steps.collect.outputs.mode != 'fast' && steps.collect.outputs.mode != 'links' && steps.collect.outputs.mode != 'publish'
+        if: steps.collect.outcome == 'success' && steps.collect.outputs.mode != 'fast' && steps.collect.outputs.mode != 'links'
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_MODEL: qwen/qwen3.8-27b

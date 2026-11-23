@@ -34,12 +34,6 @@ export interface SeriesPage {
 }
 
 const CONFIG: { seriesGroups?: { id: string; name: string; match: string[] }[] } = JSON.parse(readFileSync(join(ROOT, 'config', 'tags.json'), 'utf8'));
-// 공식 업로드로 확인한 영상. 제목에 'Cover'가 없거나 제작사 채널이 수집 목록에 없어도 모아보기에 연결한다.
-const VERIFIED = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-series-videos.json'), 'utf8')) as {
-  covers: string[]; appearances: string[];
-};
-const MEMBER_RECORDS = JSON.parse(readFileSync(join(ROOT, 'config', 'member-records.json'), 'utf8')) as
-  { id: string; name: string; records: Omit<NonNullable<SeriesPage['episodes']>[number], 'time'>[] }[];
 const OWN = new Set(GROUP.youtube.channels.filter((c) => !c.guest).map((c) => c.name));
 const sq = (t: string) => t.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
 const slug = (t: string) => sq(t).replace(/[^a-z0-9가-힣]/g, '').slice(0, 30) || 'series';
@@ -66,7 +60,6 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   // 공식 채널 영상은 수집할 때 이미 드림 관련(제목·설명 해시태그)만 받았다 → 제목에 이름이 없어도(천지의 이것저것 등) 시리즈에 쓴다
   const own = videos.filter((v) => OWN.has(v.channel) && (v.channel === GROUP.name || isDreamRelated(`${v.title}\n${v.description ?? ''}`)) && !/react|리액션/i.test(v.title));
   const pages: SeriesPage[] = [];
-  const videoById = new Map(videos.map((v) => [v.videoId, v]));
 
   // 1) 자체 콘텐츠 시리즈
   const groups = CONFIG.seriesGroups ?? [];
@@ -107,53 +100,17 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   }
 
   // 2) 종류별 모아보기 (연도별로 나눠 보여 준다)
-  const addVideoCollection = (name: string, videos: SeriesVideo[], members: string[] = []) => {
-    if (!videos.length) return;
-    const byYear = new Map<string, SeriesVideo[]>();
-    for (const v of videos) {
-      const year = v.date.slice(0, 4);
-      byYear.set(year, [...(byYear.get(year) ?? []), v]);
-    }
-    const sorted = sortVids(videos).reverse();
-    pages.push({
-      id: `c-${slug(name)}`, type: '종류별 모아보기', name, count: sorted.length,
-      ...range(sorted.map((v) => v.date)), thumb: sorted[0].thumb, members,
-      seasons: [...byYear.entries()].sort(([a], [b]) => b.localeCompare(a))
-        .map(([year, group]) => ({ name: `${year}년`, videos: sortVids(group).reverse() })),
-    });
-  };
   for (const [name, re] of COLLECTIONS) {
-    const list = new Map(own.filter((v) => re.test(v.title)).map((v) => [v.videoId, v]));
-    if (name === 'Cover') for (const id of VERIFIED.covers) {
-      const v = videoById.get(id);
-      if (v) list.set(id, v);
-    }
-    if (list.size < 3) continue;
-    const clips = [...list.values()].map(toVid);
-    addVideoCollection(name, clips, name === 'Cover' ? [...new Set(clips.flatMap((clip) => clip.members))] : []);
-  }
-
-  const appearanceIds = new Set(VERIFIED.appearances);
-  const appearances = new Map<string, SeriesVideo>();
-  for (const event of events) for (const source of event.sources) {
-    const id = source.url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/)?.[1];
-    if (!id || !appearanceIds.has(id) || appearances.has(id) || !event.members.length) continue;
-    appearances.set(id, {
-      id, title: `${event.title} · ${event.step}`, url: source.url, thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
-      date: event.date, ep: event.episode ?? null, members: event.members,
-    });
-  }
-  for (const id of appearanceIds) {
-    const v = videoById.get(id);
-    if (v && !appearances.has(id)) appearances.set(id, toVid(v));
-  }
-  const appearanceClips = [...appearances.values()];
-  addVideoCollection('멤버 공식 영상', appearanceClips, [...new Set(appearanceClips.flatMap((clip) => clip.members))]);
-  for (const { id, name, records } of MEMBER_RECORDS) {
-    const episodes = records.map((record) => ({ ...record, time: null })).sort((a, b) => b.date.localeCompare(a.date));
+    const list = own.filter((v) => re.test(v.title));
+    if (list.length < 3) continue;
+    const byYear = new Map<string, Video[]>();
+    const yearOf = (v: Video) => (originalAirDate(v) ?? kst(v.publishedAt)).slice(0, 4);
+    for (const v of list) byYear.set(yearOf(v), [...(byYear.get(yearOf(v)) ?? []), v]);
+    const latest = list.slice().sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0];
     pages.push({
-      id, type: '종류별 모아보기', name, count: episodes.length, ...range(episodes.map((e) => e.date)),
-      thumb: episodes.find((e) => e.thumb)?.thumb, members: [...new Set(episodes.flatMap((e) => e.members))], seasons: [], episodes,
+      id: `c-${slug(name)}`, type: '종류별 모아보기', name, count: list.length, ...range(list.map((v) => kst(v.publishedAt))),
+      thumb: `https://i.ytimg.com/vi/${latest.videoId}/mqdefault.jpg`, members: [],
+      seasons: [...byYear.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([y, vs]) => ({ name: `${y}년`, videos: sortVids(vs.map(toVid)).reverse() })),
     });
   }
 

@@ -52,7 +52,6 @@ export async function syncTracked(repo: Repo, events: PublicEvent[], today: stri
   const list = await loadTracked(repo);
   const bySeries = new Map<string, PublicEvent[]>();
   for (const e of events) if (e.seriesId) bySeries.set(e.seriesId, [...(bySeries.get(e.seriesId) ?? []), e]);
-  const seen = new Set<Tracked>();
 
   for (const [seriesId, eps] of bySeries) {
     const first = eps.reduce((a, b) => (a.date < b.date ? a : b));
@@ -66,13 +65,8 @@ export async function syncTracked(repo: Repo, events: PublicEvent[], today: stri
     const last = eps.find((e) => /마지막 회/.test(e.step));
     if (last) t.endDate = last.date;
     if (!existing) list.push(t);
-    seen.add(t);
   }
-  for (const t of list) {
-    if (t.endDate && t.endDate < today) t.status = 'ended';
-    // 근거 없는 자동 반복이 사라지면 해당 편성 검색도 중단한다.
-    if (t.origin === 'auto' && !seen.has(t) && !t.endDate && !t.episodes) t.status = 'ended';
-  }
+  for (const t of list) if (t.endDate && t.endDate < today) t.status = 'ended';
   // 직접 등록한 것과 같은 프로그램의 자동 등록은 지운다 (직접 등록이 기준)
   const manual = new Set(list.filter((t) => t.origin === 'manual').map((t) => showKey(t.title)));
   const kept = list.filter((t) => t.origin === 'manual' || !manual.has(showKey(t.title)));

@@ -58,13 +58,7 @@ import { isHidden } from './lib/members.ts';
 import { transcribeNoticeImages } from './lib/noticeImages.ts';
 // 커뮤니티(더쿠) 수집은 비공개 레포에만 있다. 파일이 없으면(공개 레포) 건너뛴다
 const community = await import('./lib/theqoo.ts').catch(() => null);
-type CommunityFeedPost = NonNullable<Parameters<typeof buildFeed>[4]>[number];
-async function communityFeed(r: JsonRepo): Promise<CommunityFeedPost[]> {
-  if (community) return community.communityFeed(r);
-  // 공개용 수집기는 비공개 수집기가 확인한 원문 링크만 읽는다.
-  const posts = await r.getState<Record<string, CommunityFeedPost & { status: string }>>('community/theqoo', {});
-  return Object.values(posts).filter((p) => p.link && (p.status === 'read' || p.status === 'archived'));
-}
+const communityFeed: (r: typeof repo) => Promise<never[]> = community ? (community.communityFeed as never) : async () => [];
 import { readOpenNotice } from './lib/weverse.ts';
 import { itemsFromTracked, loadTracked, syncTracked } from './lib/tracked.ts';
 import { kstDate, toKstParts } from './lib/time.ts';
