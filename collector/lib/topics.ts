@@ -34,8 +34,10 @@ export function isFillerArticle(title: string, outlets: number, topic?: FeedTopi
 }
 
 /**
- * 부정적인 기사(논란·가십): 사이트(소식·활동 기사 목록·물어보기 근거)에 올리지 않는다. 저장은 해 둔다.
+ * 부정적인 기사(논란·가십)와 주가·실적 기사: 사이트(소식·활동 기사 목록·물어보기 근거)에 올리지 않는다. 저장은 해 둔다.
  * 건강 문제로 인한 불참·활동 중단처럼 일정에 영향을 주는 소식은 팬이 알아야 해서 여기 넣지 않는다.
  */
 export const NEGATIVE_RE = /논란|의혹|루머|열애|결별|악플|악성\s*댓글|비난|비판|저격|폭로|고소|피소|소송|법적\s*대응|사생|스토킹|협박|위협|불화|탈퇴설|학폭|갑질|표절|사과문|망언|태도\s*지적|혹평|과잉\s*경호|몸싸움|난동|성희롱|명예훼손|허위\s*사실/;
-export const isNegative = (title: string) => NEGATIVE_RE.test(title);
+/** 주가·증권·실적 기사 (팬 소식이 아님): 부정적인 기사와 똑같이 소식·활동 기사·물어보기 근거에서 뺀다 */
+export const FINANCE_RE = /주가|주식|증권|목표\s*주가|목표가|시가총액|시총|투자의견|투자\s*포인트|영업이익|순이익|매출|실적\s*(발표|전망|개선|부진|호조|시즌)|어닝|공시|코스닥|코스피|주주|배당|애널리스트|엔터주|신고가|순매수|순매도|매수\s*(의견|추천)/;
+export const isNegative = (title: string) => NEGATIVE_RE.test(title) || FINANCE_RE.test(title);
