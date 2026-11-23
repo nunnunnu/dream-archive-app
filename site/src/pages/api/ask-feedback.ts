@@ -23,7 +23,7 @@ async function sha(text: string) {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const env = (locals.runtime?.env ?? {}) as Env;
-  if (!env.REPORTS) return json({ ok: false, error: '평가 저장소가 아직 준비 중이에요' }, 503);
+  if (!env.REPORTS) return json({ ok: false, error: '지금은 평가를 받을 수 없어요' }, 503);
   let b: Record<string, unknown>;
   try {
     b = await request.json();

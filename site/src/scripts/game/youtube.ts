@@ -44,7 +44,7 @@ export function loadYouTubeApi(): Promise<YTNamespace> {
 
 /** 재생할 수 없는 영상 오류 코드 → 안내 문구 */
 export function ytErrorText(code: number): string {
-  if (code === 101 || code === 150) return '이 영상은 소유자가 다른 사이트 재생을 막아 두었어요';
+  if (code === 101 || code === 150) return '이 영상은 유튜브 밖에서 재생할 수 없게 막혀 있어요';
   if (code === 100) return '삭제됐거나 비공개인 영상이에요';
   if (code === 2) return '영상 주소가 올바르지 않아요';
   if (code === 5) return '이 브라우저에서 재생할 수 없는 영상이에요';

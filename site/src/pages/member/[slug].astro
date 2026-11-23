@@ -44,12 +44,12 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
     <section class="banner">
       {photo && <img class="banner-img" style={`object-position:${Math.min(100, (m.photo?.focus ?? 50) + 20)}% 25%`} src={photo.big} alt="" loading="eager" referrerpolicy="no-referrer" onerror={`if(!this.dataset.hq){this.dataset.hq=1;this.src='${photo.hq}';this.classList.add('lb')}else{this.remove()}`} />}
       <span class="banner-initial">{(m.en || m.name).slice(0, 1)}</span>
-      <span class="banner-badge">공식 소식 자동 수집 · 프로필은 사람이 작성</span>
+      
       <div class="banner-name">
         <h1>{m.name}</h1>
         <p>{!isGroup && <b>{m.en}</b>}<i></i>{m.born ? <span class="chip-day">{ymd(m.born)}</span> : m.debut ? <span class="chip-day">데뷔 {ymd(m.debut)}</span> : null}</p>
       </div>
-      {m.photo && <a class="banner-src" href={m.photo.url} target="_blank" rel="noopener">사진: 영상 썸네일 ↗</a>}
+      {m.photo && <a class="banner-src" href={m.photo.url} target="_blank" rel="noopener">사진 출처 ↗</a>}
     </section>
 
     <div class="intro">
@@ -57,18 +57,18 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
         {isGroup
           ? <p><b>{m.name}</b>는 {debutYear}년 데뷔한 그룹이에요. 그룹 활동(컴백·투어·팬미팅·예능)을 한 문서에 모았어요.</p>
           : <p><b>{m.name}({m.en})</b>는 {m.groups.join(', ')}의 멤버예요.{debutYear && ` ${debutYear}년 데뷔 이후 그룹 활동과 개인 활동을 이어 왔어요.`}</p>}
-        <p class="sub">아래 타임라인·활동·기록은 공식 공지와 기사, 등록 채널 영상에서 자동으로 쌓여요. 신체 정보·사생활 같은 개인 정보는 적지 않아요.</p>
+        
         <nav class="mchips" aria-label="다른 문서">
           <a href="/member/nctdream/" aria-current={isGroup ? 'page' : undefined}><i style={`background:${colorOf(data.group).dot}`}></i>그룹</a>
           {data.members.map((x) => <a href={`/member/${x.slug}/`} aria-current={x.slug === m.slug ? 'page' : undefined}><i style={`background:${colorOf(x).dot}`}></i>{x.name}</a>)}
         </nav>
         <div class="actions">
           {nextDay && <span class={`dday${nextDay.days === 0 ? ' today' : ''}`}>{dayLabel} <b>{nextDay.days === 0 ? '오늘' : `D-${nextDay.days}`}</b> <em>{ymd(nextDay.date)}</em></span>}
-          <a class="ics" href={`/calendar/${isGroup ? 'group' : m.slug}.ics`}>캘린더 구독(ics)</a>
+          <a class="ics" href={`/calendar/${isGroup ? 'group' : m.slug}.ics`}>캘린더에 추가</a>
         </div>
       </div>
       <table class="infobox">
-        <caption><span>프로필</span><em>사람이 작성 · 공개 정보만</em></caption>
+        <caption><span>프로필</span></caption>
         <tbody>
           {isGroup ? (
             <>
@@ -79,7 +79,7 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
           ) : (
             <>
               <tr><th>본명</th><td>{m.realName ?? '-'}</td></tr>
-              <tr><th>포지션</th><td>{m.position ?? <span class="todo">작성 전</span>}</td></tr>
+              <tr><th>포지션</th><td>{m.position ?? '-'}</td></tr>
               <tr><th>생일</th><td>{m.born ? ymd(m.born) : m.birthday ? m.birthday.replace('-', '.') : '-'}</td></tr>
               <tr><th>소속</th><td>{m.groups.join(', ')}</td></tr>
             </>
@@ -91,11 +91,11 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
     <nav class="tabs" aria-label="문서 목차">{TABS.map(([id, label], i) => <a href={`#${id}`} class={i === 0 ? 'on' : ''}>{label}</a>)}</nav>
 
     <section id="timeline" class="sec">
-      <div class="sec-head"><h2>타임라인</h2><span class="auto">자동 수집 · 활동 {total}개</span></div>
+      <div class="sec-head"><h2>타임라인</h2><span class="auto">활동 {total}개</span></div>
       <p class="sec-sub">공식 활동을 연도별로 모았어요. 누르면 그 활동 문서로 가요.</p>
       {m.timeline.map((y) => (
         <div class={`ycard${y.year === thisYear ? ' now' : ''}`}>
-          <div class="ycard-head"><h3>{y.year}</h3>{y.year === thisYear && <span class="k k-컴백">올해</span>}<small>{y.items.length}건 · 자동 수집</small></div>
+          <div class="ycard-head"><h3>{y.year}</h3>{y.year === thisYear && <span class="k k-컴백">올해</span>}<small>{y.items.length}건</small></div>
           <ul>{y.items.map((it) => {
             const e = eraById.get(it.eraId);
             return (
@@ -114,7 +114,7 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
     </section>
 
     <section id="activities" class="sec">
-      <div class="sec-head"><h2>활동</h2><span class="auto">자동 수집</span></div>
+      <div class="sec-head"><h2>활동</h2></div>
       <p class="sec-sub">컴백·투어·팬미팅을 표지로 모았어요.</p>
       <div class="era-row">
         {bigEras.map((e) => (
@@ -128,13 +128,13 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
 
     {!isGroup && (
       <section id="units" class="sec">
-        <div class="sec-head"><h2>유닛·솔로</h2><span class="auto">자동 수집</span></div>
+        <div class="sec-head"><h2>유닛·솔로</h2></div>
         <p class="sec-sub">소속 그룹과 유닛·개인 활동이에요.</p>
         <div class="unit-grid">
           {m.groups.map((g, i) => (
             <div class="unit">
               <span class={`unit-badge${i === 0 ? ' main' : ''}`}>{g}</span>
-              <span><small>{i === 0 ? '그룹' : '유닛·그룹'}</small><b>{g}</b><em>{i === 0 ? `${debutYear} – 현재` : unitActs(g).length ? unitActs(g).map((a) => a.title).slice(0, 3).join(' · ') : '이 사이트는 드림 활동 위주로 모아요'}</em></span>
+              <span><small>{i === 0 ? '그룹' : '유닛·그룹'}</small><b>{g}</b><em>{i === 0 ? `${debutYear} – 현재` : unitActs(g).length ? unitActs(g).map((a) => a.title).slice(0, 3).join(' · ') : '드림 활동 위주로 모았어요'}</em></span>
             </div>
           ))}
           <div class="unit">
@@ -146,7 +146,7 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
     )}
 
     <section id="records" class="sec">
-      <div class="sec-head"><h2>기록</h2><span class="auto">자동 수집</span></div>
+      <div class="sec-head"><h2>기록</h2></div>
       <p class="sec-sub">예능·자컨, 방송 출연, 화보·광고, 최근 소식이에요.</p>
       <h3 class="sub-h">예능·자컨</h3>
       {m.variety.length ? (
@@ -175,7 +175,7 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
               </a>
             ))}
           </div>
-          <p class="note">사진은 기사에서 바로 불러와요(다시 올리지 않음). 다른 가수가 주인공일 수 있는 기사는 사진을 빼요.</p>
+          
         </>
       )}
       <h3 class="sub-h">최근 소식</h3>
@@ -192,7 +192,7 @@ const total = m.timeline.reduce((n, y) => n + y.items.length, 0);
     </section>
 
     <section id="related" class="sec">
-      <div class="sec-head"><h2>관련 문서</h2><span class="auto">자동 수집</span></div>
+      <div class="sec-head"><h2>관련 문서</h2></div>
       <div class="rel-grid">
         {bigEras.slice(0, 4).map((e) => (
           <a class="rel-card" href={`/archive/${e.id}/`}><Cover title={e.title} sub={e.subtitle} cover={e.cover} image={e.thumb} /><small>{KIND_SHORT[e.kind] ?? e.kind}</small><b>{e.title}</b></a>

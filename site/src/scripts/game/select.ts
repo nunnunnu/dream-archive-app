@@ -2,10 +2,10 @@
 import { getBest, getInputOffset, getMode, setInputOffset, setMode, type GameMode } from './storage';
 
 const HINT: Record<GameMode, string> = {
-  step1: '1단계 · 노트와 응원 문구가 모두 보여요 · 판정 ±150ms',
-  step2: '2단계 · 노트는 판정선 바로 앞에서만, 문구는 누른 뒤에 보여요',
-  step3: '3단계 · 공식 뮤비로 바꾸고, 노트는 직전에만 보여요 (실전 연습)',
-  live: '실전 · 공식 뮤비만 보고 외운 대로 눌러요 · 힌트 없음 · 판정 ±200ms (조금 넉넉하게)',
+  step1: '1단계 · 노트와 응원 문구가 모두 보여요',
+  step2: '2단계 · 노트는 누르기 직전에만, 문구는 누른 뒤에 보여요',
+  step3: '3단계 · 뮤비를 보면서, 노트는 직전에만 보여요',
+  live: '실전 · 힌트 없이 뮤비만 보고 외운 대로 눌러요 (판정이 조금 넉넉해요)',
 };
 const nf = (n: number) => n.toLocaleString('ko-KR');
 function apply(mode: GameMode) {

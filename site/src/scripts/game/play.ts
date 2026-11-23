@@ -95,13 +95,13 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
       if (!started) seekToStart();
       started = true;
       startBtn.hidden = true;
-      notice(mode === 'live' ? '실전 · 외운 대로 눌러보세요' : '재생 중 · 스페이스 또는 TAP');
+      notice(mode === 'live' ? '외운 대로 눌러 보세요' : '응원할 때 스페이스바나 응원봉을 눌러요');
       duration = player?.getDuration() || duration;
       focusTap();
     } else if (s === YTState.ENDED) {
       end();
     } else if (started && (s === YTState.PAUSED || s === YTState.BUFFERING)) {
-      notice(s === YTState.BUFFERING ? '불러오는 중이에요. 재생되면 이어서 시작해요' : '일시정지 · 광고나 일시정지가 끝나면 이어서 시작해요');
+      notice(s === YTState.BUFFERING ? '영상을 불러오는 중이에요' : '잠깐 멈췄어요. 다시 재생되면 이어서 해요');
       startBtn.hidden = false;
       startBtn.textContent = '이어서';
     }
@@ -319,7 +319,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
         } else if (st < lastSt - 0.5 && cues.some((c, i) => c.t > st && judger.pressResult(i) && judger.pressResult(i)!.judge !== 'skip')) {
           tainted = true;
         }
-        if (tainted && !was && !practice) notice('영상 위치가 바뀌어서 이번 판은 기록에 남지 않아요. 처음부터 하려면 다시 하기', true);
+        if (tainted && !was && !practice) notice('영상 위치가 바뀌어서 이번 판은 기록에 남지 않아요', true);
       }
       if (clock.playing && performance.now() - clock.jumpedAt > 300) {
         const missed = judger.advance(st - inputOffset / 1000);
@@ -369,8 +369,8 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
           <p class="game-result-mode">${MODE_LABEL[mode]}${practice ? ' · 구간 연습' : ''} · ${esc(chart.title)}</p>
           <h2>${practice ? '구간 연습 끝' : s.cleared ? `${MODE_LABEL[mode]} 클리어` : '클리어 실패'}</h2>
           <p class="game-score"><b>${nf(s.score)}</b> / ${nf(s.maxScore)}</p>
-          <p class="game-result-sub">정확도 ${(s.accuracy * 100).toFixed(1)}% · 최대 콤보 ${s.maxCombo}${s.holds ? ` · 홀드 뗌 ${s.holdOk}/${s.holds}` : ''}${record ? (prev ? ` · 이전 최고 ${nf(prev.score)}에서 ${diff >= 0 ? '+' : ''}${nf(diff)}` : ' · 첫 기록') : ''}</p>
-          ${!record ? `<p class="game-result-sub">${preview ? '시험 플레이라 기록은 남기지 않아요' : practice ? '구간 연습은 기록에 남기지 않아요' : tainted ? '건너뛴 구간이 있어서 기록에 남기지 않았어요' : ''}</p>` : ''}
+          <p class="game-result-sub">정확도 ${(s.accuracy * 100).toFixed(1)}% · 최대 콤보 ${s.maxCombo}${s.holds ? ` · 홀드 ${s.holdOk}/${s.holds} 성공` : ''}${record ? (prev ? ` · 이전 최고 ${nf(prev.score)}에서 ${diff >= 0 ? '+' : ''}${nf(diff)}` : ' · 첫 기록') : ''}</p>
+          ${!record ? `<p class="game-result-sub">${preview ? '시험 플레이라 기록은 남기지 않아요' : practice ? '구간 연습은 기록에 남기지 않아요' : tainted ? '중간에 영상 위치가 바뀌어서 기록에 남기지 않았어요' : ''}</p>` : ''}
         </div>
       </div>
       <div class="game-counts">
@@ -386,7 +386,7 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
           </div>
           <div class="game-timing-axis"><span>EARLY −${cfg.goodMs}ms</span><span>0</span><span>LATE +${cfg.goodMs}ms</span></div>
           <p class="game-result-sub">${s.deltas.length ? `평균 ${s.avgDeltaMs > 0 ? '+' : ''}${s.avgDeltaMs}ms · ${tendency}` : '맞힌 노트가 없어요'}</p>
-          ${Math.abs(s.avgDeltaMs) >= 40 && s.deltas.length >= 8 ? `<p class="game-result-sub">늘 ${s.avgDeltaMs > 0 ? '늦게' : '빠르게'} 눌린다면 블루투스 이어폰 지연일 수 있어요. <button type="button" class="admin-btn game-mini" id="g-apply-calib">입력 보정 ${s.avgDeltaMs > 0 ? '+' : ''}${s.avgDeltaMs}ms 적용</button></p>` : ''}
+          ${Math.abs(s.avgDeltaMs) >= 40 && s.deltas.length >= 8 ? `<p class="game-result-sub">계속 ${s.avgDeltaMs > 0 ? '늦게' : '빠르게'} 눌린다면 블루투스 이어폰 때문일 수 있어요. <button type="button" class="admin-btn game-mini" id="g-apply-calib">타이밍 ${s.avgDeltaMs > 0 ? '+' : ''}${s.avgDeltaMs}ms 맞추기</button></p>` : ''}
         </div>
         <div class="card game-panel">
           <h3>가장 많이 놓친 구간</h3>
@@ -406,14 +406,14 @@ function run({ chart, config, mode, from, to, backHref, preview }: Data) {
         ${mode === 'step2' && hasMv ? `<a class="game-btn" href="${q('step3')}">3단계로 (뮤비)</a>` : ''}
         <a class="game-btn" href="${esc(backHref)}">${preview ? '채보 도구로' : '곡 목록'}</a>
       </div>
-      <p class="game-result-meta">채보 ${esc(chart.author)} · 노래 시작 오프셋 ${video!.offset}s · 판정 PERFECT ±${cfg.perfectMs}ms / GOOD ±${cfg.goodMs}ms${inputOffset ? ` · 입력 보정 ${inputOffset}ms` : ''}${s.skipped && !practice ? ` · 건너뛴 큐 ${s.skipped}개 제외` : ''}</p>`;
+      <p class="game-result-meta">채보 ${esc(chart.author)}${inputOffset ? ` · 타이밍 보정 ${inputOffset > 0 ? '+' : ''}${inputOffset}ms` : ''}${s.skipped && !practice ? ' · 건너뛴 부분은 점수에서 뺐어요' : ''}</p>`;
     box.hidden = false;
     $('game-stage')!.classList.add('is-done');
     $('g-apply-calib')?.addEventListener('click', (e) => {
       setInputOffset(inputOffset + s.avgDeltaMs);
       inputOffset = getInputOffset();
       showCalib();
-      (e.target as HTMLButtonElement).replaceWith(document.createTextNode(`입력 보정을 ${inputOffset}ms로 바꿨어요. 다시 해 보세요.`));
+      (e.target as HTMLButtonElement).replaceWith(document.createTextNode(`타이밍 보정을 ${inputOffset}ms로 맞췄어요. 다시 해 보세요.`));
     });
     box.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   }

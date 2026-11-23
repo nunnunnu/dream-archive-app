@@ -106,14 +106,14 @@ function answerCard(q: string, r: Answer) {
   if (r.notFound) {
     const s = stats;
     return el(`<div class="bot-row"><span class="avatar">D</span><div class="card ans notfound">
-      <div class="nf-head"><span class="qmark">?</span><span><b>수집된 자료에서 찾지 못했어요</b><small>확실하지 않은 내용은 추측해서 답하지 않아요.</small></span></div>
+      <div class="nf-head"><span class="qmark">?</span><span><b>관련 공지나 기사를 찾지 못했어요</b><small>확실하지 않은 내용은 추측해서 답하지 않아요.</small></span></div>
       <p class="ans-text">${renderAnswer(r.answer ?? '', r.sources ?? [])}</p>
-      ${s ? `<p class="nf-counts"><span>공지 <b>${s.notices}</b>건</span><span>기사 <b>${s.articles}</b>건</span><span>일정 <b>${s.events}</b>건</span>에서 찾았어요</p>` : ''}
-      <div class="ans-actions"><a class="btn dark" href="/report/">제보하기</a><a class="btn" href="/">일정 전체 보기</a><small class="nosave">이 답은 저장하지 않아요</small></div>
+      
+      <div class="ans-actions"><a class="btn dark" href="/report/">제보하기</a><a class="btn" href="/">일정 전체 보기</a></div>
     </div></div>`);
   }
   const head = [
-    r.cached ? `<span class="badge b-ai">● AI 답변</span><small>저장된 답변 · ${r.cachedAt ? esc(when(r.cachedAt)) : ''} 생성</small>` : '<span class="badge b-ai">● AI 답변</span><small>방금 생성</small>',
+    '<span class="badge b-ai">● AI 답변</span>',
     (r.askedCount ?? 1) > 1 ? `<small>· ${r.askedCount}명이 같은 질문을 했어요</small>` : '',
   ].join('');
   const flow = (r.events ?? []).find((e) => e.flowId)?.flowId;
@@ -121,8 +121,8 @@ function answerCard(q: string, r: Answer) {
     <div class="ans-head">${head}</div>
     <p class="ans-text">${renderAnswer(r.answer ?? '', r.sources ?? [])}</p>
     ${factsTable(r.events ?? [])}
-    ${r.warn ? '<p class="warnbox"><span>● 확인 대기</span> 근거 중에 팬 제보만 있거나 원문과 숫자가 다른 일정이 있어요. 확정이 아니니 공식 공지를 꼭 확인하세요.</p>' : ''}
-    ${r.unverified?.length ? `<p class="warnbox"><span>● 확인 필요</span> 자료에서 확인되지 않은 날짜·시간이 있어요: ${esc(r.unverified.join(', '))}</p>` : ''}
+    ${r.warn ? '<p class="warnbox"><span>● 확인 중</span> 아직 공식 공지로 확인되지 않은 내용이 섞여 있어요. 공식 공지를 꼭 확인해 주세요.</p>' : ''}
+    ${r.unverified?.length ? `<p class="warnbox"><span>● 확인 필요</span> 공지에서 확인하지 못한 날짜·시간이 있어요: ${esc(r.unverified.join(', '))}</p>` : ''}
     ${sourceCards(r.sources ?? [], r.dataAt)}
     <div class="ans-actions">
       ${flow ? `<a class="btn dark" href="/calendar/flows/${encodeURIComponent(flow)}.ics">📅 캘린더에 추가</a>` : ''}
@@ -194,18 +194,14 @@ let cursor: string | null = null;
 function renderStats(s: Stats) {
   stats = s;
   const mins = Math.max(0, Math.round((Date.now() - Date.parse(s.collectedAt)) / 60000));
-  const c = new Date(Date.parse(s.collectedAt) + 9 * 3600e3).toISOString();
-  document.querySelector('[data-fresh]')!.textContent = `● ${mins < 60 ? `${mins}분` : `${Math.round(mins / 60)}시간`} 전 갱신`;
-  document.querySelector('[data-collected]')!.textContent = `${c.slice(0, 4)}.${c.slice(5, 7)}.${c.slice(8, 10)} (${wd(c.slice(0, 10))}) ${c.slice(11, 16)}`;
-  for (const k of ['notices', 'articles', 'events'] as const) document.querySelector(`[data-n="${k}"]`)!.textContent = String(s[k]);
-  document.querySelector('[data-n-sub]')!.textContent = `팬 제보 ${s.submissions}`;
-  document.querySelector('[data-review]')!.innerHTML = s.review ? `확인 대기 일정 <b>${s.review}건</b>은 답변에서 따로 표시해요.` : '확인 대기 일정은 없어요.';
+  const fresh = document.querySelector('[data-fresh]');
+  if (fresh) fresh.textContent = ` · 최근 업데이트 ${mins < 60 ? `${mins}분` : `${Math.round(mins / 60)}시간`} 전`;
 }
 
 function recentCard(it: Recent) {
   const kinds = it.sources.reduce<Record<string, number>>((m, s) => { const k = KIND_LABEL[s.kind ?? ''] ?? '자료'; m[k] = (m[k] ?? 0) + 1; return m; }, {});
   const srcLine = Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(' · ');
-  const badge = it.state === 'check' ? '<span class="badge b-check">! 답변 확인 필요</span>' : it.state === 'expired' ? '<span class="badge b-old">지난 일정</span>' : it.state === 'notfound' ? '<span class="badge b-old">자료 없음</span>' : '<span class="badge b-ai">● AI 답변</span>';
+  const badge = it.state === 'check' ? '<span class="badge b-check">! 다시 확인 중</span>' : it.state === 'expired' ? '<span class="badge b-old">지난 일정</span>' : it.state === 'notfound' ? '<span class="badge b-old">자료 없음</span>' : '<span class="badge b-ai">● AI 답변</span>';
   const summary = stripCites(it.a).split('\n')[0].slice(0, 120);
   const card = el(`<details class="card rc s-${it.state}">
     <summary>

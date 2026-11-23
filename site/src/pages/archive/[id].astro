@@ -93,7 +93,7 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
   <section class="light" id="timeline">
     <div class="wrap">
       <p class="eyebrow">TIMELINE</p>
-      <div class="section-head"><h2>활동 타임라인</h2><span class="note">공지·기사·영상에서 자동으로 찾은 이정표</span></div>
+      <div class="section-head"><h2>활동 타임라인</h2></div>
       <ol class="timeline">
         {era.timeline.map((m) => (
           <li class={m.date <= today ? 'done' : ''}>
@@ -110,7 +110,7 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
   <section class="light" id="schedule">
     <div class="wrap">
       <p class="eyebrow">DATES</p>
-      <div class="section-head"><h2>일정</h2><span class="note">묶음을 눌러 펼쳐 보세요 · 다가오는 일정이 있는 묶음은 펼쳐져 있어요</span></div>
+      <div class="section-head"><h2>일정</h2><span class="note">눌러서 펼쳐 보세요</span></div>
       <div class="sched-groups">
         {schedGroups.map((g) => (
           <details class="card sched" open={g.upcoming}>
@@ -152,7 +152,7 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
   {relatedBy.length > 0 && <section class="dark" id="related">
     <div class="wrap">
       <p class="eyebrow">RELATED</p>
-      <div class="section-head"><h2>관련 영상</h2><span class="note">방송사·제작사·언론 채널 영상 · {relatedBy.map((g) => `${g.name} ${g.videos.length}`).join(' · ')}</span></div>
+      <div class="section-head"><h2>관련 영상</h2><span class="note">{relatedBy.map((g) => `${g.name} ${g.videos.length}`).join(' · ')}</span></div>
       {relatedBy.map((g) => (
         <div class="own-group">
           <h3>{g.name} <span>{g.videos.length}</span></h3>
@@ -172,7 +172,7 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
   {showStages && <section class="light" id="stages">
     <div class="wrap">
       <p class="eyebrow">MUSIC SHOWS</p>
-      <div class="section-head"><h2>음방 무대</h2><span class="note">방송사 공식 채널의 무대 영상만 · 교차편집·팬 재업로드는 빼요</span></div>
+      <div class="section-head"><h2>음방 무대</h2><span class="note">방송사 공식 채널 무대 영상</span></div>
       {era.stages.length === 0 && fancams.length === 0 ? <p class="empty-note">아직 올라온 무대 영상이 없어요.</p> : era.stages.map((s) => (
         <div class="card stage-group">
           <div class="stage-head"><b>{s.program}</b><span>{s.videos.length}개</span></div>
@@ -290,7 +290,7 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
   {era.outside.length > 0 && <section class="dark deep" id="outside">
     <div class="wrap">
       <p class="eyebrow">OUTSIDE</p>
-      <div class="section-head"><h2>활동 기간 중 출연</h2><span class="note">예능·유튜브·라디오 (다른 활동으로 묶인 드라마·고정 예능은 제외)</span></div>
+      <div class="section-head"><h2>활동 기간 중 출연</h2><span class="note">예능·유튜브·라디오</span></div>
       <div class="grid g5">
         {era.outside.map((o) => (
           <a class="vcard" href={o.url} target="_blank" rel="noopener">
@@ -305,7 +305,7 @@ const fanchants = (await readIndex(Astro.locals.runtime?.env?.REPORTS).catch(() 
   {(era.news ?? []).length > 0 && <section class="light" id="news">
     <div class="wrap">
       <p class="eyebrow">NEWS</p>
-      <div class="section-head"><h2>기사</h2><span class="note">활동·곡 이름이 들어간 기사 {era.news!.length}개</span></div>
+      <div class="section-head"><h2>기사</h2><span class="note">관련 기사 {era.news!.length}개</span></div>
       <div class="card news-list">
         {era.news!.map((n) => (
           <a class="news-row" href={n.url} target="_blank" rel="noopener"><span>{ymd(n.date)}</span><b>{n.title}</b><small>{n.publisher}</small></a>

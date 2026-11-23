@@ -8,7 +8,8 @@
 
 /* 위쪽 (어두운 띠) */
 .ask-hero { background: var(--dark); color: #fff; padding: 36px 0 40px; }
-.hero-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 760px); gap: 32px; align-items: start; }
+.hero-fresh { color: #8a8a8a; font-weight: 400; }
 .dark-eyebrow { color: var(--accent); margin-top: 0; }
 .ask-hero h1 { font-size: 38px; letter-spacing: -0.04em; line-height: 1.15; margin: 4px 0 10px; }
 .ask-hero h1 em { font-style: normal; color: var(--accent); }

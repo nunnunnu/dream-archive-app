@@ -35,7 +35,6 @@ const data = { chart, config, mode, from: from ?? null, to: to ?? null, backHref
     <div class:list={['game-yt', mv && 'game-yt-live']}>
       <div class="game-yt-frame"><div id="game-yt-player"></div></div>
     </div>
-    <p class="game-yt-badge">YouTube 플레이어 · 항상 보이기</p>
 
     <div class="game-notice" id="g-notice" aria-live="polite">
       <span id="g-notice-text">유튜브 영상이라 광고가 나올 수 있어요. 광고가 끝나면 게임이 시작돼요</span>
@@ -43,7 +42,7 @@ const data = { chart, config, mode, from: from ?? null, to: to ?? null, backHref
     </div>
 
     {mv && !hasMv ? (
-      <p class="game-notice is-warn">이 곡은 공식 뮤비 오프셋이 아직 없어서 {mode === 'live' ? '실전을' : '3단계를'} 할 수 없어요.</p>
+      <p class="game-notice is-warn">이 곡은 아직 뮤비로 할 수 없어요. 1·2단계로 연습해 보세요.</p>
     ) : (
       <div class:list={['game-play-row', mode === 'live' && 'is-live']}>
         <div class="game-play-main">
@@ -102,20 +101,20 @@ const data = { chart, config, mode, from: from ?? null, to: to ?? null, backHref
               <path class="stk-d" transform="matrix(1,-0.4655,0,1,100,74)" fill-rule="evenodd" d="M15 17h12a15 19.5 0 0 1 0 39h-12z M22.5 25v23h4a7.5 11.5 0 0 0 0-23z" />
               <g fill="none" stroke="#f8ffd6" stroke-opacity=".6" stroke-width="1.4" stroke-linejoin="round"><polyline points="42,47 100,74 158,47" /><line x1="100" y1="74" x2="100" y2="136" /></g>
             </svg>
-            <span class="sr-only">TAP</span>
+            <span class="sr-only">응원봉</span>
           </button>
         </div>
       </div>
     )}
-    <p class="game-tap-hint">스페이스바 또는 응원봉을 눌러요 · 판정 ±{win.goodMs}ms</p>
+    <p class="game-tap-hint">스페이스바 또는 응원봉을 눌러요</p>
     <p class="game-focus" id="g-focus" hidden>영상을 누르면 스페이스가 영상으로 가요. 응원봉을 한 번 누르면 이어서 할 수 있어요.</p>
     <div class="game-foot">
       <span class="game-author">채보 {chart.author}</span>
-      <span class="game-calib">입력 보정
-        <button type="button" data-calib="-10" aria-label="보정 10ms 줄이기">−</button>
+      <span class="game-calib">타이밍 보정
+        <button type="button" data-calib="-10" aria-label="타이밍 보정 10ms 당기기">−</button>
         <b id="g-calib">0ms</b>
-        <button type="button" data-calib="10" aria-label="보정 10ms 늘리기">+</button>
-        <button type="button" class="game-calib-reset" data-calib="reset" aria-label="입력 보정 초기화">초기화</button>
+        <button type="button" data-calib="10" aria-label="타이밍 보정 10ms 늦추기">+</button>
+        <button type="button" class="game-calib-reset" data-calib="reset" aria-label="타이밍 보정 초기화">초기화</button>
       </span>
     </div>
   </div>

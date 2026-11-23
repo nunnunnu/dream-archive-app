@@ -9,10 +9,10 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
       <div>
         <p class="eyebrow">REPORT · 함께 채우기</p>
         <h1>빠진 일정도, 잘못된 정보도<br /><em>근거와 함께</em> 알려주세요</h1>
-        <p class="hero-copy">링크를 함께 보내면 원문을 읽고 대조해요.<br />15~30분마다 자동으로 확인해서, 보통 30분 안에 반영돼요.</p>
+        <p class="hero-copy">링크를 같이 보내 주시면 더 빨리 확인할 수 있어요.<br />보통 30분 안에 반영돼요.</p>
       </div>
       <div class="hero-proof" aria-label="제보 처리 과정">
-        <span><b>1</b> 제보 접수</span><i></i><span><b>2</b> 원문 대조</span><i></i><span><b>3</b> 아카이브 반영</span>
+        <span><b>1</b> 제보 접수</span><i></i><span><b>2</b> 내용 확인</span><i></i><span><b>3</b> 아카이브 반영</span>
       </div>
     </div>
   </section>
@@ -47,7 +47,7 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
           <div class="event-results" id="event-results"></div>
         </div>
 
-        <label class="field" id="link-field"><span>근거 링크 <small>있으면 자동으로 읽고 반영해요</small></span><input name="url" type="url" placeholder="위버스 공지·유튜브·기사 주소" /></label>
+        <label class="field" id="link-field"><span>근거 링크 <small>있으면 더 빨리 반영돼요</small></span><input name="url" type="url" placeholder="위버스 공지·유튜브·기사 주소" /></label>
 
         <div class="row" id="when-fields">
           <label class="field"><span id="date-label">날짜</span><input name="date" type="date" /></label>
@@ -61,7 +61,7 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
 
         <label class="field" id="reason-field" hidden><span>삭제 요청 이유</span><select name="reasonCode"><option value="">이유를 골라 주세요</option><option value="duplicate">같은 일정이 중복됐어요</option><option value="unrelated">NCT DREAM 관련 일정이 아니에요</option><option value="wrong">잘못 수집된 정보예요</option><option value="cancelled">취소된 일정이에요</option><option value="other">기타</option></select></label>
 
-        <div class="field"><span>멤버 <small>선택하지 않으면 단체로 확인해요</small></span>
+        <div class="field"><span>멤버 <small>안 고르면 단체 일정으로 볼게요</small></span>
           <div class="chips">{members.map((m) => <label class="chip-check"><input type="checkbox" name="members" value={m} />{m}</label>)}</div>
         </div>
 
@@ -77,22 +77,22 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
 
       <aside class="guide">
         <section class="card guide-card strong">
-          <span class="guide-kicker">자동 확인</span>
-          <h3>링크가 있으면 자동으로 반영돼요</h3>
-          <p>보내 준 링크(공지·영상·기사)를 AI가 읽고 날짜·시간·멤버를 뽑아 일정에 올려요. 위버스 공지와 공식·방송 채널 영상은 제보 내용과 맞는지까지 확인해 바로 승인해요.</p>
-          <div class="source-tags"><span>Weverse 공지</span><span>공식 YouTube</span><span>방송사 채널</span></div>
+          <span class="guide-kicker">빠른 반영</span>
+          <h3>링크가 있으면 더 빨라요</h3>
+          <p>위버스 공지나 공식 영상, 기사 링크를 보내 주시면 내용을 확인해서 바로 일정에 올려요.</p>
+          
         </section>
         <section class="card guide-card">
           <span class="guide-kicker">소식 알려주기</span>
           <h3>일정이 아닌 소식도 받아요</h3>
-          <p>X 게시물, 음반 판매처 공지처럼 자동으로 못 모으는 소식을 알려 주세요. AI가 드림 소식이 맞는지 보고 소식 탭에 올려요. 날짜가 있는 일정이면 일정에도 들어가요.</p>
+          <p>X 게시물이나 음반 판매처 공지처럼 일정이 아닌 소식도 알려 주세요. 소식 탭에 올리고, 날짜가 있으면 일정에도 넣어요.</p>
         </section>
         <section class="card guide-card">
           <span class="guide-kicker muted">삭제 요청</span>
-          <h3>확실할 때만 바로 지워요</h3>
-          <p>차트 발표·다른 가수 일정처럼 드림 일정이 아닌 게 분명하면 AI가 판단해 바로 지워요. 공식 공지에 있는 일정이나 애매한 건 운영자가 확인해요.</p>
+          <h3>확인하고 지워요</h3>
+          <p>드림 일정이 아닌 게 분명하면 바로 지우고, 애매한 건 한 번 더 확인한 뒤 지워요.</p>
         </section>
-        <p class="safe-note"><b>링크 없이 보내도 되나요?</b><br />네. 다만 대조할 원문이 없어서 운영자가 확인한 뒤 반영돼요.</p>
+        <p class="safe-note"><b>링크 없이 보내도 되나요?</b><br />네. 확인하는 데 조금 더 걸릴 수 있어요.</p>
       </aside>
     </div>
   </main>
@@ -269,10 +269,10 @@ const members = (await loadSite(Astro.locals)).members.map((m) => m.name);
     try {
       const res = await fetch('/api/report', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({ ok: false, error: '서버 응답이 없어요' }));
-      result.textContent = data.ok ? '고마워요! 보통 30분 안에 원문을 확인해 반영하고, 애매한 내용은 운영자가 확인할게요.' : `보내지 못했어요: ${data.error}`;
+      result.textContent = data.ok ? '고마워요! 확인해서 보통 30분 안에 반영할게요.' : `보내지 못했어요: ${data.error}`;
       if (data.ok) form.reset();
     } catch {
-      result.textContent = '보내지 못했어요. 이 미리보기에서는 제보 서버가 없어요 (사이트를 올리면 동작해요).';
+      result.textContent = '보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.';
     }
   });
 </script>

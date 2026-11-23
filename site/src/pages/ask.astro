@@ -27,31 +27,19 @@ const FAQ = [
       <div>
         <p class="eyebrow dark-eyebrow">ASK · 물어보기</p>
         <h1>궁금한 일정, <em>근거와 함께</em> 알려줘요</h1>
-        <p class="lead">수집한 <b>공지·기사·일정</b>으로만 답해요. 같은 질문은 저장된 답을 바로 보여줘요.</p>
+        <p class="lead"><b>공지·기사·일정</b>을 찾아서 출처와 함께 답해요.</p>
         <form class="ask-form" data-ask-form>
           <textarea name="question" rows="1" maxlength="200" placeholder="예) 이번주 음중 사녹 언제야?" aria-label="질문"></textarea>
           <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
           <button type="submit">보내기 →</button>
         </form>
-        <p class="hero-note">AI 요약이라 틀릴 수 있어요 · <b>중요한 건 꼭 원문 공지를 확인하세요</b></p>
+        <p class="hero-note">AI 요약이라 틀릴 수 있어요 · <b>중요한 건 꼭 원문 공지를 확인하세요</b><span class="hero-fresh" data-fresh></span></p>
         <label class="public-box">
           <span class="lock">🔒</span>
-          <span class="pb-text"><b data-public-title>이 질문은 '최근 질문'에 공개돼요</b><small>전화번호·이메일은 가려서 저장하고, 90일 뒤 지워요. 질문한 사람 정보는 남기지 않아요.</small></span>
+          <span class="pb-text"><b data-public-title>이 질문은 '최근 질문'에 공개돼요</b><small>누가 물었는지는 남지 않아요. 전화번호·이메일은 가려져요.</small></span>
           <span class="pb-switch"><span data-public-label>공개</span><input type="checkbox" checked data-public aria-label="최근 질문에 공개" /><i></i></span>
         </label>
       </div>
-      <aside class="data-card" data-stats>
-        <div class="dc-head"><b>오늘 기준 데이터</b><span class="dc-fresh" data-fresh></span></div>
-        <small>마지막 수집</small>
-        <p class="dc-time" data-collected><i class="skel-line w120 inline"></i></p>
-        <div class="dc-nums">
-          <div><b data-n="notices">-</b><small>공지</small></div>
-          <div><b data-n="articles">-</b><small>기사</small></div>
-          <div><b data-n="events">-</b><small>일정</small></div>
-        </div>
-        <div class="dc-chips"><span>위버스 공지</span><span>뉴스</span><span>유튜브</span><span data-n-sub>팬 제보</span></div>
-        <p class="dc-foot" data-review></p>
-      </aside>
     </div>
   </section>
 
@@ -62,9 +50,9 @@ const FAQ = [
         <div class="card legend">
           <b>답변 상태 보는 법</b>
           <dl>
-            <div><dt><span class="badge b-ai">● AI 답변</span></dt><dd>같은 질문은 저장된 답을 먼저 보여줘요. 새로 계산하지 않아요.</dd></div>
-            <div><dt><span class="badge b-check">! 답변 확인 필요</span></dt><dd>👎가 3개 넘게 쌓이면 바뀌어요. 다음 질문부터 새로 답해요.</dd></div>
-            <div><dt><span class="badge b-old">지난 일정</span></dt><dd>날짜가 지난 일정 답은 만료돼요. 다시 물어보면 새로 답해요.</dd></div>
+            <div><dt><span class="badge b-ai">● AI 답변</span></dt><dd>공지·기사를 보고 AI가 정리한 답이에요.</dd></div>
+            <div><dt><span class="badge b-check">! 다시 확인 중</span></dt><dd>틀렸다는 평가가 많아 다시 확인하고 있는 답이에요.</dd></div>
+            <div><dt><span class="badge b-old">지난 일정</span></dt><dd>이미 지난 일정에 대한 답이에요. 다시 물어보면 새로 찾아봐요.</dd></div>
           </dl>
         </div>
       </aside>
@@ -88,7 +76,7 @@ const FAQ = [
     <div class="lower-grid">
       <section>
         <p class="eyebrow">RECENT</p>
-        <div class="section-head"><h2>최근 질문</h2><span class="note">같은 질문은 하나로 합쳐서 보여줘요</span></div>
+        <div class="section-head"><h2>최근 질문</h2></div>
         <div class="recent-list" data-recent>{Array.from({ length: 3 }, () => <div class="card skel-card"><i class="skel-line w30"></i><i class="skel-line w60"></i><i class="skel-line w80"></i></div>)}</div>
         <button type="button" class="recent-more" data-more hidden>최근 질문 더 보기</button>
       </section>
@@ -100,13 +88,13 @@ const FAQ = [
             <button type="button" class="faq-row" data-ask={f.q}><i>{i + 1}</i><span><b>{f.q}</b><small>{f.hint}</small></span></button>
           ))}
         </div>
-        <p class="faq-note">시기와 상관없는 질문이라 만료되지 않아요.</p>
+        
         <div class="card legend">
           <b>답변 상태 보는 법</b>
           <dl>
-            <div><dt><span class="badge b-ai">● AI 답변</span></dt><dd>같은 질문은 저장된 답을 먼저 보여줘요. 새로 계산하지 않아요.</dd></div>
-            <div><dt><span class="badge b-check">! 답변 확인 필요</span></dt><dd>👎가 3개 넘게 쌓이면 바뀌어요. 다음 질문부터 새로 답해요.</dd></div>
-            <div><dt><span class="badge b-old">지난 일정</span></dt><dd>날짜가 지난 일정 답은 만료돼요. 다시 물어보면 새로 답해요.</dd></div>
+            <div><dt><span class="badge b-ai">● AI 답변</span></dt><dd>공지·기사를 보고 AI가 정리한 답이에요.</dd></div>
+            <div><dt><span class="badge b-check">! 다시 확인 중</span></dt><dd>틀렸다는 평가가 많아 다시 확인하고 있는 답이에요.</dd></div>
+            <div><dt><span class="badge b-old">지난 일정</span></dt><dd>이미 지난 일정에 대한 답이에요. 다시 물어보면 새로 찾아봐요.</dd></div>
           </dl>
         </div>
       </aside>

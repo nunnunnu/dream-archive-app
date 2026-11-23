@@ -53,7 +53,7 @@ const featureIdx = list[0] && day(list[0].publishedAt) === today && visual(list[
       <div>
         <p class="eyebrow">NEWS · 소식</p>
         <h1>일정엔 못 넣는 소식,<br /><mark>올라오는 대로</mark></h1>
-        <p class="lead">화보·광고·공항·기사·영상을 최신순으로 모아요. 같은 소식 기사는 한 줄로 묶고, 사진은 원문 주소에서 바로 불러와요.</p>
+        <p class="lead">화보·광고·공항·기사·영상을 새로 올라온 순서로 모았어요. 같은 소식을 다룬 기사는 한 줄로 묶었어요.</p>
       </div>
       <dl class="nf-stats">
         <div><dt>{count('화보') + count('광고')}</dt><dd>화보·광고</dd></div>
@@ -101,7 +101,7 @@ const featureIdx = list[0] && day(list[0].publishedAt) === today && visual(list[
                 </div>
                 {grouped && <div class="outlets" hidden>
                   {i.articles!.map((a) => <a href={a.url} target="_blank" rel="noopener"><b>{a.publisher}</b><span>{clean(a.title)}<small>{hm(a.publishedAt)}</small></span><em>원문 ↗</em></a>)}
-                  <p>제목이 비슷한 기사를 자동으로 묶었어요 · 본문은 저장하지 않고 원문 링크만 연결해요</p>
+                  <p>같은 소식을 다룬 기사들이에요</p>
                 </div>}
               </article>
             );
@@ -110,11 +110,10 @@ const featureIdx = list[0] && day(list[0].publishedAt) === today && visual(list[
       );
     })}
     <p class="empty" data-none hidden>조건에 맞는 소식이 없어요.</p>
-    {days.length > SHOW_DAYS && <div class="more-wrap"><button type="button" class="more" data-more>이전 소식 더 보기</button><small>며칠씩 더 불러와요</small></div>}
+    {days.length > SHOW_DAYS && <div class="more-wrap"><button type="button" class="more" data-more>이전 소식 더 보기</button></div>}
 
     <section class="nf-info">
-      <div class="card"><b>사진은 이렇게 보여줘요</b><p>사진 파일은 서버에 저장하지 않고 원문 주소만 기록해요. 영상은 유튜브 썸네일, 기사는 원문 페이지의 대표 이미지(og:image) 주소를 써요. 못 불러오면 색 배경과 언론사 이름으로 보여줘요.</p></div>
-      <div class="card"><b>권리자 요청 시 즉시 삭제</b><p>제목·언론사·날짜·링크만 정리하고 기사 본문은 옮기지 않아요. 내려야 할 항목이 있으면 <a href="/report/">제보</a>로 알려주세요. 바로 반영할게요. 빠진 소식도 <a href="/report/?type=news">소식 알려주기</a>로 받아요.</p></div>
+            <div class="card"><b>내려야 할 소식이 있나요?</b><p>기사 본문은 옮기지 않고 제목과 링크만 모아요. 내려야 할 항목이 있으면 <a href="/report/">제보</a>로 알려 주세요. 바로 내릴게요. 빠진 소식도 <a href="/report/?type=news">소식 알려주기</a>로 보내 주세요.</p></div>
     </section>
   </main>
 </Base>

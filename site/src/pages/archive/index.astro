@@ -35,7 +35,7 @@ const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}�
       <div>
         <p class="eyebrow">ARCHIVE</p>
         <h1>아카이브</h1>
-        <p class="lead">멤버 문서부터 컴백·투어·공백기까지, NCT DREAM의 활동을 한곳에서 봐요. 일정과 소식은 공식 공지와 기사에서 <b>자동으로</b> 쌓여요.</p>
+        <p class="lead">멤버 문서부터 컴백·투어·공백기까지, NCT DREAM의 활동을 한곳에서 봐요. </p>
         <form class="arc-search" role="search" onsubmit="return false">
           <input type="search" id="arc-q" placeholder="멤버, 앨범, 투어, 예능 검색" aria-label="아카이브 검색" autocomplete="off" />
           <button type="button" id="arc-go">검색</button>
@@ -75,7 +75,7 @@ const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}�
 
     <section class="arc-sec">
       <p class="eyebrow">ACTIVITIES</p>
-      <div class="sec-head"><h2>활동 아카이브</h2><span>일정 제목 속 작품 이름으로 자동으로 묶어요</span></div>
+      <div class="sec-head"><h2>활동 아카이브</h2><span>컴백·투어·예능을 활동별로 모았어요</span></div>
       <div class="filters">
         <div class="chips" id="year-chips"><button type="button" class="chip on" data-year="">전체</button>{years.map((y) => <button type="button" class="chip" data-year={y}>{y}</button>)}</div>
         <div class="chips" id="kind-chips"><button type="button" class="chip dark on" data-kind="">유형 전체</button>{kinds.map((k) => <button type="button" class="chip" data-kind={k}>{KIND_SHORT[k]}</button>)}</div>
@@ -101,7 +101,7 @@ const ymLabel = (ym: string) => `${ym.slice(0, 4)}년 ${Number(ym.slice(5, 7))}�
     {data.offSeason.length > 0 && (
       <section class="arc-sec">
         <p class="eyebrow">OFF-SEASON</p>
-        <div class="sec-head"><h2>공백기</h2><span>최근 12달 중 컴백·투어가 없던 달에 있었던 일</span></div>
+        <div class="sec-head"><h2>공백기</h2><span>컴백·투어가 없던 달에도 이런 일이 있었어요</span></div>
         <div class="off-grid">
           {data.offSeason.map((o) => (
             <a class="off" href={`/?month=${o.month}`}>

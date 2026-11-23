@@ -298,7 +298,7 @@ function itemRow(e: Ev, day: string) {
         e.kind === '녹화' ? h('span', { class: 'badge' }, '사전녹화 · 당첨자 입장') : null,
         e.audience === 'winners' && e.kind !== '녹화' ? h('span', { class: 'badge' }, '당첨자') : null,
         e.timezone ? h('span', { class: 'badge' }, e.kst ? `현지 ${e.timezone} · 한국 ${e.kst.date !== e.date ? `${fmtMD(e.kst.date)} ` : ''}${e.kst.time}` : `현지 시간 ${e.timezone}`) : null,
-        e.status === 'needs-check' ? h('span', { class: 'badge warn' }, '확인 필요') : null),
+        e.status === 'needs-check' ? h('span', { class: 'badge warn' }, '확인 중') : null),
       h('div', { class: 'ttl' }, same ? e.step : e.title, same ? null : h('em', {}, ` · ${e.step}`)),
       h('div', { class: 'desc' }, e.evidence),
       sourceLinks(e),
