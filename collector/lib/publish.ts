@@ -8,7 +8,7 @@
  *  - meta.json          만든 시각·개수
  */
 import { GROUP_NAME_RE, PARENT_RE } from './group.ts';
-import { isNegative } from './topics.ts';
+import { isFillerArticle, isNegative } from './topics.ts';
 import { topicOf, type FeedTopic } from './topics.ts';
 import { toKst } from './timezones.ts';
 import { PERIOD_KINDS, type PendingItem, type PublicEvent, type ReviewItem, type RumorItem } from './consolidate.ts';
@@ -223,6 +223,8 @@ export function buildFeed(
   for (const it of items) { const t = topicOf(it.title); if (t) it.topic = t; }
   // 다른 가수 이름이 앞에 나오는 기사("아일릿, 한터차트 미국 1위…NCT DREAM …")는 대표 사진이 다른 가수일 수 있다 → 사진 빼고 표시
   for (const it of items) if (it.type === 'news' && !leadsWithGroup(it.title)) { it.shared = true; delete it.image; }
-  // 부정적인 기사(논란·가십)는 올리지 않는다
-  return items.filter((it) => it.type !== 'news' || !isNegative(it.title)).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+  // 부정적인 기사(논란·가십)는 올리지 않는다. 잡다한 기사(라인업·한 매체 근황·드림 이름이 없는 다른 가수 기사)도 소식 탭에서 뺀다
+  return items
+    .filter((it) => it.type !== 'news' || (!isNegative(it.title) && !isFillerArticle(it.title, it.count ?? 1, it.topic) && !(it.shared && !it.topic && !it.members.length && !GROUP_NAME_RE.test(it.title))))
+    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
