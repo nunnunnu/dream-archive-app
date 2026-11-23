@@ -18,7 +18,9 @@ type KV = KvStore;
 
 export const INDEX_KEY = 'fanchant-index';
 const CACHE = 60;
-interface IndexDoc { songs: FanchantIndexSong[]; updatedAt: string }
+/** 목록 모양이 바뀌면 올린다 (다르면 한 번 다시 만든다). 2: 썸네일을 뮤비로 */
+const INDEX_VERSION = 2;
+interface IndexDoc { songs: FanchantIndexSong[]; updatedAt: string; v?: number }
 
 async function allCharts(kv: KV): Promise<FanchantChart[]> {
   const names: string[] = [];
@@ -36,7 +38,7 @@ const sortSongs = (songs: FanchantIndexSong[]) => songs.sort((a, b) => a.title.l
 /** 곡 목록을 처음부터 다시 만든다 (목록 키가 없을 때 한 번) */
 export async function rebuildIndex(kv: KV): Promise<FanchantIndexSong[]> {
   const songs = sortSongs((await allCharts(kv)).filter((c) => c.verified).map(indexEntry));
-  await kv.put(INDEX_KEY, JSON.stringify({ songs, updatedAt: new Date().toISOString() } satisfies IndexDoc));
+  await kv.put(INDEX_KEY, JSON.stringify({ songs, updatedAt: new Date().toISOString(), v: INDEX_VERSION } satisfies IndexDoc));
   return songs;
 }
 
@@ -44,8 +46,8 @@ export async function rebuildIndex(kv: KV): Promise<FanchantIndexSong[]> {
 export async function readIndex(kv: KV | undefined): Promise<FanchantIndexSong[]> {
   if (!kv) return [];
   const doc = await kv.get<IndexDoc>(INDEX_KEY, { type: 'json', cacheTtl: CACHE }).catch(() => null);
-  if (doc?.songs) return doc.songs;
-  return rebuildIndex(kv).catch(() => []);
+  if (doc?.songs && doc.v === INDEX_VERSION) return doc.songs;
+  return rebuildIndex(kv).catch(() => doc?.songs ?? []);
 }
 
 /** 공개된 채보 하나 (verified 가 아니면 null) */
@@ -58,8 +60,8 @@ export async function readPublicChart(kv: KV | undefined, songId: string): Promi
 /** 어드민 저장·삭제 뒤: 그 곡만 목록에서 바꾼다 (chart 가 null 이면 삭제) */
 export async function updateIndex(kv: KV, songId: string, chart: FanchantChart | null): Promise<void> {
   const doc = await kv.get<IndexDoc>(INDEX_KEY, 'json').catch(() => null);
-  if (!doc?.songs) { await rebuildIndex(kv); return; }
+  if (!doc?.songs || doc.v !== INDEX_VERSION) { await rebuildIndex(kv); return; }
   const songs = doc.songs.filter((s) => s.songId !== songId);
   if (chart?.verified) songs.push(indexEntry(chart));
-  await kv.put(INDEX_KEY, JSON.stringify({ songs: sortSongs(songs), updatedAt: new Date().toISOString() } satisfies IndexDoc));
+  await kv.put(INDEX_KEY, JSON.stringify({ songs: sortSongs(songs), updatedAt: new Date().toISOString(), v: INDEX_VERSION } satisfies IndexDoc));
 }

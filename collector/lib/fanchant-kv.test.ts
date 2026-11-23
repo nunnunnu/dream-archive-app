@@ -27,7 +27,7 @@ test('곡 목록 키가 없으면 한 번만 다시 만들고, 공개 곡만 담
 
 test('저장·삭제 때 그 곡만 목록에서 바꾼다', async () => {
   const { kv, m } = memKV();
-  m.set(INDEX_KEY, JSON.stringify({ songs: [], updatedAt: '' }));
+  m.set(INDEX_KEY, JSON.stringify({ songs: [], updatedAt: '', v: 2 }));
   await updateIndex(kv, 'c', chart('c', true) as never);
   await updateIndex(kv, 'd', chart('d', false) as never);
   assert.deepEqual((await readIndex(kv)).map((s) => s.songId), ['c']);
@@ -47,4 +47,13 @@ test('공개 채보만 읽고, 어드민 저장 정보는 뺀다', async () => {
   assert.equal(e?.updatedBy, undefined);
   assert.equal(await readPublicChart(kv, 'f'), null);
   assert.equal(await readPublicChart(kv, '../x'), null);
+});
+
+test('곡 카드 썸네일은 뮤비, 옛 모양 목록은 한 번 다시 만든다', async () => {
+  const { kv, m, lists } = memKV();
+  m.set('chart:g', JSON.stringify({ ...chart('g', true), videos: [{ mode: 'guide', youtubeId: 'GGGGGGGGGGG', offset: 0 }, { mode: 'mv', youtubeId: 'MMMMMMMMMMM', offset: 0 }], cover: { youtubeId: 'GGGGGGGGGGG' } }));
+  m.set(INDEX_KEY, JSON.stringify({ songs: [{ songId: 'g', coverYoutubeId: 'GGGGGGGGGGG' }], updatedAt: '' }));
+  const songs = await readIndex(kv);
+  assert.equal(songs[0].coverYoutubeId, 'MMMMMMMMMMM');
+  assert.equal(lists(), 1);
 });

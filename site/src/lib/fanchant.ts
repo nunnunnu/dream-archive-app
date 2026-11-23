@@ -193,7 +193,8 @@ export function checkChart(input: unknown, opts: { memberSlugs?: string[]; minCu
   const verified = o.verified === true;
   if (verified && (cues.length === 0 || empty)) errors.push('공개하려면 큐가 있고 모든 큐에 문구가 있어야 해요');
 
-  const coverId = youtubeIdFrom(String((o.cover as Record<string, unknown> | undefined)?.youtubeId ?? '')) ?? videos.find((v) => v.mode === 'guide')?.youtubeId;
+  // 카드 썸네일은 실전용 뮤비 → 없으면 가이드
+  const coverId = youtubeIdFrom(String((o.cover as Record<string, unknown> | undefined)?.youtubeId ?? '')) ?? (videos.find((v) => v.mode === 'mv') ?? videos.find((v) => v.mode === 'guide'))?.youtubeId;
   const credit = str((o.cover as Record<string, unknown> | undefined)?.credit, 60);
   if (errors.length) return { chart: null, errors, warnings };
   const chart: FanchantChart = {
@@ -218,7 +219,7 @@ export function publicChart(c: FanchantChart): FanchantChart {
 export function indexEntry(c: FanchantChart): FanchantIndexSong {
   return {
     songId: c.songId, title: c.title, album: c.album, year: c.year, difficulty: c.difficulty, difficultyLabel: c.difficultyLabel,
-    noteCount: c.cues.length, durationSec: c.durationSec, author: c.author, verified: c.verified, coverYoutubeId: c.cover?.youtubeId,
+    noteCount: c.cues.length, durationSec: c.durationSec, author: c.author, verified: c.verified, coverYoutubeId: c.videos.find((v) => v.mode === 'mv')?.youtubeId ?? c.cover?.youtubeId,
     hasGuide: c.videos.some((v) => v.mode === 'guide'), hasMv: c.videos.some((v) => v.mode === 'mv'),
   };
 }
