@@ -310,11 +310,11 @@ const squashName = (t: string) => t.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu
 
 /** 고정 편성 프로그램 (config/programs.json) */
 const PROGRAMS: { names: string[]; weekday: string; time: string }[] = JSON.parse(readFileSync(join(ROOT, 'config', 'programs.json'), 'utf8')).programs;
-const BROADCAST_EPISODES = JSON.parse(readFileSync(join(ROOT, 'config', 'broadcast-episodes.json'), 'utf8')) as {
+interface BroadcastEpisodes {
   title: string; members: string[]; publisher: string; source: string; dates: string[];
   videos?: Record<number, { id: string; publisher: string; title: string }>;
-}[];
-const CONFIRMED_SHOWS = new Set(BROADCAST_EPISODES.map((show) => showKey(show.title)));
+}
+const BROADCAST_EPISODES = JSON.parse(readFileSync(join(ROOT, 'config', 'broadcast-episodes.json'), 'utf8')) as BroadcastEpisodes[];
 const SPORTS_SPECIAL = /아육대|아이돌\s*스타.*선수권/;
 const programOf = (title: string) => PROGRAMS.find((p) => p.names.some((n) => title.toLowerCase().includes(n.toLowerCase())));
 const weekdayOf = (date: string) => ['일', '월', '화', '수', '목', '금', '토'][new Date(`${date}T00:00:00Z`).getUTCDay()];
@@ -442,8 +442,11 @@ export function consolidate(
     trustedVideoUrls?: Set<string>;
     /** 고정 출연 회차에 붙일 영상 (프로그램 채널의 회차 클립: "[IDOL'S TABLE/EP.06] …") */
     seriesVideos?: (VideoLite & { duration?: number })[];
+    broadcastEpisodes?: readonly BroadcastEpisodes[];
   },
 ): { events: PublicEvent[]; pending: PendingItem[]; rumors: RumorItem[]; review: ReviewItem[] } {
+  const broadcastEpisodes = opts.broadcastEpisodes ?? BROADCAST_EPISODES;
+  const confirmedShows = new Set(broadcastEpisodes.map((show) => showKey(show.title)));
   // 날짜 미정으로 왔지만 시기 표현에 날짜가 적혀 있으면 날짜 일정으로
   const items = rawItems.flatMap((x) => {
     if (x.date || !x.when_text) return [x];
@@ -493,7 +496,7 @@ export function consolidate(
   for (const g of groups) {
     if (g.every((x) => x.fillOnly)) continue;
     const e = mergeGroup(g);
-    if (e.kind === '방송' && CONFIRMED_SHOWS.has(showKey(e.title)) && !/녹화|촬영|결방/.test(e.step)) continue;
+    if (e.kind === '방송' && confirmedShows.has(showKey(e.title)) && !/녹화|촬영|결방/.test(e.step)) continue;
     if (!e.time && opts.videos?.length) {
       const v = timeFromVideos(e, opts.videos);
       if (v) {
@@ -536,7 +539,7 @@ export function consolidate(
     }
   }
 
-  for (const show of BROADCAST_EPISODES) {
+  for (const show of broadcastEpisodes) {
     const seriesId = stableId('broadcast-episodes', showKey(show.title), show.dates[0]);
     for (const [i, date] of show.dates.entries()) {
       const episode = i + 1;

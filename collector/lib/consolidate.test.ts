@@ -1,12 +1,30 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { consolidate, type ExtractedItem, type SourceRef } from './consolidate.ts';
+import { consolidate as consolidateWithBroadcasts, type ExtractedItem, type SourceRef } from './consolidate.ts';
 
 const src = (type: SourceRef['type'], id: string): SourceRef => ({ type, id, url: `https://x/${id}`, title: id, publishedAt: '2026-11-12T00:00:00Z' });
+const consolidate = (items: ExtractedItem[], opts: Parameters<typeof consolidateWithBroadcasts>[1]) =>
+  consolidateWithBroadcasts(items, { broadcastEpisodes: [], ...opts });
 const consolidateLoose = (items: ExtractedItem[], opts: Parameters<typeof consolidate>[1]) => consolidate(items, { ...opts, corroborate: false });
 const item = (p: Partial<ExtractedItem> & { source: SourceRef }): ExtractedItem => ({
   date: '2026-11-12', time: null, end_date: null, end_time: null, timezone: null,
   target: '', step: '', kind: '방송', members: [], evidence: 'e', verified: true, problems: [], by: 'ai', ...p,
+});
+
+test('공식 회차가 등록된 방송은 추정 회차 대신 등록된 날짜만 쓴다', () => {
+  const { events } = consolidateLoose(
+    [item({ target: '테스트 예능', step: '첫 방송', source: src('news', 'a') })],
+    {
+      today: '2026-11-12',
+      broadcastEpisodes: [{
+        title: '테스트 예능', members: ['지성'], publisher: '방송사',
+        source: 'https://example.com/episodes', dates: ['2026-11-13', '2026-11-20'],
+      }],
+    },
+  );
+  assert.deepEqual(events.map(({ date, step }) => [date, step]), [
+    ['2026-11-13', '1회 (첫 방송)'], ['2026-11-20', '2회 (마지막 회)'],
+  ]);
 });
 
 test('기사 두 곳의 같은 출연은 하나로, 시간은 있는 쪽으로 채운다', () => {
