@@ -8,6 +8,9 @@ const { id } = Astro.params;
 const found = await loadPublic<SeriesPage | null>(Astro.locals, `series/${id}.json`, null);
 if (!found) return new Response('없는 시리즈예요', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
 const sr = found;
+const category = sr.type === '고정 출연' ? '외부활동' : sr.type;
+const recordUnit = sr.type === '반복 활동' ? '개 활동' : ['외부활동', '광고', '라디오'].includes(sr.type) ? '건' : '편';
+const categoryId = ({ 외부활동: 'external', 광고: 'ads', 라디오: 'radio', '자체 콘텐츠 시리즈': 'originals', '종류별 모아보기': 'collections', '반복 활동': 'recurring' } as Record<string, string>)[category];
 const GROUP_RE = groupNameRe(await loadSite(Astro.locals));
 const clean = (t: string) => t.replace(GROUP_RE, '').replace(/#\S+/g, '').replace(/\s{2,}/g, ' ').replace(/^[\s|·-]+|[\s|·-]+$/g, '').trim() || t;
 // 멤버별로 보기: 이 시리즈 영상에 나오는 멤버 (영상이 많은 순)
@@ -16,13 +19,13 @@ for (const se of sr.seasons) for (const v of se.videos) for (const m of v.member
 const seriesMembers = [...memberCount.entries()].sort((a, b) => b[1] - a[1]).map(([m]) => m);
 ---
 <Base title={sr.name} current="series">
-  <nav class="crumbs wrap" aria-label="경로"><a href="/series/">시리즈</a><span>/</span><span>{sr.type}</span><span>/</span><b>{sr.name}</b></nav>
+  <nav class="crumbs wrap" aria-label="경로"><a href="/series/">시리즈</a><span>/</span>{categoryId && <><a href={`/series/#${categoryId}`}>{category}</a><span>/</span></>}<b>{sr.name}</b></nav>
   <section class="s-hero">
     <div class="wrap s-hero-in">
       <div>
-        <span class="sc-type">{sr.type}</span>
+        <span class="sc-type">{category}</span>
         <h1>{sr.name}</h1>
-        <p>{sr.type === '반복 활동' ? `활동 ${sr.count}개` : `${sr.count}편`} · {ymd(sr.from)} – {ymd(sr.to)}{sr.members.length ? ` · ${sr.members.join('·')}` : ''}</p>
+        <p>{sr.count}{recordUnit} · {ymd(sr.from)}{sr.from !== sr.to && ` – ${ymd(sr.to)}`}{sr.members.length ? ` · ${sr.members.join('·')}` : ''}</p>
       </div>
       {sr.seasons.length > 1 && <nav class="season-jump">{sr.seasons.map((s, i) => <a href={`#season-${i}`}>{s.name} <span>{s.videos.length}</span></a>)}</nav>}
     </div>

@@ -1,0 +1,16 @@
+{
+  "stages": {
+    "2025-taste": [
+      {"id":"pDxS1loq9yQ","title":"CRZY - 해찬 [뮤직뱅크/Music Bank] | KBS 250912 방송","date":"2025-09-12","channel":"KBS Kpop","program":"뮤직뱅크"},
+      {"id":"nT5Ew_X3JZg","title":"CRZY - 해찬(HAECHAN) | SBS 250914 방송","date":"2025-09-14","channel":"SBSKPOP X INKIGAYO","program":"인기가요"}
+    ],
+    "2026-boogiewoogie": [
+      {"id":"NqW1uuttv-E","title":"Boogie Woogie - NCT DREAM | SBS 261122 방송","date":"2026-11-22","channel":"SBSKPOP X INKIGAYO","program":"인기가요"}
+    ]
+  },
+  "related": {
+    "2026-와인드업": [
+      {"id":"KAuzMTKwmdQ","title":"와인드업: 더 무비 | 극장판 공식 예고편","date":"2026-06-15","channel":"KITZ 킷츠","group":"예고·클립"}
+    ]
+  }
+}

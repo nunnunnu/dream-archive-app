@@ -1,0 +1,105 @@
+[
+  {
+    "id": "x-nana",
+    "type": "외부활동",
+    "name": "나나기획 · 쩜오야",
+    "publishers": ["채널십오야"],
+    "match": ["나나기획","쩜오야"],
+    "records": [
+      {"date":"2026-11-10","title":"쩜오야 · 런쥔·제노 출연","url":"https://www.youtube.com/watch?v=mCeUNjUlGhQ","members":["런쥔","제노"]}
+    ]
+  },
+  {
+    "id": "x-k-star-next-door",
+    "type": "외부활동",
+    "name": "동네스타K",
+    "publishers": ["동네스타K","동네스타"],
+    "match": ["동네스타K","theKStarNextdoor"],
+    "records": [
+      {"date":"2024-03-26","title":"동네스타K4 EP.1 · NCT DREAM","url":"https://www.youtube.com/watch?v=uroQAA0nb2Y","members":["제노","재민","천러","지성"]},
+      {"date":"2024-03-19","title":"동네스타K4 · NCT DREAM 예고편","url":"https://www.youtube.com/watch?v=iVw3Kbcy2xk","members":["제노","재민","천러","지성"]}
+    ]
+  },
+  {
+    "id": "x-leejung",
+    "type": "외부활동",
+    "name": "리정 · 우리집 놀러 올래?",
+    "publishers": ["슈퍼댄서 LEE리정"],
+    "records": [
+      {"date":"2026-11-20","title":"천러야 우리집 놀러 올래?","url":"https://www.youtube.com/watch?v=FFoMc6tCeXc","members":["천러"]}
+    ]
+  },
+  {
+    "id": "x-sleep-brain",
+    "type": "외부활동",
+    "name": "잠드뇌 하우스",
+    "publishers": ["장동선의 궁금한 뇌"],
+    "match": ["잠드뇌","틀어놓고 주무세요"],
+    "records": [
+      {"date":"2026-11-19","title":"틀어놓고 주무세요 · 런쥔·제노·지성 출연","url":"https://www.youtube.com/watch?v=Q1PP2HfUVgo","members":["런쥔","제노","지성"]}
+    ]
+  },
+  {
+    "id": "x-pinggyego",
+    "type": "외부활동",
+    "name": "핑계고",
+    "publishers": ["뜬뜬 DdeunDdeun","뜬뜬"],
+    "match": ["핑계고"],
+    "records": [
+      {"date":"2024-03-21","title":"mini핑계고 EP.12 · 마크·재민·해찬 출연","url":"https://www.youtube.com/watch?v=nMpn3GMD2Is","members":["마크","재민","해찬"]}
+    ]
+  },
+  {
+    "id": "x-idol-human-theater",
+    "type": "외부활동",
+    "name": "아이돌 인간극장",
+    "publishers": ["아이돌 인간극장","KBS Kpop"],
+    "match": ["아이돌 인간극장","Idol Human Theater"],
+    "records": [
+      {"date":"2024-11-16","title":"집단적 독백이 난무하는 NCT DREAM의 하루","url":"https://www.youtube.com/watch?v=Sg3X8hXq2ps","members":["마크","런쥔","제노","해찬","재민","천러","지성"]},
+      {"date":"2024-12-17","title":"NCT DREAM 비하인드","url":"https://www.youtube.com/watch?v=G5SSQPdzf7g","members":["마크","런쥔","제노","해찬","재민","천러","지성"]}
+    ]
+  },
+  {
+    "id": "x-nopogy",
+    "type": "외부활동",
+    "name": "노포기",
+    "publishers": ["KBS Kpop"],
+    "match": ["노포기","NOPOGY"],
+    "records": [
+      {"date":"2024-11-16","title":"노포기 EP.12 · 마크·런쥔 출연","url":"https://www.youtube.com/watch?v=uxC3P_Md9_A","members":["마크","런쥔"]}
+    ]
+  },
+  {
+    "id": "x-prince-and-pauper",
+    "type": "외부활동",
+    "name": "왕자와 거지",
+    "publishers": ["ENA","TEO 테오","Disney Plus Korea"],
+    "match": ["왕자와 거지"],
+    "records": [
+      {"date":"2026-07-27","title":"ENA 왕자와 거지 · 지성 출연","url":"https://ktena.co.kr/bbs/board.php?bo_table=variety&wr_id=149","members":["지성"]},
+      {"date":"2026-07-12","title":"왕자와 거지 · 2차 티저 예고편","url":"https://www.youtube.com/watch?v=sxAZVpWfv6E","members":["지성"]},
+      {"date":"2026-07-05","title":"왕자와 거지 · 1차 티저 예고편","url":"https://www.youtube.com/watch?v=-yFHcqhDFeQ","members":["지성"]}
+    ]
+  },
+  {
+    "id": "ad-chabaidao",
+    "type": "광고",
+    "name": "차백도",
+    "publishers": ["차백도 코리아","차백도","CHABAIDAO"],
+    "records": [
+      {"date":"2026-11-22","title":"차백도 코리아 · 재민 배경화면 공개","url":"https://www.instagram.com/p/DgBrsm_kx1B","members":["재민"]}
+    ]
+  },
+  {
+    "id": "ad-lee",
+    "type": "광고",
+    "name": "Lee",
+    "publishers": ["Lee Jeans","Lee Korea"],
+    "records": [
+      {"date":"2026-02-20","title":"Lee 캠페인 촬영 비하인드","url":"https://www.youtube.com/watch?v=tc0wPx4HMVQ","members":["재민"]},
+      {"date":"2026-11-11","title":"LEE × NCT JAEMIN 포토카드","url":"https://www.instagram.com/p/DflXGyUGH3-/","members":["재민"]},
+      {"date":"2026-11-09","title":"BLACK FRIDAY × NCT JAEMIN","url":"https://www.instagram.com/p/DfgwL5IFEXP/","members":["재민"]}
+    ]
+  }
+]

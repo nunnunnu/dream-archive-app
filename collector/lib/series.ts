@@ -14,14 +14,17 @@ import type { PublicEvent } from './consolidate.ts';
 import type { EraPage } from './eras.ts';
 import { GROUP } from './group.ts';
 import { isDreamRelated } from './news.ts';
+import { normUrl, type NewsHide } from './newsHide.ts';
+import type { FeedItem } from './publish.ts';
 import { ROOT } from './store.ts';
 import { seriesName } from './tags.ts';
 import type { Video } from './youtube.ts';
 
 export interface SeriesVideo { id: string; title: string; url: string; thumb: string; date: string; ep: number | null; members: string[] }
+interface SeriesEpisode { date: string; time: string | null; title: string; step: string; members: string[]; url?: string; thumb?: string }
 export interface SeriesPage {
   id: string;
-  type: '자체 콘텐츠 시리즈' | '종류별 모아보기' | '고정 출연' | '반복 활동';
+  type: '자체 콘텐츠 시리즈' | '종류별 모아보기' | '고정 출연' | '반복 활동' | '외부활동' | '광고' | '라디오';
   name: string;
   count: number;
   from: string;
@@ -29,7 +32,7 @@ export interface SeriesPage {
   thumb?: string;
   members: string[];
   seasons: { name: string; videos: SeriesVideo[] }[];
-  episodes?: { date: string; time: string | null; title: string; step: string; members: string[]; url?: string; thumb?: string }[];
+  episodes?: SeriesEpisode[];
   activities?: { id: string; title: string; kind: string; owner: string; from: string; to: string; cover: EraPage['cover']; thumb?: string }[];
 }
 
@@ -39,7 +42,11 @@ const VERIFIED = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-series-v
   covers: string[]; appearances: string[];
 };
 const MEMBER_RECORDS = JSON.parse(readFileSync(join(ROOT, 'config', 'member-records.json'), 'utf8')) as
-  { id: string; name: string; records: Omit<NonNullable<SeriesPage['episodes']>[number], 'time'>[] }[];
+  { id: string; name: string; type?: '라디오'; records: Omit<SeriesEpisode, 'time'>[] }[];
+const CATALOG = JSON.parse(readFileSync(join(ROOT, 'config', 'series-catalog.json'), 'utf8')) as {
+  id: string; name: string; type: '외부활동' | '광고'; publishers: string[]; match?: string[];
+  records: (Pick<SeriesEpisode, 'date' | 'title' | 'members'> & { url: string })[];
+}[];
 const OWN = new Set(GROUP.youtube.channels.filter((c) => !c.guest).map((c) => c.name));
 const sq = (t: string) => t.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
 const slug = (t: string) => sq(t).replace(/[^a-z0-9가-힣]/g, '').slice(0, 30) || 'series';
@@ -50,6 +57,8 @@ const toVid = (v: Video): SeriesVideo => ({
 });
 const sortVids = (list: SeriesVideo[]) => list.sort((a, b) => a.date.localeCompare(b.date) || (a.ep ?? 0) - (b.ep ?? 0));
 const range = (dates: string[]) => { const s = [...dates].sort(); return { from: s[0], to: s.at(-1)! }; };
+const youtubeId = (url: string) => url.match(/^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/)|youtu\.be\/)([\w-]{11})(?=$|[?&#/])/i)?.[1];
+const sourceKey = (url: string) => youtubeId(url) ?? normUrl(url);
 
 const COLLECTIONS: [string, RegExp][] = [
   ['MV·자켓 비하인드', /behind the scenes|비하인드|making film|jacket/i],
@@ -62,7 +71,7 @@ const COLLECTIONS: [string, RegExp][] = [
   ['응원법', /응원법|cheering\s*guide/i],
 ];
 
-export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activity[], eras: EraPage[]): SeriesPage[] {
+export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activity[], eras: EraPage[], feed: FeedItem[] = [], hidden: NewsHide[] = [], unavailableIds: ReadonlySet<string> = new Set()): SeriesPage[] {
   // 공식 채널 영상은 수집할 때 이미 드림 관련(제목·설명 해시태그)만 받았다 → 제목에 이름이 없어도(천지의 이것저것 등) 시리즈에 쓴다
   const own = videos.filter((v) => OWN.has(v.channel) && (v.channel === GROUP.name || isDreamRelated(`${v.title}\n${v.description ?? ''}`)) && !/react|리액션/i.test(v.title));
   const pages: SeriesPage[] = [];
@@ -151,16 +160,41 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   }
   const appearanceClips = [...appearances.values()];
   addVideoCollection('멤버 공식 영상', appearanceClips, [...new Set(appearanceClips.flatMap((clip) => clip.members))]);
-  for (const { id, name, records } of MEMBER_RECORDS) {
+  for (const { id, name, type = '종류별 모아보기', records } of MEMBER_RECORDS) {
     const episodes = records.map((record) => ({ ...record, time: null })).sort((a, b) => b.date.localeCompare(a.date));
     pages.push({
-      id, type: '종류별 모아보기', name, count: episodes.length, ...range(episodes.map((e) => e.date)),
+      id, type, name, count: episodes.length, ...range(episodes.map((e) => e.date)),
       thumb: episodes.find((e) => e.thumb)?.thumb, members: [...new Set(episodes.flatMap((e) => e.members))], seasons: [], episodes,
     });
   }
 
+  // 제작사·브랜드 원문과 검증한 기존 기록을 프로그램별로 모은다.
+  const hiddenKeys = new Set(hidden.flatMap((entry) => [entry.url, ...entry.urls]).map(sourceKey));
+  const originals = feed.filter((f) => (f.type === 'youtube' || f.type === 'sns') && f.publisher && f.members.length);
+  for (const { id, name, type, publishers, match, records } of CATALOG) {
+    const bySource = new Map<string, SeriesEpisode>();
+    const add = ({ image, ...record }: { url: string; title: string; date: string; members: string[]; image?: string }) => {
+      const key = sourceKey(record.url);
+      if (hiddenKeys.has(key) || unavailableIds.has(key)) return;
+      const yt = youtubeId(record.url);
+      bySource.set(key, { ...record, time: null, step: record.title, thumb: image ?? (yt ? `https://i.ytimg.com/vi/${yt}/mqdefault.jpg` : bySource.get(key)?.thumb) });
+    };
+    const channelPrefixes = publishers.map(sq);
+    const keywords = match?.map(sq);
+    for (const f of originals) {
+      if (!channelPrefixes.some((p) => sq(f.publisher!).startsWith(p)) || (keywords && !keywords.some((k) => sq(f.title).includes(k)))) continue;
+      add({ url: f.url, title: f.title, date: kst(f.publishedAt), members: f.members, image: f.image });
+    }
+    for (const record of records) add(record);
+    const episodes = [...bySource.values()].sort((a, b) => b.date.localeCompare(a.date));
+    if (!episodes.length) continue;
+    pages.push({ id, name, type, count: episodes.length, ...range(episodes.map((e) => e.date)), thumb: episodes.find((e) => e.thumb)?.thumb,
+      members: [...new Set(episodes.flatMap((e) => e.members))], seasons: [], episodes });
+  }
+
   // 3) 고정 출연: 일주일 넘게 이어진 외부 예능
   const byId = new Map(events.map((e) => [e.id, e]));
+  const appearancesByShow = new Map<string, SeriesPage>();
   // (공식 채널 자체 콘텐츠는 외부 출연이 아니라서 뺀다)
   const ownOnly = (a: Activity) => a.eventIds.every((id) => (byId.get(id)?.sources ?? []).every((src) => src.type === 'youtube' && OWN.has(src.publisher ?? '')));
   for (const a of acts.filter((x) => x.kind === '예능' && Date.parse(x.to) - Date.parse(x.from) > 7 * 864e5 && !ownOnly(x))) {
@@ -169,8 +203,14 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
       const id = yt?.url.match(/(?:v=|youtu\.be\/|shorts\/|live\/)([\w-]{11})/)?.[1];
       return { date: e.date, time: e.time, title: e.title.replace(/^유튜브\s+/, ''), step: e.step, members: e.members, url: yt?.url ?? e.sources[0]?.url, thumb: id ? `https://i.ytimg.com/vi/${id}/mqdefault.jpg` : undefined };
     });
-    pages.push({ id: `a-${slug(a.name)}`, type: '고정 출연', name: a.name, count: eps.length, from: a.from, to: a.to, thumb: eps.find((x) => x.thumb)?.thumb, members: a.owner.members, seasons: [], episodes: eps });
+    const id = `a-${slug(a.name)}`;
+    const previous = appearancesByShow.get(id);
+    const episodes = [...new Map([...(previous?.episodes ?? []), ...eps]
+      .map((e) => [`${e.date}|${e.step}`, e] as const)).values()].sort((x, y) => x.date.localeCompare(y.date));
+    appearancesByShow.set(id, { id, type: '고정 출연', name: a.name, count: episodes.length, ...range([a.from, a.to, ...(previous ? [previous.from, previous.to] : [])]),
+      thumb: episodes.find((x) => x.thumb)?.thumb, members: [...new Set([...(previous?.members ?? []), ...a.owner.members])], seasons: [], episodes });
   }
+  pages.push(...appearancesByShow.values());
 
   // 4) 해마다 반복되는 활동
   const card = (e: EraPage) => ({ id: e.id, title: e.title, kind: e.kind, owner: e.owner.label, from: e.from, to: e.to, cover: e.cover, thumb: e.thumb });

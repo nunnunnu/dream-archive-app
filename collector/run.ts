@@ -164,7 +164,8 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   for (let i = feed.length - 1; i >= 0; i--) if ([...goneIds].some((id) => JSON.stringify(feed[i]).includes(id))) feed.splice(i, 1);
   // 소식 삭제 제보: 판정(권리자·사생활은 바로, 그 밖에는 AI가 확실할 때만) → 숨긴 소식은 내보내기 전에 뺀다
   for (const l of await judgeNewsDeleteReports(repo, savedReports, feed, budget, now)) console.log(l);
-  const shownFeed = hideNews(feed, await repo.getState<NewsHide[]>(NEWS_HIDE_STATE, []));
+  const hiddenNews = await repo.getState<NewsHide[]>(NEWS_HIDE_STATE, []);
+  const shownFeed = hideNews(feed, hiddenNews);
   if (shownFeed.length !== feed.length) { console.log(`소식 삭제 제보로 숨긴 소식 ${feed.length - shownFeed.length}개`); feed.splice(0, feed.length, ...shownFeed); }
   // 일정에 이미 있는 콘텐츠를 보고 쓴 파생 기사는 소식 탭에서 뺀다 (소식 탭은 일정엔 못 넣는 소식 자리)
   const derived = eventDerivatives(feed, events);
@@ -196,7 +197,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   for (const era of eras) await repo.publish(`eras/${era.id}.json`, era);
   await repo.publish('eras.json', { eras: eras.map(({ official, stages, fancams, related, own, shorts, outside, timeline, schedule, ownGroups, news, guide, ...rest }) => ({ ...rest, guideCount: guide?.length ?? 0 })) });
   // 시리즈: 자체 콘텐츠 시리즈 · 종류별 모아보기 · 고정 출연 · 반복 활동
-  const series = buildSeries(await loadRecentVideos(now, 130), events, acts, eras);
+  const series = buildSeries(await loadRecentVideos(now, 130), events, acts, eras, feed, hiddenNews, goneIds);
   for (const sr of series) await repo.publish(`series/${sr.id}.json`, sr);
   await repo.publish('series.json', { series: series.map(({ seasons, episodes, activities, ...rest }) => rest) });
   // 멤버 문서(그룹 + 멤버) · 아카이브 첫 화면 요약

@@ -81,8 +81,11 @@ export interface EraPage {
 
 const SONG_ALIASES: Record<string, string[]> = JSON.parse(readFileSync(join(ROOT, 'config', 'song-aliases.json'), 'utf8')).aliases;
 const CONFIG: { eras: EraConfig[] } = JSON.parse(readFileSync(join(ROOT, 'config', 'tags.json'), 'utf8'));
-const VERIFIED_STAGES: Record<string, (Pick<EraVideo, 'id' | 'title' | 'date' | 'channel'> & { program: string })[]> =
-  JSON.parse(readFileSync(join(ROOT, 'config', 'verified-activity-stages.json'), 'utf8'));
+type VerifiedVideo = Pick<EraVideo, 'id' | 'title' | 'date' | 'channel'>;
+const VERIFIED_VIDEOS: {
+  stages: Record<string, (VerifiedVideo & { program: string })[]>;
+  related: Record<string, (VerifiedVideo & { group: string })[]>;
+} = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-activity-videos.json'), 'utf8'));
 const PROGRAMS: { names: string[] }[] = JSON.parse(readFileSync(join(ROOT, 'config', 'programs.json'), 'utf8')).programs;
 const OWN = new Set(GROUP.youtube.channels.filter((c) => !c.guest).map((c) => c.name));
 const AGENCY = new Set([...OWN, ...(GROUP.youtube.agencyChannels ?? [])]);
@@ -104,6 +107,9 @@ const kstDate = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600 * 1
 const toVid = (v: Video): EraVideo => ({
   id: v.videoId, title: v.title, url: v.url, thumb: `https://i.ytimg.com/vi/${v.videoId}/mqdefault.jpg`,
   date: originalAirDate(v) ?? kstDate(v.publishedAt), channel: v.channel, members: videoMembers(v),
+});
+const verifiedVideo = (v: VerifiedVideo, members: string[]): EraVideo => ({
+  ...v, members, url: `https://www.youtube.com/watch?v=${v.id}`, thumb: `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,
 });
 const programName = (title: string) => PROGRAMS.find((p) => p.names.some((n) => title.toLowerCase().includes(n.toLowerCase())))?.names[0];
 
@@ -279,7 +285,8 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     const shorts = ownVids.filter((v) => !isOfficial(v) && isShort(v));
     const own = ownVids.filter((v) => !isOfficial(v) && !isShort(v));
     const isBroadcaster = (ch: string) => BROADCASTERS.has(ch);
-    const allStage = vids.filter((v) => isBroadcaster(v.channel) && STAGE_RE.test(v.title) && !STAGE_MIX_RE.test(v.title) && !/🔴|라이브\]|LIVE\s*[|ㅣ]/i.test(v.title));
+    const allStage = vids.filter((v) => isBroadcaster(v.channel) && !STAGE_MIX_RE.test(v.title) && !/🔴|라이브\]|LIVE\s*[|ㅣ]/i.test(v.title)
+      && (STAGE_RE.test(v.title) || (programName(v.channel) && /\|\s*SBS\s+\d{6}\s+방송\s*$/i.test(v.title))));
     const fancamVids = allStage.filter((v) => FANCAM_RE.test(v.title));
     const stageVids = allStage.filter((v) => !FANCAM_RE.test(v.title));
     const byMember = new Map<string, EraVideo[]>();
@@ -288,14 +295,14 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
     const byProg = new Map<string, EraVideo[]>();
     const stageIds = new Set(stageVids.map((v) => v.videoId));
     for (const v of stageVids) {
-      const p = programName(v.title) ?? v.channel;
+      const p = programName(v.title) ?? programName(v.channel) ?? v.channel;
       byProg.set(p, [...(byProg.get(p) ?? []), toVid(v)]);
     }
-    for (const { program, ...v } of VERIFIED_STAGES[act.id] ?? []) {
+    for (const { program, ...v } of VERIFIED_VIDEOS.stages[act.id] ?? []) {
       if (unavailableIds.has(v.id) || stageIds.has(v.id)) continue;
       stageIds.add(v.id);
       const clips = byProg.get(program) ?? [];
-      clips.push({ ...v, url: `https://www.youtube.com/watch?v=${v.id}`, thumb: `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`, members: act.owner.members });
+      clips.push(verifiedVideo(v, act.owner.members));
       clips.sort((a, b) => a.date.localeCompare(b.date));
       byProg.set(program, clips);
     }
@@ -307,6 +314,9 @@ export function buildEraPages(events: PublicEvent[], videos: Video[], acts: Acti
       .filter((v) => !AGENCY.has(v.channel) && !isFanMade(v.title) && (BROADCASTERS.has(v.channel) || v.guest || (v.channelSubscribers ?? 0) >= 100_000))
       .map((v) => ({ ...toVid(v), group: relatedGroup(v.title) }))
       .reverse();
+    for (const { group, ...v } of VERIFIED_VIDEOS.related[act.id] ?? []) {
+      if (!unavailableIds.has(v.id) && !related.some((clip) => clip.id === v.id)) related.push({ ...verifiedVideo(v, act.owner.members), group });
+    }
     // 활동 기간 중 외부 출연 (컴백만): 다른 활동으로 묶인 것(드라마·고정 예능)은 빼고, 주인 멤버가 나오는 것만
     // 지난 활동은 일정이 없으니, 검색으로 찾은 다른 채널 출연 영상(무대·공식 채널 제외)을 출연 목록에
     // 출연 영상만: 노래방·커버·안무 재업로드·가사·리액션 등(isAppearance), 다른 채널의 뮤비·티저 재업로드, 무대·직캠은 뺀다

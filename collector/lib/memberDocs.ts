@@ -65,7 +65,7 @@ export function buildMemberDocs(input: { events: PublicEvent[]; eras: EraPage[];
       photo: fan ? { thumb: `https://i.ytimg.com/vi/${fan.videoId}/hqdefault.jpg`, url: fan.url, title: fan.title, focus: THUMB_FOCUS[fan.channel] } : groupThumb ? { thumb: groupThumb, url: `/archive/${myEras.find((e) => e.thumb)!.id}/`, title: myEras.find((e) => e.thumb)!.title } : undefined,
       timeline: years.map((y) => ({ year: y, items: myEras.filter((e) => e.from.startsWith(y)).map((e) => ({ date: e.from, kind: e.kind, title: e.title, eraId: e.id, owner: e.owner.label })) })),
       eras: myEras.filter((e) => e.kind === '컴백' || e.kind === '콘서트·투어' || e.kind === '팬미팅').map((e) => e.id),
-      variety: series.filter((s) => (kind === '그룹' ? !s.members.length : s.members.includes(name)) && s.count > 0).sort((a, b) => b.to.localeCompare(a.to)).slice(0, 12).map((s) => ({ id: s.id, name: s.name, type: s.type, count: s.count, to: s.to })),
+      variety: series.filter((s) => s.type !== '광고' && (kind === '그룹' ? !s.members.length : s.members.includes(name)) && s.count > 0).sort((a, b) => b.to.localeCompare(a.to)).slice(0, 12).map((s) => ({ id: s.id, name: s.name, type: s.type, count: s.count, to: s.to })),
       appearances: events.filter((e) => e.kind === '방송' && mine(e.members) && !isMusicShow(e.title)).map((e) => ({ date: e.date, title: e.title, step: e.step, url: e.sources[0]?.url })).sort(byDateDesc).slice(0, 12),
       pictorial: [...pictorial.values()].sort(byDateDesc),
       news: feed.filter((f) => f.type !== 'youtube' && mine(f.members)).map((f) => ({ title: f.title, url: f.url, date: f.publishedAt.slice(0, 10), publisher: f.publisher, topic: f.topic, type: f.type, image: f.shared ? undefined : f.image })).sort(byDateDesc).slice(0, 8),
