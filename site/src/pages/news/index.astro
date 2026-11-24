@@ -2,7 +2,7 @@
 /**
  * 소식: 올라오는 대로 최신순 한 줄 피드. 하루 단위로 묶는다 (오늘 · 어제 · 11.20 (금) …).
  *  - 카드: 왼쪽 썸네일(잘라 채우지 않고 비율 그대로 + 흐린 배경) · 오른쪽 시간·종류·제목·멤버·출처·원문
- *  - 같은 소식 기사는 한 카드로 묶고 펼치면 매체별 제목·시간·원문
+ *  - 기사(type news)는 보여 주지 않는다. 영상·SNS·공지·제보만
  *  - 거르기: 종류(화보·광고·공항·차트·기사·영상·공지·SNS/제보) + 멤버(여러 명)
  *  - 자동으로 고른 하이라이트는 두지 않는다
  * 사진은 원문 주소에서 바로 불러온다 (서버에 저장하지 않음, referrer 없이 → 실패하면 색 배경). 다른 가수가 주인공일 수 있는 기사는 사진을 쓰지 않는다
@@ -17,7 +17,8 @@ interface FeedItem {
 }
 const { items } = await loadPublic<{ items: FeedItem[] }>(Astro.locals, 'feed.json', { items: [] });
 const now = Date.now();
-const list = items.filter((i) => i.publishedAt >= new Date(now - 60 * 864e5).toISOString()).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 1200);
+// 기사는 소식 탭에 보이지 않는다 (수집은 계속해서 일정·아카이브·물어보기에만 쓴다)
+const list = items.filter((i) => i.type !== 'news' && i.publishedAt >= new Date(now - 60 * 864e5).toISOString()).sort((a, b) => b.publishedAt.localeCompare(a.publishedAt)).slice(0, 1200);
 const kst = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600e3).toISOString();
 const day = (iso: string) => kst(iso).slice(0, 10);
 const hm = (iso: string) => kst(iso).slice(11, 16);
@@ -57,8 +58,8 @@ const featureIdx = list[0] && day(list[0].publishedAt) === today && visual(list[
       <dl class="nf-stats">
         <div><dt>{count('화보') + count('광고')}</dt><dd>화보·광고</dd></div>
         <div><dt>{count('공항')}</dt><dd>공항</dd></div>
-        <div><dt>{count('기사') + count('차트')}</dt><dd>기사</dd></div>
         <div><dt>{count('영상')}</dt><dd>영상</dd></div>
+        <div><dt>{count('SNS') + count('제보') + count('차트')}</dt><dd>SNS</dd></div>
       </dl>
     </header>
 
@@ -112,7 +113,7 @@ const featureIdx = list[0] && day(list[0].publishedAt) === today && visual(list[
     {days.length > SHOW_DAYS && <div class="more-wrap"><button type="button" class="more" data-more>이전 소식 더 보기</button></div>}
 
     <section class="nf-info">
-            <div class="card"><b>내려야 할 소식이 있나요?</b><p>기사 본문은 옮기지 않고 제목과 링크만 모아요. 내려야 할 항목이 있으면 <a href="/report/">제보</a>로 알려 주세요. 바로 내릴게요. 빠진 소식도 <a href="/report/?type=news">소식 알려주기</a>로 보내 주세요.</p></div>
+            <div class="card"><b>내려야 할 소식이 있나요?</b><p>본문은 옮기지 않고 제목과 링크만 모아요. 내려야 할 항목이 있으면 <a href="/report/">제보</a>로 알려 주세요. 바로 내릴게요. 빠진 소식도 <a href="/report/?type=news">소식 알려주기</a>로 보내 주세요.</p></div>
     </section>
   </main>
 </Base>

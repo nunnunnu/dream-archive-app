@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # 공개 레포(dream-archive-app)로 코드만 내보낸다. GitHub Actions 자동 수집은 공개 레포에서 돈다.
-# 넣지 않는 것: 데이터(data/)·원문(.cache/)·평가 결과·더쿠 수집 코드와 설정·내부 문서(PLAN.md, CLAUDE.md, FANCHANT_GAME_SPEC.md)
+# 넣지 않는 것: 데이터(data/)·원문(.cache/)·평가 결과·더쿠 수집 코드와 설정·내부 문서(PLAN.md, CLAUDE.md, RESUME.md, FANCHANT_GAME_SPEC.md)
 #   bash scripts/export-public.sh "커밋 메시지"
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${PUBLIC_REPO_DIR:-$ROOT/../dream-archive-app}"
 cd "$ROOT"
 mkdir -p "$ROOT/tmp"
-git -c core.quotePath=false ls-tree -r --name-only HEAD | grep -vE '^(data/|\.cache/|eval/results/|tmp/|PLAN\.md$|CLAUDE\.md$|FANCHANT_GAME_SPEC\.md$|collector/lib/theqoo(\.test)?\.ts$)|(^|/)\.wrangler/' > "$ROOT/tmp/public-files.txt"
+git -c core.quotePath=false ls-tree -r --name-only HEAD | grep -vE '^(data/|\.cache/|eval/results/|tmp/|PLAN\.md$|CLAUDE\.md$|RESUME\.md$|FANCHANT_GAME_SPEC\.md$|collector/lib/theqoo(\.test)?\.ts$)|(^|/)\.wrangler/' > "$ROOT/tmp/public-files.txt"
 # 비밀값 등록 전 첫 내보내기는 워크플로를 빼고 (SKIP_WORKFLOW=1), push 이벤트로 바로 실행되지 않게
 if [ "${SKIP_WORKFLOW:-}" = 1 ]; then grep -v '^\.github/workflows/' "$ROOT/tmp/public-files.txt" > "$ROOT/tmp/pf2.txt" && mv "$ROOT/tmp/pf2.txt" "$ROOT/tmp/public-files.txt"; fi
 [ "${DRY_RUN:-}" = 1 ] && { echo "내보낼 파일 목록만 만듦: tmp/public-files.txt"; exit 0; }
