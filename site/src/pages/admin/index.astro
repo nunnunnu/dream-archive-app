@@ -1,6 +1,6 @@
 ---
 /**
- * 어드민: 확인 대기 제보 승인·거절, 물어보기 👎 확인, 응원법 채보 도구
+ * 어드민: 확인 대기 제보 승인·거절, 물어보기 👎 확인, 응원법 채보 도구, 데이터 고치기(일정·소식·시리즈·아카이브)
  * 로그인은 Cloudflare Access + middleware.ts 확인. 사이트 메뉴에는 링크를 두지 않는다.
  */
 import Base from '../../layouts/Base.astro';
@@ -29,6 +29,7 @@ const fanchantIndex = await loadPublic<{ config?: Record<string, unknown> }>(Ast
       <button type="button" role="tab" id="tab-reports" aria-controls="panel-reports" aria-selected="true">제보 <span class="n" data-count="reports"></span></button>
       <button type="button" role="tab" id="tab-feedback" aria-controls="panel-feedback" aria-selected="false">물어보기 👎 <span class="n" data-count="feedback"></span></button>
       <button type="button" role="tab" id="tab-charts" aria-controls="panel-charts" aria-selected="false">응원법 채보</button>
+      <button type="button" role="tab" id="tab-data" aria-controls="panel-data" aria-selected="false">데이터 고치기 <span class="n" data-count="data"></span></button>
     </div>
 
     <section id="panel-reports" role="tabpanel" aria-labelledby="tab-reports">
@@ -47,6 +48,21 @@ const fanchantIndex = await loadPublic<{ config?: Record<string, unknown> }>(Ast
       </div>
       <p class="admin-hint">"평가 세트 후보로"를 누른 것만 <code>npm run ask:feedback -- --to-eval</code>이 모아요.</p>
       <div id="feedback-list" class="admin-list"><div class="card admin-item" aria-hidden="true"><span class="skel-line w60"></span><span class="skel-line w80"></span><span class="skel-line w40"></span></div></div>
+    </section>
+
+    <section id="panel-data" role="tabpanel" aria-labelledby="tab-data" hidden data-members={JSON.stringify(members)}>
+      <div class="admin-bar">
+        <div class="dx-nav" role="group" aria-label="고칠 데이터">
+          <button type="button" data-view="event" aria-pressed="true">일정</button>
+          <button type="button" data-view="feed" aria-pressed="false">소식</button>
+          <button type="button" data-view="series" aria-pressed="false">시리즈</button>
+          <button type="button" data-view="era" aria-pressed="false">아카이브</button>
+          <button type="button" data-view="edits" aria-pressed="false">고친 목록</button>
+        </div>
+        <button type="button" class="admin-btn" id="dx-reload">원본 다시 불러오기</button>
+      </div>
+      <p class="admin-hint">저장하면 사이트에 1분 안에 보여요. 달력 구독(ics)과 물어보기는 다음 수집 때 맞춰져요. <span id="dx-status" class="admin-status" aria-live="polite"></span></p>
+      <div id="dx-body"></div>
     </section>
 
     <section id="panel-charts" role="tabpanel" aria-labelledby="tab-charts" hidden data-members={JSON.stringify(members)} data-config={JSON.stringify(fanchantIndex.config ?? {})}>
@@ -210,6 +226,40 @@ const fanchantIndex = await loadPublic<{ config?: Record<string, unknown> }>(Ast
   .admin-fb:first-of-type { border-top: 0; padding-top: 0; }
   .admin-srcs { font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
   .admin-srcs a { color: var(--sub); }
+  /* 데이터 고치기 */
+  .dx-nav { display: inline-flex; flex-wrap: wrap; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--card); margin-bottom: 10px; }
+  .dx-nav button { border: 0; background: none; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600; color: var(--sub); cursor: pointer; }
+  .dx-nav button[aria-pressed='true'] { background: var(--dark); color: #fff; }
+  .dx-bar { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .dx-bar input { flex: 1 1 240px; min-width: 0; border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 14px; background: var(--card); color: var(--text); }
+  .dx-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: left; padding: 10px 14px; font: inherit; font-size: 14px; color: var(--text); cursor: pointer; border: 1px solid var(--line-soft); }
+  .dx-row:hover { border-color: var(--text); }
+  .dx-when { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; }
+  .dx-what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dx-meta { font-size: 12px; color: var(--sub); display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+  .dx-form { padding: 14px 16px; margin-bottom: 14px; display: grid; gap: 10px; }
+  .dx-form h3 { margin: 0; font-size: 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .dx-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 12px; }
+  .dx-fields .w2 { grid-column: span 2; }
+  .dx-fields label { display: grid; gap: 4px; font-size: 12px; color: var(--sub); min-width: 0; }
+  .dx-fields input, .dx-fields select { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: inherit; font-size: 13px; color: var(--text); background: var(--card); min-width: 0; width: 100%; box-sizing: border-box; }
+  .dx-label { font-size: 12px; color: var(--sub); margin: 0; }
+  .dx-members { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; }
+  .dx-members label { display: flex; gap: 4px; align-items: center; }
+  .dx-videos { display: grid; gap: 8px; border-top: 1px solid var(--line-soft); padding-top: 10px; }
+  .dx-vgroup summary { cursor: pointer; font-size: 13px; font-weight: 700; }
+  .dx-vgroup ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+  .dx-vgroup li { display: flex; gap: 8px; align-items: center; font-size: 13px; min-width: 0; }
+  .dx-vgroup li a { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .dx-vgroup li.is-off { color: var(--faint); text-decoration: line-through; }
+  .dx-vgroup li.is-off button { text-decoration: none; }
+  .dx-add { display: grid; gap: 8px; background: var(--line-soft); border-radius: 10px; padding: 10px 12px; }
+  .dx-add .admin-btn { justify-self: start; }
+  @media (max-width: 600px) {
+    .dx-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .dx-meta { justify-content: flex-start; }
+    .dx-fields .w2 { grid-column: auto; }
+  }
   /* 응원법 채보 도구 */
   .ed-top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
   .ed-title { font-size: 17px; }
@@ -297,4 +347,5 @@ const fanchantIndex = await loadPublic<{ config?: Record<string, unknown> }>(Ast
 </style>
 
 <script src="../../scripts/game/editor.ts"></script>
+<script src="../../scripts/admin-data.ts"></script>
 <script src="../../scripts/admin.ts"></script>

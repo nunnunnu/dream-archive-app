@@ -2,7 +2,8 @@
 // 요청이 오면 manifest.json(짧게 캐시)으로 최신 파일 이름(내용 지문)을 찾고, 그 파일은 오래 캐시해서 읽는다.
 // → 수집만 하면 배포 없이 사이트에 반영된다.
 interface Manifest { version: string; updatedAt: string; files: Record<string, string> }
-type Locals = { runtime?: { env?: { SITE_DATA_URL?: string } } };
+import { applyToFile, EDITS_KEY, isEditablePath, type Edit, type EditsDoc } from './edits';
+type Locals = { runtime?: { env?: { SITE_DATA_URL?: string; REPORTS?: KV } } };
 const cfFetch = (url: string, cacheTtl: number) => fetch(url, { cf: { cacheTtl, cacheEverything: true } } as RequestInit);
 
 let manifestCache: { at: number; base: string; value: Manifest } | null = null;
@@ -33,7 +34,8 @@ export async function fetchPublic(locals: Locals, path: string): Promise<Respons
   return res.ok ? res : null;
 }
 
-export async function loadPublic<T>(locals: Locals, path: string, fallback: T): Promise<T> {
+/** 수집기가 올린 파일 그대로 (운영자 수정 없이) */
+export async function loadRaw<T>(locals: Locals, path: string, fallback: T): Promise<T> {
   const m = await manifest(locals).catch(() => null);
   const hashed = m?.files[path.normalize('NFC')];
   if (!hashed) return fallback;
@@ -44,6 +46,26 @@ export async function loadPublic<T>(locals: Locals, path: string, fallback: T): 
   if (parsed.size > 60) parsed.clear();
   parsed.set(hashed, value);
   return value;
+}
+
+// 운영자 수정 목록 (어드민 "데이터 고치기", KV edits). 엣지 캐시 60초 + 메모리 15초 → 저장하면 1분 남짓 안에 반영
+let editsCache: { at: number; items: Edit[] } | null = null;
+export async function loadEdits(locals: Locals): Promise<Edit[]> {
+  if (editsCache && Date.now() - editsCache.at < 15_000) return editsCache.items;
+  const kv = locals.runtime?.env?.REPORTS;
+  const doc = kv ? await kv.get<EditsDoc>(EDITS_KEY, { type: 'json', cacheTtl: 60 }).catch(() => null) : null;
+  editsCache = { at: Date.now(), items: doc?.items ?? [] };
+  return editsCache.items;
+}
+
+/** 사이트 데이터 (운영자 수정을 덧씌운 것) */
+export async function loadPublic<T>(locals: Locals, path: string, fallback: T): Promise<T> {
+  const value = await loadRaw(locals, path, fallback);
+  if (!isEditablePath(path)) return value;
+  const edits = await loadEdits(locals);
+  if (!edits.length) return value;
+  const out = applyToFile(path, value ?? null, edits);
+  return (out ?? fallback) as T;
 }
 
 export interface EraVideo { id: string; title: string; url: string; thumb: string; date: string; channel: string; members: string[]; group?: string }

@@ -66,6 +66,7 @@ async function communityFeed(r: JsonRepo): Promise<CommunityFeedPost[]> {
   return Object.values(posts).filter((p) => p.link && (p.status === 'read' || p.status === 'archived'));
 }
 import { readOpenNotice } from './lib/weverse.ts';
+import { addedSeriesPages, applyEraPage, applyEvents, applyFeed, applySeriesPage, pullEdits } from './lib/edits.ts';
 import { itemsFromTracked, loadTracked, syncTracked } from './lib/tracked.ts';
 import { kstDate, toKstParts } from './lib/time.ts';
 import { collectWeverse } from './lib/weverseCollect.ts';
@@ -120,6 +121,9 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   // 운영자가 승인한 삭제·보완 제보 (config/overrides.json)
   const reportOverrides = await repo.getState<Overrides>('report-overrides', { hide: [], patch: [] });
   const ov = applyOverrides(events, mergeOverrides(loadOverrides(), reportOverrides));
+  // 운영자 수정 (어드민 "데이터 고치기"): 손으로 만든·고친·숨긴 일정
+  const edits = await pullEdits();
+  if (edits.length) { events.splice(0, events.length, ...applyEvents(events, edits) as PublicEvent[]); console.log(`운영자 수정 ${edits.length}개 반영`); }
   // 비공개·삭제된 영상은 일정 출처에서 뺀다 (출처가 그것뿐이면 일정은 남기고 링크만 없앤다)
   const gone = await unavailableVideoIds();
   for (const e of events) e.sources = e.sources.filter((s) => !gone.has(s.url.match(/(?:v=|youtu\.be\/|shorts\/|live\/)([\w-]{11})/)?.[1] ?? ''));
@@ -175,6 +179,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   // 일정에 이미 있는 콘텐츠를 보고 쓴 파생 기사는 소식 탭에서 뺀다 (소식 탭은 일정엔 못 넣는 소식 자리)
   const derived = eventDerivatives(feed, events);
   if (derived.size) { console.log(`일정 파생 기사 ${derived.size}개는 소식에서 뺌`); feed.splice(0, feed.length, ...feed.filter((f) => !derived.has(f))); }
+  if (edits.length) feed.splice(0, feed.length, ...applyFeed(feed, edits));
   for (const f of feed) f.tags = tagger.feed(f);
   const tags = tagger.index([...events.map((e) => e.tags ?? []), ...feed.map((f) => f.tags ?? [])]);
   const changes = await publishAll(repo, { events, pending, rumors, review, feed, tags }, now);
@@ -198,11 +203,16 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   await repo.publish('discography.json', { releases });
   const keptIds = await stabilizeEraIds(repo, acts);
   if (keptIds) console.log(`활동 주소 유지 ${keptIds}개`);
-  const eras = buildEraPages(events, allVideos, acts, today, allArticles, goneIds);
+  const eras = buildEraPages(events, allVideos, acts, today, allArticles, goneIds)
+    .map((era) => applyEraPage(era, edits)).filter((era): era is NonNullable<typeof era> => Boolean(era));
   for (const era of eras) await repo.publish(`eras/${era.id}.json`, era);
   await repo.publish('eras.json', { eras: eras.map(({ official, stages, fancams, related, own, shorts, outside, timeline, schedule, ownGroups, news, guide, ...rest }) => ({ ...rest, guideCount: guide?.length ?? 0 })) });
   // 시리즈: 자체 콘텐츠 시리즈 · 종류별 모아보기 · 고정 출연 · 반복 활동
-  const series = buildSeries((await loadRecentVideos(now, 130)).filter(publishableVideo), events, acts, eras, feed, hiddenNews, goneIds);
+  const series = [
+    ...buildSeries((await loadRecentVideos(now, 130)).filter(publishableVideo), events, acts, eras, feed, hiddenNews, goneIds)
+      .map((sr) => applySeriesPage(sr, sr.id, edits)).filter((sr): sr is NonNullable<typeof sr> => Boolean(sr)),
+    ...addedSeriesPages(edits) as unknown as ReturnType<typeof buildSeries>,
+  ];
   for (const sr of series) await repo.publish(`series/${sr.id}.json`, sr);
   await repo.publish('series.json', { series: series.map(({ seasons, episodes, activities, ...rest }) => rest) });
   // 멤버 문서(그룹 + 멤버) · 아카이브 첫 화면 요약
