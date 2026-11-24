@@ -17,6 +17,7 @@ import type { TagInfo } from './tags.ts';
 import { GROUP } from './group.ts';
 import { MEMBERS, mentionedMembers } from './members.ts';
 import type { Repo } from './repo.ts';
+import type { SeriesHintKind } from './reports.ts';
 import type { Video } from './youtube.ts';
 
 export interface FeedItem {
@@ -43,6 +44,8 @@ export interface FeedItem {
   tags?: string[];
   /** 원문이 공개한 대표 이미지 주소 (이미지 파일은 저장하지 않음) */
   image?: string;
+  /** 시리즈 단서 (소식 제보에서): series.ts가 이 이름의 시리즈에 넣는다 */
+  series?: { kind: SeriesHintKind; name: string };
 }
 
 const MEMBER_SLUG: Record<string, string> = Object.fromEntries(GROUP.members.map((m) => [m.name, m.slug]));

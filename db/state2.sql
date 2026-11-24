@@ -5,7 +5,7 @@
 create table if not exists reports (
   id                text primary key,
   group_id          text not null default 'nctdream',
-  type              text not null check (type in ('add', 'fix', 'delete')),
+  type              text not null check (type in ('add', 'fix', 'delete', 'news')),
   event_id          text,
   event_snapshot    jsonb,
   title             text,
@@ -42,3 +42,7 @@ create table if not exists llm_usage (
 alter table reports     enable row level security;
 alter table submissions enable row level security;
 alter table llm_usage   enable row level security;
+
+-- 소식 제보(news) 추가 (2026-11-24): 이미 만든 DB에는 아래를 한 번 실행
+alter table reports drop constraint if exists reports_type_check;
+alter table reports add constraint reports_type_check check (type in ('add', 'fix', 'delete', 'news'));

@@ -10,7 +10,7 @@ import { callModel, hasLlmKey } from './llm.ts';
 import { mentionedMembers } from './members.ts';
 import type { FeedItem } from './publish.ts';
 import type { Repo } from './repo.ts';
-import { saveReport, type Report } from './reports.ts';
+import { SERIES_HINT_KINDS, saveReport, type Report } from './reports.ts';
 import { submissionId } from './submissions.ts';
 import { topicOf } from './topics.ts';
 
@@ -145,6 +145,7 @@ export function reportedFeed(reports: Record<string, Report>): FeedItem[] {
         type: 'sns' as const, title: r.title || r.message.slice(0, 80), url: r.url,
         publishedAt: r.date ? `${r.date}T03:00:00.000Z` : r.createdAt, publisher: `팬 제보 · ${host}`, members: r.members,
         reported: true, ...(topic ? { topic } : {}),
+        ...(r.series && SERIES_HINT_KINDS.includes(r.series.kind) && r.series.name ? { series: { kind: r.series.kind, name: r.series.name.trim() } } : {}),
       };
     });
 }

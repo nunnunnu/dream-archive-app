@@ -17,6 +17,8 @@ import { mentionedMembers } from './members.ts';
 import { isDreamRelated } from './news.ts';
 import { normUrl, type NewsHide } from './newsHide.ts';
 import type { FeedItem } from './publish.ts';
+import type { SeriesHintKind } from './reports.ts';
+import { topicOf, type FeedTopic } from './topics.ts';
 import { ROOT } from './store.ts';
 import { seriesName } from './tags.ts';
 import type { Video } from './youtube.ts';
@@ -25,7 +27,7 @@ export interface SeriesVideo { id: string; title: string; url: string; thumb: st
 interface SeriesEpisode { date: string; time: string | null; title: string; step: string; members: string[]; url?: string; thumb?: string }
 export interface SeriesPage {
   id: string;
-  type: '자체 콘텐츠 시리즈' | 'NCT 단체' | '종류별 모아보기' | '고정 출연' | '반복 활동' | '외부활동' | '광고' | '라디오'
+  type: '자체 콘텐츠 시리즈' | 'NCT 단체' | '종류별 모아보기' | '고정 출연' | '반복 활동' | '외부활동' | '광고' | '화보' | '드라마' | '라디오'
     | '콘서트·팬미팅 비하인드' | '시상식·연말 무대';
   name: string;
   count: number;
@@ -55,9 +57,23 @@ const STANDALONE_VIDEOS = new Set(VERIFIED.standalone);
 const MEMBER_RECORDS = JSON.parse(readFileSync(join(ROOT, 'config', 'member-records.json'), 'utf8')) as
   { id: string; name: string; type?: '라디오'; records: Omit<SeriesEpisode, 'time'>[] }[];
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'config', 'series-catalog.json'), 'utf8')) as {
-  id: string; name: string; type: '외부활동' | '광고'; publishers: string[]; match?: string[];
+  id: string; name: string; type: HintType; publishers: string[]; match?: string[];
   records: (Pick<SeriesEpisode, 'date' | 'title' | 'members'> & { url: string })[];
 }[];
+// 수집된 단서로 자동으로 만드는 시리즈 종류와 페이지 id 앞머리
+type HintType = '광고' | '화보' | '외부활동' | '드라마';
+const HINT_TYPE: Record<SeriesHintKind, HintType> = { 광고: '광고', 화보: '화보', 예능: '외부활동', 외부콘텐츠: '외부활동', 드라마: '드라마' };
+const HINT_PREFIX: Record<HintType, string> = { 광고: 'ad', 화보: 'pic', 외부활동: 'x', 드라마: 'd' };
+// 단서 칸 없는 소식은 이미 아는 이름이 제목에 있고 주제가 맞을 때만 붙인다 (새 이름은 만들지 않음)
+const APPEAR_RE = /출연|게스트|녹화|등장|합류|방송|촬영/;
+const topicFits: Record<HintType, (title: string, topic?: FeedTopic) => boolean> = {
+  광고: (_, topic) => topic === '광고',
+  화보: (_, topic) => topic === '브랜드·화보',
+  외부활동: (title) => APPEAR_RE.test(title),
+  드라마: () => false, // 드라마 기사는 드라마 아카이브(활동 묶기)가 이미 모은다
+};
+// 너무 짧은 이름은 다른 말 속에 잘못 걸린다 (영문 'Lee' 등)
+const matchable = (k: string) => (/[가-힣]/.test(k) ? k.length >= 2 : k.length >= 4);
 const OWN = new Set(GROUP.youtube.channels.filter((c) => !c.guest).map((c) => c.name));
 const sq = (t: string) => t.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
 const slug = (t: string) => sq(t).replace(/[^a-z0-9가-힣]/g, '').slice(0, 30) || 'series';
@@ -145,7 +161,7 @@ export function sharedSuffixSeries(list: Pick<Video, 'videoId' | 'title'>[]): Ma
  * 공식 채널 영상과 고정 출연으로 따로 묶이는 회차는 뺀다. 채널 이름은 영상 근거의 채널, 없으면 제보 제목 "채널: 제목"의 앞부분.
  */
 export function youtubeAppearances(events: PublicEvent[], skipEventIds: ReadonlySet<string> = new Set()) {
-  const out = new Map<string, { channel: string; name: string; titles: string[]; records: { url: string; title: string; date: string; members: string[] }[] }>();
+  const out = new Map<string, { channel: string; name: string; titles: string[]; eventIds: string[]; records: { url: string; title: string; date: string; members: string[]; image?: string }[] }>();
   for (const e of events) {
     if (skipEventIds.has(e.id) || e.kind === '기념일') continue;
     const yt = e.sources.find((src) => src.type === 'youtube' && youtubeId(src.url) && src.publisher && !OWN.has(src.publisher))
@@ -156,8 +172,9 @@ export function youtubeAppearances(events: PublicEvent[], skipEventIds: Readonly
     const program = e.title.replace(/^유튜브\s+/, '').trim();
     if (!/^유튜브\s/.test(e.title) && !(e.kind === '발매' && sq(e.title).includes(sq(channel)))) continue;
     const key = sq(channel);
-    const entry = out.get(key) ?? { channel, name: channel, titles: [], records: [] };
+    const entry = out.get(key) ?? { channel, name: channel, titles: [], eventIds: [], records: [] };
     entry.titles.push(program);
+    entry.eventIds.push(e.id);
     const raw = yt.title || e.step;
     const title = raw.startsWith(`${channel}:`) ? raw.slice(channel.length + 1).trim() : raw;
     entry.records.push({ url: `https://www.youtube.com/watch?v=${youtubeId(yt.url)}`, title, date: yt.publishedAt ? kst(yt.publishedAt) : e.date, members: e.members });
@@ -343,6 +360,48 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   // 제작사·브랜드 원문과 검증한 기존 기록을 프로그램별로 모은다.
   const hiddenKeys = new Set(hidden.flatMap((entry) => [entry.url, ...entry.urls]).map(sourceKey));
   const originals = feed.filter((f) => (f.type === 'youtube' || f.type === 'sns') && f.publisher && f.members.length);
+
+  // 시리즈 단서: 제보(seriesKind·seriesName), 일정의 짧은 외부 예능, 이미 아는 이름이 든 소식 → (종류, 이름)으로 묶는다
+  type Rec = { url: string; title: string; date: string; members: string[]; image?: string };
+  const hints = new Map<string, { type: HintType; names: string[]; records: Rec[] }>();
+  const hint = (type: HintType, name: string, rec: Rec) => {
+    const k = sq(name);
+    if (!k) return;
+    const h = hints.get(`${type}|${k}`) ?? { type, names: [], records: [] };
+    h.names.push(name.trim());
+    h.records.push(rec);
+    hints.set(`${type}|${k}`, h);
+  };
+  const feedRec = (f: FeedItem): Rec => ({ url: f.url, title: f.title, date: kst(f.publishedAt), members: f.members, image: f.image });
+  for (const f of feed) if (f.series && HINT_TYPE[f.series.kind]) hint(HINT_TYPE[f.series.kind], f.series.name, feedRec(f));
+  // 기간 1주 이하 외부 예능 (1주 넘으면 아래 고정 출연, 유튜브 채널 출연은 채널 카드가 맡는다)
+  const appearanceEvents = new Set([...appearances.values()].flatMap((a) => a.eventIds));
+  const fixedIds = new Set(fixedActs.map((a) => a.id));
+  for (const a of acts) {
+    if (a.kind !== '예능' || fixedIds.has(a.id) || ownOnly(a)) continue;
+    for (const e of a.eventIds.map((id) => byId.get(id))) {
+      if (!e || appearanceEvents.has(e.id)) continue;
+      const src = e.sources.find((x) => youtubeId(x.url)) ?? e.sources.find((x) => /^https?:/.test(x.url));
+      if (src) hint('외부활동', a.name, { url: src.url, title: e.title, date: e.date, members: e.members });
+    }
+  }
+  // 이름 → 설정 목록 시리즈 (제보 단서는 출처 이름으로도 찾는다)
+  const catalogOf = new Map<string, string>();
+  for (const c of CATALOG) for (const n of [c.name, ...c.publishers, ...(c.match ?? [])]) catalogOf.set(`${c.type}|${sq(n)}`, c.id);
+  // 단서 칸 없는 소식: 설정 목록 이름(광고는 브랜드 이름까지)과 단서로 생긴 이름
+  const knownNames = new Map<string, { type: HintType; name: string }>();
+  for (const c of CATALOG) for (const n of [c.name, ...(c.match ?? []), ...(c.type === '광고' || c.type === '화보' ? c.publishers : [])]) knownNames.set(`${c.type}|${sq(n)}`, { type: c.type, name: n });
+  for (const [key, h] of hints) knownNames.set(key, { type: h.type, name: h.names[0] });
+  const nameList = [...knownNames.entries()].filter(([key]) => matchable(key.split('|')[1]));
+  for (const f of feed) {
+    if (f.series || f.type === 'weverse-notice') continue;
+    const title = sq(f.title);
+    const topic = f.topic ?? topicOf(f.title);
+    const hit = nameList.find(([key, { type }]) => title.includes(key.split('|')[1]) && topicFits[type](f.title, topic));
+    if (hit) hint(hit[1].type, hit[1].name, feedRec(f));
+  }
+  const hintsFor = (catalogId: string) => [...hints].filter(([key]) => catalogOf.get(key) === catalogId).flatMap(([key, h]) => (hints.delete(key), h.records));
+
   for (const { id, name, type, publishers, match, records } of CATALOG) {
     const bySource = new Map<string, SeriesEpisode>();
     const add = ({ image, ...record }: { url: string; title: string; date: string; members: string[]; image?: string }) => {
@@ -358,6 +417,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
       add({ url: f.url, title: f.title, date: kst(f.publishedAt), members: f.members, image: f.image });
     }
     for (const record of records) add(record);
+    for (const record of hintsFor(id)) if (!bySource.has(sourceKey(record.url))) add(record);
     // 일정에 들어온 같은 채널 출연 영상도 (match 가 있으면 그 프로그램 이름이 제목에 있을 때만)
     for (const [key, app] of appearances) {
       if (!channelPrefixes.some((p) => sq(app.channel).startsWith(p))) continue;
@@ -371,6 +431,18 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     pages.push({ id, name, type, count: episodes.length, ...range(episodes.map((e) => e.date)), thumb: episodes.find((e) => e.thumb)?.thumb,
       members: [...new Set(episodes.flatMap((e) => e.members))], seasons: [], episodes });
   }
+  // 같은 이름의 채널 출연 카드가 있으면 단서도 거기에
+  for (const [key, h] of hints) {
+    const k = key.split('|')[1];
+    const app = h.type === '외부활동' && [...appearances.values()].find((a) => sq(a.name) === k || sq(a.channel) === k);
+    if (!app) continue;
+    app.records.push(...h.records);
+    hints.delete(key);
+  }
+  const episodeOf = ({ image, ...r }: Rec): SeriesEpisode => {
+    const yt = youtubeId(r.url);
+    return { ...r, time: null, step: r.title, thumb: image ?? (yt ? `https://i.ytimg.com/vi/${yt}/mqdefault.jpg` : undefined) };
+  };
   // 설정 목록에 없는 채널 출연은 채널별로 새로 만든다 (새 채널에 나오면 다음 수집 때 바로 생김)
   const usedIds = new Set(pages.map((p) => p.id));
   for (const app of appearances.values()) {
@@ -378,14 +450,14 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     for (const r of app.records) {
       const key = sourceKey(r.url);
       if (hiddenKeys.has(key) || unavailableIds.has(key) || bySource.has(key)) continue;
-      bySource.set(key, { ...r, time: null, step: r.title, thumb: `https://i.ytimg.com/vi/${youtubeId(r.url)}/mqdefault.jpg` });
+      bySource.set(key, episodeOf(r));
     }
     const episodes = [...bySource.values()].sort((a, b) => b.date.localeCompare(a.date));
     if (!episodes.length) continue;
     let id = `x-${slug(app.channel)}`;
     while (usedIds.has(id)) id += '-y';
     usedIds.add(id);
-    pages.push({ id, name: app.name, type: '외부활동', count: episodes.length, ...range(episodes.map((e) => e.date)), thumb: episodes[0].thumb,
+    pages.push({ id, name: app.name, type: '외부활동', count: episodes.length, ...range(episodes.map((e) => e.date)), thumb: episodes.find((e) => e.thumb)?.thumb,
       members: [...new Set(episodes.flatMap((e) => e.members))], seasons: [], episodes });
   }
 
@@ -403,6 +475,41 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
       .map((e) => [`${e.date}|${e.step}`, e] as const)).values()].sort((x, y) => x.date.localeCompare(y.date));
     appearancesByShow.set(id, { id, type: '고정 출연', name: a.name, count: episodes.length, ...range([a.from, a.to, ...(previous ? [previous.from, previous.to] : [])]),
       thumb: episodes.find((x) => x.thumb)?.thumb, members: [...new Set([...(previous?.members ?? []), ...a.owner.members])], seasons: [], episodes });
+  }
+  // 남은 단서: 같은 이름의 고정 출연에 더하거나, 새 시리즈 페이지로 (1건부터)
+  // 이미 다른 종류로 있는 이름(자체 콘텐츠 'Cafe 7 DREAM' 등)은 외부 시리즈로 새로 만들지 않는다
+  const builtNames = new Set(pages.map((p) => sq(p.name)));
+  for (const [key, h] of hints) {
+    const k = key.split('|')[1];
+    if (builtNames.has(k)) continue;
+    const fixed = h.type === '외부활동' && [...appearancesByShow.values()].find((p) => sq(p.name) === k);
+    const bySource = new Map<string, SeriesEpisode>();
+    for (const e of fixed ? fixed.episodes ?? [] : []) bySource.set(e.url ? sourceKey(e.url) : `${e.date}|${e.step}`, e);
+    for (const r of h.records) {
+      const sk = sourceKey(r.url);
+      if (hiddenKeys.has(sk) || unavailableIds.has(sk) || bySource.has(sk)) continue;
+      bySource.set(sk, episodeOf(r));
+    }
+    const episodes = [...bySource.values()].sort((a, b) => (fixed ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)));
+    if (!episodes.length) continue;
+    const members = [...new Set(episodes.flatMap((e) => e.members))];
+    if (fixed) {
+      Object.assign(fixed, { count: episodes.length, ...range([fixed.from, fixed.to, ...episodes.map((e) => e.date)]), thumb: fixed.thumb ?? episodes.find((e) => e.thumb)?.thumb,
+        members: [...new Set([...fixed.members, ...members])], episodes });
+      continue;
+    }
+    // 이름: 가장 많이 쓰인 표기
+    const counts = new Map<string, number>();
+    for (const n of h.names) counts.set(n, (counts.get(n) ?? 0) + 1);
+    const name = [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    let id = `${HINT_PREFIX[h.type]}-${slug(name)}`;
+    while (usedIds.has(id)) id += '-y';
+    usedIds.add(id);
+    // 드라마는 같은 이름의 드라마 아카이브(활동 묶기)를 함께 건다
+    const era = h.type === '드라마' ? eras.find((e) => e.kind === '드라마' && sq(e.title) === k) : undefined;
+    pages.push({ id, name, type: h.type, count: episodes.length, ...range(episodes.map((e) => e.date)), thumb: episodes.find((e) => e.thumb)?.thumb ?? era?.thumb,
+      members, seasons: [], episodes,
+      ...(era ? { activities: [{ id: era.id, title: era.title, kind: era.kind, owner: era.owner.label, from: era.from, to: era.to, cover: era.cover, thumb: era.thumb }] } : {}) });
   }
   pages.push(...appearancesByShow.values());
 

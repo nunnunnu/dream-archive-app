@@ -12,6 +12,8 @@ interface KV {
 interface Env { REPORTS: KV }
 
 const TYPES = ['add', 'delete', 'fix', 'news'] as const;
+// 소식 제보에 붙이는 시리즈 단서 (선택): 수집기가 같은 이름끼리 시리즈 페이지로 묶는다
+const SERIES_KINDS = ['광고', '화보', '예능', '드라마', '외부콘텐츠'];
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
 
@@ -50,6 +52,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     newsTitle: clip(body.newsTitle, 200),
     eventSnapshot: body.eventSnapshot && typeof body.eventSnapshot === 'object' ? body.eventSnapshot : null,
     members: Array.isArray(body.members) ? (body.members as unknown[]).map((m) => clip(m, 10)).slice(0, 7) : [],
+    series: SERIES_KINDS.includes(clip(body.seriesKind, 10)) && clip(body.seriesName, 40)
+      ? { kind: clip(body.seriesKind, 10), name: clip(body.seriesName, 40) } : undefined,
   };
   if (type === 'add' && !report.title) return json({ ok: false, error: '일정 이름을 적어 주세요' }, 400);
   if (type === 'add' && !report.url && !report.message) return json({ ok: false, error: '근거 링크나 내용을 적어 주세요' }, 400);

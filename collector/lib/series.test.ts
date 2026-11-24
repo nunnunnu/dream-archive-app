@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Activity } from './activities.ts';
 import type { PublicEvent } from './consolidate.ts';
+import type { FeedItem } from './publish.ts';
 import { buildSeries, sharedSuffixSeries, youtubeAppearances } from './series.ts';
 
 const ev = (id: string, title: string, sources: Partial<PublicEvent['sources'][number]>[], extra: Partial<PublicEvent> = {}) => ({
@@ -61,4 +62,50 @@ test('회차 번호 없는 자체 콘텐츠: 끝 칸 이름이 같은 영상이 
     v('9', "[Un Cut] Take #2 | 'Golden Age' MV Behind the Scene"),
   ]);
   assert.deepEqual([...got.entries()], [['1', 'BOOGIE WOOGIE MAN'], ['2', 'BOOGIE WOOGIE MAN']]);
+});
+
+const news = (title: string, url: string, extra: Partial<FeedItem> = {}): FeedItem =>
+  ({ type: 'sns', title, url, publishedAt: '2026-11-24T03:00:00.000Z', publisher: '팬 제보 · x.com', members: ['재민'], reported: true, ...extra });
+const act = (id: string, name: string, from: string, to: string, eventIds: string[]) => ({ id, name, kind: '예능', keys: [], parts: [], videoKeys: [],
+  owner: { scope: '단체', members: [], label: 'NCT DREAM' }, from, to, eventIds }) as unknown as Activity;
+
+test('시리즈 단서: 제보는 설정 목록 시리즈에 붙고, 없는 이름은 새 페이지가 되고, 같은 이름 기사도 따라온다', () => {
+  const feed = [
+    news('재민 차백도 새 광고', 'https://x.com/a/status/1', { series: { kind: '광고', name: '차백도' } }),
+    news('재민 보그 12월호', 'https://x.com/a/status/2', { series: { kind: '화보', name: '보그' } }),
+    news('재민, 보그 화보서 깊은 눈빛', 'https://news.example.com/1', { type: 'news', publisher: '어떤일보', reported: undefined }),
+    // 이름만 같고 주제가 다른 기사는 붙지 않는다
+    news('보그 코리아 독자 설문에 재민 이름', 'https://news.example.com/2', { type: 'news', publisher: '어떤일보', reported: undefined }),
+    news('숨긴 제보', 'https://x.com/a/status/3', { series: { kind: '화보', name: '보그' } }),
+  ];
+  const pages = buildSeries([], [], [], [], feed, [{ url: 'https://x.com/a/status/3', urls: [] } as never]);
+  const cha = pages.find((p) => p.id === 'ad-chabaidao')!;
+  assert.ok(cha.episodes?.some((e) => e.title === '재민 차백도 새 광고'));
+  const vogue = pages.find((p) => p.id === 'pic-보그')!;
+  assert.equal(vogue.type, '화보');
+  assert.deepEqual(vogue.episodes?.map((e) => e.title).sort(), ['재민 보그 12월호', '재민, 보그 화보서 깊은 눈빛']);
+  assert.ok(!pages.some((p) => p.id.startsWith('ad-') && p.id !== 'ad-chabaidao' && p.id !== 'ad-lee'));
+});
+
+test('시리즈 단서: 하루짜리 외부 예능은 외부활동 페이지, 1주 넘으면 고정 출연, 같은 이름 제보는 고정 출연에 합친다', () => {
+  const events = [
+    ev('k1', 'JTBC 아는 형님', [{ type: 'news', url: 'https://news.example.com/k1' }], { kind: '방송', date: '2026-11-21' }),
+    ev('t1', 'IDOL’S TABLE', [{ type: 'news', url: 'https://news.example.com/t1' }], { kind: '방송', date: '2026-09-16' }),
+    ev('t2', 'IDOL’S TABLE', [{ type: 'news', url: 'https://news.example.com/t2' }], { kind: '방송', date: '2026-10-16' }),
+  ];
+  const acts = [act('k', '아는 형님', '2026-11-21', '2026-11-21', ['k1']), act('t', 'IDOL’S TABLE', '2026-09-16', '2026-10-16', ['t1', 't2'])];
+  const feed = [news('IDOL’S TABLE 3회 예고', 'https://x.com/a/status/9', { series: { kind: '예능', name: 'IDOL’S TABLE' } })];
+  const pages = buildSeries([], events, acts, [], feed);
+  const knowing = pages.find((p) => p.id === 'x-아는형님')!;
+  assert.equal(knowing.type, '외부활동');
+  assert.equal(knowing.episodes?.[0].url, 'https://news.example.com/k1');
+  const table = pages.find((p) => p.id === 'a-idolstable')!;
+  assert.equal(table.type, '고정 출연');
+  assert.equal(table.count, 3);
+  assert.ok(!pages.some((p) => p.id.startsWith('x-idolstable')));
+});
+
+test('시리즈 단서: 설정 목록 시리즈는 단서가 없어도 그대로 10개', () => {
+  const ids = buildSeries([], [], [], []).filter((p) => p.type === '외부활동' || p.type === '광고').map((p) => p.id);
+  assert.equal(ids.length, 10);
 });

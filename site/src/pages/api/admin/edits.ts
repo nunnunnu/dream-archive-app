@@ -12,7 +12,7 @@ import { EDITS_KEY, EVENT_KINDS, linkKey, normalizeEvent, normUrl, type Edit, ty
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 const KINDS: EditKind[] = ['event', 'feed', 'series', 'era'];
 const OPS: EditOp[] = ['add', 'patch', 'hide'];
-const SERIES_TYPES = ['자체 콘텐츠 시리즈', 'NCT 단체', '종류별 모아보기', '고정 출연', '반복 활동', '외부활동', '광고', '라디오', '콘서트·팬미팅 비하인드', '시상식·연말 무대'];
+const SERIES_TYPES = ['자체 콘텐츠 시리즈', 'NCT 단체', '종류별 모아보기', '고정 출연', '반복 활동', '외부활동', '광고', '화보', '드라마', '라디오', '콘서트·팬미팅 비하인드', '시상식·연말 무대'];
 const FEED_TYPES = ['news', 'youtube', 'sns', 'weverse-notice'];
 const str = (v: unknown, max = 300) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined);
 const date = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
