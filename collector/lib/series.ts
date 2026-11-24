@@ -119,6 +119,60 @@ const CHANNEL_COLLECTIONS: { id: string; name: string; kinds: VideoKind[] }[] = 
   { id: 'channel-other', name: '기타 채널 영상', kinds: ['기타', '자컨 시리즈', '응원법'] },
 ];
 
+/**
+ * 회차 번호 없는 자체 콘텐츠: "… | BOOGIE WOOGIE MAN" 처럼 끝 칸 이름이 같은 영상이 2개 이상이면 한 시리즈로 본다.
+ * 비하인드·리액션·언박싱·노래 플레이리스트 모음은 시리즈가 아니라서 뺀다. (NCT 프로젝트는 따로 모아서 여기서 안 씀)
+ */
+const NOT_PROGRAM_SUFFIX_RE = /(?:behind(?:\s+the\s+scenes?)?|비하인드|reaction|리액션|unboxing|언박싱|teaser|trailer|티저|MV|playlist|플레이리스트)\s*[!?.]*$/i;
+export function sharedSuffixSeries(list: Pick<Video, 'videoId' | 'title'>[]): Map<string, string> {
+  const byKey = new Map<string, { name: string; ids: Set<string> }>();
+  for (const v of list) {
+    const segs = v.title.normalize('NFKC').split(/\s*[|｜]\s*/).map((x) => x.trim()).filter(Boolean);
+    if (segs.length < 2) continue;
+    const name = segs.at(-1)!.replace(/#\S+/g, '').replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '').trim();
+    if (sq(name).length < 3 || NOT_PROGRAM_SUFFIX_RE.test(name)) continue;
+    const entry = byKey.get(sq(name)) ?? { name, ids: new Set() };
+    entry.ids.add(v.videoId);
+    byKey.set(sq(name), entry);
+  }
+  const out = new Map<string, string>();
+  for (const { name, ids } of byKey.values()) if (ids.size >= 2) for (const id of ids) out.set(id, name);
+  return out;
+}
+
+/**
+ * 다른 유튜브 채널 출연: 일정에 "유튜브 ○○"(또는 제목에 채널 이름)으로 들어오고 그 채널 영상이 근거로 붙은 것.
+ * 공식 채널 영상과 고정 출연으로 따로 묶이는 회차는 뺀다. 채널 이름은 영상 근거의 채널, 없으면 제보 제목 "채널: 제목"의 앞부분.
+ */
+export function youtubeAppearances(events: PublicEvent[], skipEventIds: ReadonlySet<string> = new Set()) {
+  const out = new Map<string, { channel: string; name: string; titles: string[]; records: { url: string; title: string; date: string; members: string[] }[] }>();
+  for (const e of events) {
+    if (skipEventIds.has(e.id) || e.kind === '기념일') continue;
+    const yt = e.sources.find((src) => src.type === 'youtube' && youtubeId(src.url) && src.publisher && !OWN.has(src.publisher))
+      ?? e.sources.find((src) => src.type === 'submission' && youtubeId(src.url) && /^[^:]{2,40}:\s/.test(src.title ?? ''));
+    if (!yt) continue;
+    const channel = yt.publisher ?? yt.title!.split(':')[0].trim();
+    if (OWN.has(channel)) continue;
+    const program = e.title.replace(/^유튜브\s+/, '').trim();
+    if (!/^유튜브\s/.test(e.title) && !(e.kind === '발매' && sq(e.title).includes(sq(channel)))) continue;
+    const key = sq(channel);
+    const entry = out.get(key) ?? { channel, name: channel, titles: [], records: [] };
+    entry.titles.push(program);
+    const raw = yt.title || e.step;
+    const title = raw.startsWith(`${channel}:`) ? raw.slice(channel.length + 1).trim() : raw;
+    entry.records.push({ url: `https://www.youtube.com/watch?v=${youtubeId(yt.url)}`, title, date: yt.publishedAt ? kst(yt.publishedAt) : e.date, members: e.members });
+    out.set(key, entry);
+  }
+  // 카드 이름: 일정 제목에 자주 나온 프로그램 이름(짧을 때), 아니면 채널 이름
+  for (const entry of out.values()) {
+    const counts = new Map<string, number>();
+    for (const t of entry.titles) counts.set(t, (counts.get(t) ?? 0) + 1);
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    if (top && top.length <= 24) entry.name = top;
+  }
+  return out;
+}
+
 export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activity[], eras: EraPage[], feed: FeedItem[] = [], hidden: NewsHide[] = [], unavailableIds: ReadonlySet<string> = new Set()): SeriesPage[] {
   const groups = (CONFIG.seriesGroups ?? []).map((group) => ({ ...group, match: group.match.map(sq) }));
   const configuredByVideo = new Map<string, SeriesGroup>();
@@ -163,13 +217,14 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   const videoById = new Map(videos.map((v) => [v.videoId, v]));
 
   // 1) 자체 콘텐츠 시리즈
+  const programVideos = seriesVideos.filter((v) => !(seriesVideoKind(v) === '퍼포먼스' || (seriesVideoKind(v) !== '비하인드' && DANCE_PRACTICE_RE.test(v.title.normalize('NFKC')))));
+  const suffixSeries = sharedSuffixSeries(programVideos.filter((v) => !configuredByVideo.has(v.videoId) && !seriesName(v.title) && !nctProjectOf(v)));
   const byFamily = new Map<string, { name: string; type?: SeriesGroup['type']; seasons: Map<string, Video[]> }>();
-  for (const v of seriesVideos) {
-    if (seriesVideoKind(v) === '퍼포먼스' || (seriesVideoKind(v) !== '비하인드' && DANCE_PRACTICE_RE.test(v.title.normalize('NFKC')))) continue;
+  for (const v of programVideos) {
     // 설정 묶음은 제목 전체에서 찾는다 (회차 표시가 없는 "[Dream VS Dream] …"도)
     const cfg = configuredByVideo.get(v.videoId);
     const configuredSeason = cfg?.seasons?.find((season) => season.videoIds.includes(v.videoId))?.name;
-    const s = configuredSeason ?? (cfg?.singleSeason ? cfg.name : seriesName(v.title) ?? cfg?.name);
+    const s = configuredSeason ?? (cfg?.singleSeason ? cfg.name : seriesName(v.title) ?? cfg?.name ?? suffixSeries.get(v.videoId));
     if (!s || (!cfg && /NCT\s*DREAM|엔시티/i.test(s))) continue;
     if (!cfg && /^(?:\[.+?\]\s*)?TODAY[!:]/i.test(s) && /#shorts?\b/i.test(v.title)) continue;
     // 시즌 표시를 뗀 이름이 같으면 한 시리즈의 시즌 (천지의 이것저것 / 시즌2 / 시즌3)
@@ -279,6 +334,12 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     });
   }
 
+  // 고정 출연(일주일 넘게 이어진 외부 예능)으로 따로 보여 줄 활동. 공식 채널 자체 콘텐츠는 외부 출연이 아니라서 뺀다
+  const byId = new Map(events.map((e) => [e.id, e]));
+  const ownOnly = (a: Activity) => a.eventIds.every((id) => (byId.get(id)?.sources ?? []).every((src) => src.type === 'youtube' && OWN.has(src.publisher ?? '')));
+  const fixedActs = acts.filter((x) => x.kind === '예능' && Date.parse(x.to) - Date.parse(x.from) > 7 * 864e5 && !ownOnly(x));
+  const appearances = youtubeAppearances(events, new Set(fixedActs.flatMap((a) => a.eventIds)));
+
   // 제작사·브랜드 원문과 검증한 기존 기록을 프로그램별로 모은다.
   const hiddenKeys = new Set(hidden.flatMap((entry) => [entry.url, ...entry.urls]).map(sourceKey));
   const originals = feed.filter((f) => (f.type === 'youtube' || f.type === 'sns') && f.publisher && f.members.length);
@@ -297,18 +358,40 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
       add({ url: f.url, title: f.title, date: kst(f.publishedAt), members: f.members, image: f.image });
     }
     for (const record of records) add(record);
+    // 일정에 들어온 같은 채널 출연 영상도 (match 가 있으면 그 프로그램 이름이 제목에 있을 때만)
+    for (const [key, app] of appearances) {
+      if (!channelPrefixes.some((p) => sq(app.channel).startsWith(p))) continue;
+      const fit = app.records.filter((r) => bySource.has(sourceKey(r.url)) || !keywords || keywords.some((k) => sq(r.title).includes(k)));
+      for (const r of fit) if (!bySource.has(sourceKey(r.url))) add(r); // 설정에 적은 기록(다듬은 제목)이 먼저
+      if (fit.length === app.records.length) appearances.delete(key);
+      else app.records = app.records.filter((r) => !fit.includes(r));
+    }
     const episodes = [...bySource.values()].sort((a, b) => b.date.localeCompare(a.date));
     if (!episodes.length) continue;
     pages.push({ id, name, type, count: episodes.length, ...range(episodes.map((e) => e.date)), thumb: episodes.find((e) => e.thumb)?.thumb,
       members: [...new Set(episodes.flatMap((e) => e.members))], seasons: [], episodes });
   }
+  // 설정 목록에 없는 채널 출연은 채널별로 새로 만든다 (새 채널에 나오면 다음 수집 때 바로 생김)
+  const usedIds = new Set(pages.map((p) => p.id));
+  for (const app of appearances.values()) {
+    const bySource = new Map<string, SeriesEpisode>();
+    for (const r of app.records) {
+      const key = sourceKey(r.url);
+      if (hiddenKeys.has(key) || unavailableIds.has(key) || bySource.has(key)) continue;
+      bySource.set(key, { ...r, time: null, step: r.title, thumb: `https://i.ytimg.com/vi/${youtubeId(r.url)}/mqdefault.jpg` });
+    }
+    const episodes = [...bySource.values()].sort((a, b) => b.date.localeCompare(a.date));
+    if (!episodes.length) continue;
+    let id = `x-${slug(app.channel)}`;
+    while (usedIds.has(id)) id += '-y';
+    usedIds.add(id);
+    pages.push({ id, name: app.name, type: '외부활동', count: episodes.length, ...range(episodes.map((e) => e.date)), thumb: episodes[0].thumb,
+      members: [...new Set(episodes.flatMap((e) => e.members))], seasons: [], episodes });
+  }
 
   // 3) 고정 출연: 일주일 넘게 이어진 외부 예능
-  const byId = new Map(events.map((e) => [e.id, e]));
   const appearancesByShow = new Map<string, SeriesPage>();
-  // (공식 채널 자체 콘텐츠는 외부 출연이 아니라서 뺀다)
-  const ownOnly = (a: Activity) => a.eventIds.every((id) => (byId.get(id)?.sources ?? []).every((src) => src.type === 'youtube' && OWN.has(src.publisher ?? '')));
-  for (const a of acts.filter((x) => x.kind === '예능' && Date.parse(x.to) - Date.parse(x.from) > 7 * 864e5 && !ownOnly(x))) {
+  for (const a of fixedActs) {
     const eps = a.eventIds.map((id) => byId.get(id)!).filter(Boolean).sort((x, y) => x.date.localeCompare(y.date)).map((e) => {
       const yt = e.sources.find((s) => s.type === 'youtube' || /youtu/.test(s.url));
       const id = yt?.url.match(/(?:v=|youtu\.be\/|shorts\/|live\/)([\w-]{11})/)?.[1];
