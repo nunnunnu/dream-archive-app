@@ -69,7 +69,7 @@ import { readOpenNotice } from './lib/weverse.ts';
 import { itemsFromTracked, loadTracked, syncTracked } from './lib/tracked.ts';
 import { kstDate, toKstParts } from './lib/time.ts';
 import { collectWeverse } from './lib/weverseCollect.ts';
-import { checkAvailability, collectVideos, discoverVideos, searchActivityVideos, unavailableVideoIds, isAppearance, isArchiveClip, loadRecentVideos, refreshVideoTimes, searchVideos } from './lib/youtube.ts';
+import { checkAvailability, collectVideos, discoverVideos, searchActivityVideos, unavailableVideoIds, isAppearance, isArchiveClip, isRegisteredVideoChannel, loadRecentVideos, refreshVideoTimes, searchVideos, type Video } from './lib/youtube.ts';
 
 const arg = (name: string, fallback: number) => Number(process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1] ?? fallback);
 const ARTICLES_DAYS = arg('articles-days', 14);
@@ -96,12 +96,17 @@ const step = (s: string) => {
 };
 
 async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending: PendingItem[]; rumors: RumorItem[]; review: ReviewItem[] }> {
-  const videos = await loadRecentVideos(now, 2);
+  const extractions = await repo.listExtractions('video');
+  const verifiedGuests = new Set(extractions
+    .filter((x) => x.checked.some((e) => e.verified && e.participates))
+    .map((x) => x.docId));
+  const publishableVideo = (v: Video) => !v.guest || isRegisteredVideoChannel(v.channel) || verifiedGuests.has(v.videoId);
+  const videos = (await loadRecentVideos(now, 2)).filter(publishableVideo);
   const guestVideoIds = new Set(
     videos.filter((v) => v.guest && isAppearance(v.title, v.description ?? '') && !isArchiveClip(v.title, v.description ?? '', v.publishedAt)).map((v) => v.videoId),
   );
   const { items, ruleNotices } = await buildItems(repo, { guestVideoIds });
-  const interpreted = new Set((await repo.listExtractions('video')).map((x) => x.docId));
+  const interpreted = new Set(extractions.map((x) => x.docId));
   const related = videos.filter((v) => isDreamRelated(`${v.title} ${v.description ?? ''}`));
   const trustedVideoUrls = new Set(videos.filter((v) => v.guest && (v.channelSubscribers ?? 0) >= 300_000).map((v) => v.url));
   // 공식 채널 MV·티저·트레일러·자컨 회차 (최근 6개월, 그 전은 아카이브 페이지의 영상 목록으로 충분)
@@ -127,7 +132,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   if (ov.hidden || ov.patched) console.log(`제보 반영: 숨김 ${ov.hidden}개, 고침 ${ov.patched}개`);
   const tracked = await syncTracked(repo, events, today, now);
   const notices = (await repo.listNotices()).filter((n) => !isHidden(n.title));
-  const archiveVideos = await loadRecentVideos(now, 12);
+  const archiveVideos = (await loadRecentVideos(now, 12)).filter(publishableVideo);
   const yearArticles = await repo.listArticles(new Date(now.getTime() - 365 * 24 * 3600 * 1000).toISOString());
   // 최근 7일은 AI가 정한 "같은 소식"으로 묶음끼리 다시 합친다 (제목 글자만으론 못 묶는 경우: 표현이 다르거나 영어 기사)
   const stories = await assignStories(repo, yearArticles, now, budget);
@@ -185,7 +190,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
     .filter((a) => a.kind === '드라마' && today >= new Date(Date.parse(a.from) - 14 * 864e5).toISOString().slice(0, 10) && today <= new Date(Date.parse(a.to) + 7 * 864e5).toISOString().slice(0, 10))
     .map((a) => ({ id: a.id, q: [...a.keys].sort((x, y) => x.length - y.length)[0], from: a.from, to: a.to })));
   // 디스코그래피(공식 MV)로 예전 컴백도 활동으로
-  const allVideos = await loadRecentVideos(now, 160);
+  const allVideos = (await loadRecentVideos(now, 160)).filter(publishableVideo);
   const releases = buildDiscography(allVideos);
   addReleases(acts, releases, allArticles, events);
   // 설정에 적은 활동 (국내 일정이 없는 해외 발매 등, config/tags.json eras의 create)
@@ -197,7 +202,7 @@ async function consolidateAndPublish(): Promise<{ events: PublicEvent[]; pending
   for (const era of eras) await repo.publish(`eras/${era.id}.json`, era);
   await repo.publish('eras.json', { eras: eras.map(({ official, stages, fancams, related, own, shorts, outside, timeline, schedule, ownGroups, news, guide, ...rest }) => ({ ...rest, guideCount: guide?.length ?? 0 })) });
   // 시리즈: 자체 콘텐츠 시리즈 · 종류별 모아보기 · 고정 출연 · 반복 활동
-  const series = buildSeries(await loadRecentVideos(now, 130), events, acts, eras, feed, hiddenNews, goneIds);
+  const series = buildSeries((await loadRecentVideos(now, 130)).filter(publishableVideo), events, acts, eras, feed, hiddenNews, goneIds);
   for (const sr of series) await repo.publish(`series/${sr.id}.json`, sr);
   await repo.publish('series.json', { series: series.map(({ seasons, episodes, activities, ...rest }) => rest) });
   // 멤버 문서(그룹 + 멤버) · 아카이브 첫 화면 요약

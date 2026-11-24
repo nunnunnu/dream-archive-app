@@ -137,6 +137,7 @@ const monthFile = (iso: string) => monthOf(iso);
 
 /** 공식 채널(소속사·그룹) 이름: 여기 영상은 어떤 경로로 들어와도 출연 후보가 아니다 */
 const OFFICIAL_NAMES = new Set(YOUTUBE_CHANNELS.filter((c) => !c.guest).map((c) => c.name));
+export const isRegisteredVideoChannel = (name: string) => YOUTUBE_CHANNELS.some((c) => c.name === name);
 
 export async function storeVideos(list: Video[]): Promise<Video[]> {
   list = list.filter((v) => !isExcludedVideo(v)).map((v) => (OFFICIAL_NAMES.has(v.channel) && v.guest ? { ...v, guest: false } : v));
@@ -204,9 +205,11 @@ export async function searchVideos(focus: string, publishedAfter: Date, now: Dat
   const nowIso = now.toISOString();
   const norm = (t: string) => t.replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
   const subs = await channelSubscribers(data.items.map((it) => it.snippet.channelId));
+  const durations = new Map<string, number | undefined>();
   if (data.items.length) {
-    const full = await ytGet<{ items: { id: string; snippet: { description: string } }[] }>('videos', { part: 'snippet', id: data.items.map((it) => it.id.videoId).join(',') });
+    const full = await ytGet<{ items: { id: string; snippet: { description: string }; contentDetails: { duration: string } }[] }>('videos', { part: 'snippet,contentDetails', id: data.items.map((it) => it.id.videoId).join(',') });
     const desc = new Map(full.items.map((x) => [x.id, x.snippet.description]));
+    for (const it of full.items) durations.set(it.id, parseDuration(it.contentDetails.duration));
     for (const it of data.items) it.snippet.description = desc.get(it.id.videoId) ?? it.snippet.description;
   }
   const list = data.items
@@ -216,14 +219,13 @@ export async function searchVideos(focus: string, publishedAfter: Date, now: Dat
       const sub = subs.get(it.snippet.channelId) ?? 0;
       return {
         ...toVideo({ id: it.snippet.channelId, name: it.snippet.channelTitle, filter: false }, it.id.videoId, title, it.snippet.publishedAt),
-        firstSeenAt: nowIso, description, channelSubscribers: sub,
-        // 이미 확인된 일정의 프로그램 이름으로 찾은 영상은 구독자 수와 상관없이 후보 (예: 술 빚는 윤주모 3만).
-        // 이름이 제목·채널에 있어야 하고, 팬 채널·팬 영상·무대 영상은 뺀다
-        guest: !OWN_CHANNELS.has(it.snippet.channelId) && (isOutsideCandidate(title, description, sub, it.snippet.channelTitle)
-          || (names.some((n) => norm(`${title} ${it.snippet.channelTitle}`).includes(n)) && !FAN_CHANNEL_RE.test(it.snippet.channelTitle) && isAppearance(title, description) && !STAGE_RE.test(title))),
+        firstSeenAt: nowIso, description, channelSubscribers: sub, duration: durations.get(it.id.videoId),
+        guest: !OWN_CHANNELS.has(it.snippet.channelId)
+          && isOutsideCandidate(title, description, sub, it.snippet.channelTitle, durations.get(it.id.videoId)),
       };
     })
-    .filter((v) => !isHidden(v.title) && isDreamRelated(`${v.title} ${v.description}`) && names.some((n) => norm(`${v.title} ${v.description}`).includes(n)));
+    .filter((v) => (isRegisteredVideoChannel(v.channel) || v.guest) && !isHidden(v.title)
+      && isDreamRelated(`${v.title} ${v.description}`) && names.some((n) => norm(`${v.title} ${v.description}`).includes(n)));
   return storeVideos(list);
 }
 
@@ -237,7 +239,7 @@ export async function loadRecentVideos(now: Date, months = 3): Promise<Video[]> 
     while (m < 1) { m += 12; y -= 1; }
     out.push(...Object.values(await readVideoMonth(`${y}-${String(m).padStart(2, '0')}`)));
   }
-  return out.filter((v) => !isExcludedVideo(v) && !isHidden(v.title) && !v.unavailableAt)
+  return out.filter((v) => !isExcludedVideo(v) && !isHidden(v.title) && !v.unavailableAt && (!v.guest || isEligibleGuestVideo(v)))
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
 
@@ -278,8 +280,15 @@ export const isChannelGuest = (channel: Channel, title: string) => Boolean(chann
 
 /** 등록 채널 밖에서 찾은 영상은 한글 제목·설명이 있어야 후보 (해외 뉴스 채널의 보도 영상 제외) */
 const HANGUL_RE = /[가-힣]/;
-export const isOutsideCandidate = (title: string, description: string, subs: number, channelName = '') =>
-  (subs >= MIN_SUBSCRIBERS || isSmallShowChannel(title, subs, channelName)) && HANGUL_RE.test(`${title} ${description}`) && isAppearance(title, description) && !STAGE_RE.test(title) && !/\bPL\]|special\s*pl|플리(?![가-힣])|플레이리스트/i.test(title);
+export const isOutsideCandidate = (title: string, description: string, subs: number, channelName = '', duration?: number) =>
+  (duration === undefined || duration >= 60)
+  && (subs >= MIN_SUBSCRIBERS || isSmallShowChannel(title, subs, channelName))
+  && HANGUL_RE.test(`${title} ${description}`) && isAppearance(title, description) && !STAGE_RE.test(title)
+  && (isDreamRelated(`${title} ${description}`.replace(/#[^\s#]+/g, ' ')) || ownShowSignal(title, channelName))
+  && !/\bPL\]|special\s*pl|플리(?![가-힣])|플레이리스트/i.test(title);
+
+export const isEligibleGuestVideo = (v: Video) => isRegisteredVideoChannel(v.channel)
+  || isOutsideCandidate(v.title, v.description ?? '', v.channelSubscribers ?? 0, v.channel, v.duration);
 
 /**
  * 구독자 10만 미만이어도 출연 후보로 보는 작은 예능 채널 (예: "술 빚는 윤주모" 3만): 구독자 1만 이상,
