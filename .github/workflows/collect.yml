@@ -1,134 +1,73 @@
-# 자동 수집 + 사이트 배포
-#  - 매시 정각: 전체 실행 (기사·유튜브 출연 탐색·빈칸 채우기 포함)
-#  - 30분: 빠른 실행 (위버스 공지·제보·등록 채널 영상만)
-#  - 15·45분: 새 제보가 있을 때만 빠른 실행
-#  - 수집 데이터는 Supabase(사이트용 공개 버킷)·KV(질문 자료)로 올려서 배포 없이 반영
-#  - 코드를 main에 올리면: 수집 없이 사이트만 다시 배포
-# 수집 상태(원문 포함)는 레포가 아니라 Supabase Postgres에 둔다 (STORE=pg, db/state.sql).
-# 같은 작업이 겹치면 덮어쓰기가 생기므로 앞 실행이 끝날 때까지 기다린다.
 name: collect
 
 on:
-  # 실행 시각은 Cloudflare 예약 작업(cron/)이 정한다: 매시 정각 full, 30분 fast,
-  # 새 제보가 있을 때만 15·45분 fast, 3시간마다 backfill (workflow_dispatch)
-  # GitHub 자체 예약은 제때 안 돌아서(몇 시간씩 빠짐) 6시간마다 전체 수집 한 번만 예비로
-  schedule:
-    - cron: '7 */6 * * *'
-  push:
-    branches: [main]
-    # 사이트가 가져다 쓰는 수집기 코드(질문 처리·AI 호출)가 바뀌어도 다시 배포
-    paths: ['site/**', 'collector/lib/ask-core.ts', 'collector/lib/ai-provider.ts']
   workflow_dispatch:
     inputs:
-      mode:
-        description: 'full, fast, links(공개 직후 영상 링크 찾기), site(배포만), backfill(과거 기사 채우기), publish(저장된 데이터만 내보내기)'
-        default: full
-
-concurrency:
-  group: collect
-  cancel-in-progress: false
+      list_url:
+        description: 'Public board category URL to request once'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
-env:
-  # 실행 종류: Cloudflare 예약 작업이 보낸 mode, 없으면 GitHub 예약은 full
-  MODE: ${{ inputs.mode || (github.event_name == 'push' && 'site') || 'full' }}
-  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-  SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-  # 수집 상태는 Supabase Postgres (db/state.sql·state2.sql). 파일 묶음(tgz)을 내려받고 올리지 않는다
-  STORE: pg
-
 jobs:
-  collect:
+  probe:
     runs-on: ubuntu-latest
-    # 과거 기사 채우기는 75분 (스크립트가 45분 안에 스스로 멈춤 → 평소 수집이 오래 기다리지 않게), 평소 수집은 45분
-    timeout-minutes: ${{ (inputs.mode == 'backfill' || github.event.schedule == '50 */3 * * *') && 75 || 45 }}
+    timeout-minutes: 2
+    env:
+      LIST_URL: ${{ inputs.list_url }}
+      SITE_DATA_URL: https://ejexnrkwktkukpilkbaf.supabase.co/storage/v1/object/public/site-data
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            site/package-lock.json
-
-      - run: npm ci
-
-      - name: 브라우저 캐시
-        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-
-      - name: 브라우저 설치
-        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill'
-        run: npx playwright install --with-deps chromium
-
-      - name: 수집
-        id: collect
-        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill' || env.MODE == 'links' || env.MODE == 'publish'
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GROQ_MODEL: qwen/qwen3.8-27b
-          GROQ_SMALL_MODEL: openai/gpt-oss-20b
-          GROQ_RERANK_MODEL: openai/gpt-oss-120b
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_FALLBACK_MODEL: gpt-5-mini
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_KV_REPORTS_ID: 4225a7e3871048e8999155e3d16010e1
+      - name: Check one listing page
         run: |
-          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
-          if [ "$MODE" = "backfill" ]; then
-            # 과거 기사 채우기 (개발 비용은 운영 월 상한과 따로) → 다시 내보내기
-            # 나무위키 주간 검토 (7일에 한 번, 실패해도 나머지는 계속) → 새 활동 이름으로 기사 찾기
-            npm run namu:watch || true
-            npm run backfill:seeds -- --from-state --minutes=10 || true
-            npm run backfill:news -- --minutes=20 --total-minutes=45 && npm run collect -- --publish-only
-          elif [ "$MODE" = "publish" ]; then
-            LLM_MAX_CALLS_PER_RUN=0 npm run collect -- --publish-only
-          elif [ "$MODE" = "links" ]; then
-            npm run collect -- --links
-          elif [ "$MODE" = "fast" ]; then
-            npm run collect -- --fast
-          else
-            npm run collect
-          fi
+          node --input-type=module - <<'JS'
+          import { appendFileSync } from 'node:fs';
 
-      # 사이트 데이터는 Supabase 공개 버킷으로, 질문 자료(원문 포함)는 KV로 → 배포 없이 사이트에 반영
-      - name: 사이트 데이터 올리기
-        if: steps.collect.outcome == 'success'
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npm run publish:site
+          const note = (line) => {
+            console.log(line);
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, line + '\n\n');
+          };
+          const source = new URL(process.env.LIST_URL);
+          if (source.protocol !== 'https:' || source.username || source.password) throw Error('Use a public HTTPS URL.');
+          const response = await fetch(source, {
+            headers: { 'User-Agent': 'dream-archive/0.1 (personal fan archive)', 'Accept-Language': 'ko' },
+            redirect: 'manual',
+            signal: AbortSignal.timeout(15000),
+          });
+          note(`첫 페이지 HTTP ${response.status} (요청 1회)`);
+          if (!response.ok) {
+            note('목록 조회를 종료했습니다.');
+            process.exit(0);
+          }
 
-      # 질문 의미 검색 색인 (바뀐 조각만 임베딩, 보통 몇 원 이하)
-      - name: RAG 색인
-        if: steps.collect.outcome == 'success' && steps.collect.outputs.mode != 'fast' && steps.collect.outputs.mode != 'links' && steps.collect.outputs.mode != 'publish'
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          GROQ_MODEL: qwen/qwen3.8-27b
-          GROQ_SMALL_MODEL: openai/gpt-oss-20b
-          GROQ_RERANK_MODEL: openai/gpt-oss-120b
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: npm run rag:index
+          const normalize = (value) => value.normalize('NFKC')
+            .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#(?:39|039);/g, "'")
+            .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+            .replace(/<[^>]+>/g, '').replace(/[^\p{L}\p{N}]/gu, '').toLowerCase();
+          const board = source.pathname.split('/').filter(Boolean)[0];
+          const html = await response.text();
+          const listed = new Map();
+          for (const row of html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)) {
+            if (/class=["'][^"']*\bnotice\b/i.test(row[0])) continue;
+            const match = row[0].match(/<td\b[^>]*class=["'][^"']*\btitle\b[^"']*["'][^>]*>\s*<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i);
+            if (!match) continue;
+            const link = new URL(match[1], source);
+            const [pathBoard, id] = link.pathname.split('/').filter(Boolean);
+            if (link.origin === source.origin && pathBoard === board && /^\d+$/.test(id)) listed.set(id, normalize(match[2]));
+          }
+          note(`목록에서 읽은 게시물 ${listed.size}건`);
+          if (!listed.size) throw Error('HTTP 응답은 성공했으나 게시물 목록을 확인할 수 없습니다.');
 
-      # 사이트 배포는 코드가 바뀌었을 때만 (main 푸시·직접 실행)
-      - name: 사이트 빌드
-        if: env.MODE == 'site'
-        working-directory: site
-        run: npm ci && npm run build
-
-      - name: Cloudflare Pages 배포
-        if: env.MODE == 'site'
-        working-directory: site
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx --yes wrangler@4 pages deploy dist --project-name "${{ vars.CF_PAGES_PROJECT || 'dream-archive' }}" --branch main --commit-dirty=true
+          async function json(path) {
+            const response = await fetch(`${process.env.SITE_DATA_URL}/${path}`, { signal: AbortSignal.timeout(15000) });
+            if (!response.ok) throw Error(`Dreamlog 데이터 HTTP ${response.status}`);
+            return response.json();
+          }
+          const manifest = await json('manifest.json');
+          const { items } = await json(manifest.files['feed.json']);
+          const recent = new Set(items.filter((item) => Date.parse(item.publishedAt) >= Date.now() - 7 * 864e5)
+            .map((item) => normalize(item.title)));
+          const matched = [...listed.values()].filter((title) => title.length >= 10 && recent.has(title)).length;
+          note(`최근 공개 소식과 제목 일치 ${matched}건 · 원문 확인 필요 ${listed.size - matched}건`);
+          JS
