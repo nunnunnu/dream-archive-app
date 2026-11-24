@@ -290,7 +290,7 @@ function itemRow(e: Ev, day: string) {
   const isNow = day === TODAY && e.time && e.time <= NOW_HM && (!e.endTime || e.endTime >= NOW_HM) && !multi;
   const t = multi
     ? h('div', { class: 't' }, '기간', h('small', {}, `${fmtMD(e.date)} – ${fmtMD(e.endDate!)}`))
-    : h('div', { class: 't' }, e.time ? `${e.time}${e.endTime ? '–' : ''}` : '시간 미정', e.endTime ? h('small', {}, e.endTime) : null);
+    : h('div', { class: 't' }, e.time ? `${e.time}${e.endTime ? '–' : ''}` : e.kind === '기념일' ? '종일' : '시간 미정', e.endTime ? h('small', {}, e.endTime) : null);
   const same = e.step.includes(e.title);
   return h('div', { class: `item${isNow ? ' now' : ''}` }, t,
     h('div', {},

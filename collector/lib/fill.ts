@@ -89,9 +89,9 @@ export async function planFill(
   const plan: FillPlan = { news: [], youtube: [] };
   const mark = (key: string) => (state[key] = now.toISOString());
 
-  // 시간이 빈 다가오는 일정 (한 달 안)
+  // 시간이 빈 다가오는 일정 (한 달 안). 생일·데뷔 기념일처럼 원래 시간이 없는 일정은 찾지 않는다
   for (const e of events) {
-    if (e.time || e.date < today || e.date > soon || e.seriesId) continue;
+    if (e.time || e.kind === '기념일' || e.date < today || e.date > soon || e.seriesId) continue;
     const key = `time:${core(e.title)}:${e.date}`;
     if (due(key, 12) && plan.news.length < MAX_NEWS) plan.news.push({ q: `${core(e.title)} ${md(e.date)}`, days: 30, focus: e.title, fillKey: key });
     if ((e.kind === '방송' || e.kind === '발매') && plan.youtube.length < MAX_YOUTUBE && due(`yt:${key}`, 12)) {

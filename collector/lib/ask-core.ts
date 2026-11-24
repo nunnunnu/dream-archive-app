@@ -273,7 +273,7 @@ export async function askCore(question: string, data: AskData, rawCall: AskCall,
     return `${d}(${wd}, ${week})`;
   };
   const statusOf = (e: PublicEvent) => ((e.endDate ?? e.date) < today ? '이미 끝남' : e.date > today ? '예정' : '진행 중·오늘');
-  const evLines = scoredEvents.map((e, i) => `[E${i + 1}] (${statusOf(e)})${e.abroad ? ` [해외: ${e.abroad}]` : ''} ${rel(e.date)}${e.endDate && e.endDate !== e.date ? `~${e.endDate}` : ''} ${e.time ?? '시간 미정'}${e.timezone ? ` 현지(${e.timezone})${e.kst ? ` = 한국 ${e.kst.date !== e.date ? `${e.kst.date} ` : ''}${e.kst.time}` : ''}` : ''} · ${e.kind} · ${e.title} · ${e.step} · ${e.members.length ? e.members.join('·') : '단체'} · 출처 ${e.sources[0]?.url ?? '-'}${e.evidence ? `\n    근거: ${e.evidence.slice(0, 200)}` : ''}`);
+  const evLines = scoredEvents.map((e, i) => `[E${i + 1}] (${statusOf(e)})${e.abroad ? ` [해외: ${e.abroad}]` : ''} ${rel(e.date)}${e.endDate && e.endDate !== e.date ? `~${e.endDate}` : ''} ${e.time ?? (e.kind === '기념일' ? '종일' : '시간 미정')}${e.timezone ? ` 현지(${e.timezone})${e.kst ? ` = 한국 ${e.kst.date !== e.date ? `${e.kst.date} ` : ''}${e.kst.time}` : ''}` : ''} · ${e.kind} · ${e.title} · ${e.step} · ${e.members.length ? e.members.join('·') : '단체'} · 출처 ${e.sources[0]?.url ?? '-'}${e.evidence ? `\n    근거: ${e.evidence.slice(0, 200)}` : ''}`);
   // 공지·기사 문단에 적힌 날짜가 모두 오늘보다 앞이면 표시 (끝난 이벤트를 지금 일처럼 말하지 않게, 코드로 계산)
   const datesIn = (t: string) => [...t.matchAll(/(20\d\d)\s*[.\-년/]\s*(\d{1,2})\s*[.\-월/]\s*(\d{1,2})/g)].map((m) => `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`);
   const pastNote = (texts: string[]) => {

@@ -19,7 +19,7 @@ test('일정: 고치기·숨기기·만들기, 날짜를 옮기면 옮긴 달 �
   ];
   const nov = applyEvents([a, b, c], edits, '2026-11');
   assert.deepEqual(nov.map((e) => e.id), ['c', 'm-e3']);
-  assert.deepEqual(applyEvents([], edits, '2026-12').map((e) => [e.id, e.date, e.scope]), [['a', '2026-12-01', '멤버']]);
+  assert.deepEqual(applyEvents([] as Record<string, any>[] as typeof nov, edits, '2026-12').map((e) => [e.id, e.date, (e as Record<string, unknown>).scope]), [['a', '2026-12-01', '멤버']]);
   const once = applyEvents([a, b, c], edits);
   assert.deepEqual(applyEvents(once, edits), once);
   // 수집기가 id를 새로 매겨도 날짜·제목·단계로 원래 일정을 찾는다
