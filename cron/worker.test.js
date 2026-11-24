@@ -1,11 +1,46 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import worker, { modeFor, needsPendingReport } from './worker.js';
+import worker, { isQuiet, modeFor, needsPendingReport } from './worker.js';
 
 test('정각은 full, 30분은 fast, 50분 backfill이다', () => {
   assert.equal(modeFor('0,15,30,45 * * * *', Date.UTC(2026, 10, 20, 0, 0)), 'full');
   assert.equal(modeFor('0,15,30,45 * * * *', Date.UTC(2026, 10, 20, 0, 30)), 'fast');
   assert.equal(modeFor('50 */3 * * *', Date.UTC(2026, 10, 20, 0, 50)), 'backfill');
+});
+
+test('새벽(한국 2~7시)은 2·4·6시 정각 full만, 0~2시와 7시부터는 평소대로', () => {
+  const cron = '*/5 * * * *';
+  const kst = (h, m) => Date.UTC(2026, 10, 20, (h + 24 - 9) % 24, m); // 한국 시간 → UTC
+  assert.equal(modeFor(cron, kst(0, 0)), 'full');
+  assert.equal(modeFor(cron, kst(1, 30)), 'fast');
+  assert.equal(modeFor(cron, kst(2, 0)), 'full');
+  assert.equal(modeFor(cron, kst(2, 30)), null);
+  assert.equal(modeFor(cron, kst(3, 0)), null);
+  assert.equal(modeFor(cron, kst(3, 15)), null);
+  assert.equal(modeFor(cron, kst(4, 0)), 'full');
+  assert.equal(modeFor(cron, kst(6, 45)), null);
+  assert.equal(modeFor(cron, kst(7, 0)), 'full');
+  assert.equal(modeFor(cron, kst(7, 30)), 'fast');
+  assert.equal(modeFor('50 */3 * * *', kst(3, 50)), 'backfill');
+  assert.equal(isQuiet(kst(1, 59)), false);
+  assert.equal(isQuiet(kst(6, 59)), true);
+});
+
+test('새벽에는 제보 신호가 있어도 15·45분에 돌지 않고 신호는 남긴다', async () => {
+  const originalFetch = globalThis.fetch;
+  let dispatched = false;
+  let deleted = false;
+  globalThis.fetch = async () => { dispatched = true; return new Response(null, { status: 204 }); };
+  try {
+    await worker.scheduled(
+      { cron: '*/5 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 18, 15) }, // 한국 3:15
+      { REPORTS: { get: async (k) => (k === 'pending-reports' ? 'report-1' : null), delete: async () => { deleted = true; } }, GH_DISPATCH_TOKEN: 'test' },
+    );
+    assert.equal(dispatched, false);
+    assert.equal(deleted, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('15·45분만 pending 제보가 있어야 실행한다', () => {

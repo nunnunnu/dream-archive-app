@@ -10,7 +10,7 @@ name: collect
 
 on:
   # 실행 시각은 Cloudflare 예약 작업(cron/)이 정한다: 매시 정각 full, 30분 fast,
-  # 새 제보가 있을 때만 15·45분 fast, 3시간마다 backfill (workflow_dispatch)
+  # 새 제보가 있을 때만 15·45분 fast, 3시간마다 backfill (workflow_dispatch). 새벽(한국 2~7시)은 2시간에 한 번 full만
   # GitHub 자체 예약은 제때 안 돌아서(몇 시간씩 빠짐) 6시간마다 전체 수집 한 번만 예비로
   schedule:
     - cron: '7 */6 * * *'
