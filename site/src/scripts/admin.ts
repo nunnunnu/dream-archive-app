@@ -71,6 +71,11 @@ function reportRow(r: Report, decision?: Decision) {
       <h3>${esc(r.title || r.eventTitle || r.message.slice(0, 60) || '(제목 없음)')}</h3>
       <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
       ${r.reviewReason ? `<p class="admin-reason">${pending ? 'AI가 넘긴 이유: ' : ''}${esc(r.reviewReason)}</p>` : ''}
+      ${r.type === 'news' ? `
+      <div class="admin-actions admin-to-event">
+        <button type="button" class="admin-btn" data-to-event>일정에도 넣기</button>
+        <span class="admin-status" aria-live="polite"></span>
+      </div>` : ''}
       ${pending ? `
       <div class="admin-actions">
         <input type="text" maxlength="300" placeholder="메모 (선택, 기록용)" aria-label="메모" />
@@ -80,9 +85,25 @@ function reportRow(r: Report, decision?: Decision) {
         <span class="admin-status" aria-live="polite"></span>
       </div>` : ''}
     </article>`);
+  // 소식 제보 → 같은 내용의 일정 제보(승인 결정 포함). 소식은 그대로 둔다
+  const toEvent = node.querySelector<HTMLButtonElement>('[data-to-event]');
+  if (toEvent) {
+    const msg = toEvent.nextElementSibling as HTMLElement;
+    toEvent.addEventListener('click', async () => {
+      toEvent.disabled = true;
+      msg.textContent = '넣는 중…';
+      try {
+        await api('/api/admin/reports', { id: r.id, action: 'toEvent' });
+        msg.textContent = '일정 제보로 넣었어요 · 다음 수집 때 링크를 읽어 캘린더에 반영돼요';
+      } catch (err) {
+        msg.textContent = (err as Error).message;
+        toEvent.disabled = false;
+      }
+    });
+  }
   if (!pending) return node;
-  const input = node.querySelector('input')!;
-  const status = node.querySelector<HTMLElement>('.admin-status')!;
+  const input = node.querySelector('.admin-actions:not(.admin-to-event) input')!;
+  const status = node.querySelector<HTMLElement>('.admin-actions:not(.admin-to-event) .admin-status')!;
   const buttons = [...node.querySelectorAll<HTMLButtonElement>('[data-act]')];
   const paint = (d?: Decision) => {
     for (const b of buttons) b.hidden = d ? b.dataset.act !== 'cancel' : b.dataset.act === 'cancel';
