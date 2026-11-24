@@ -20,6 +20,10 @@ interface Env {
   ASK_DAILY_LIMIT?: string;
   ASK_ALLOW_NO_KV?: string;
   REPORTS?: KV;
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  /** 여러 건 제보(Grok 등) 토큰. Pages secret */
+  REPORT_BULK_TOKEN?: string;
   /** 어드민 로그인(Cloudflare Access): 팀 도메인(예: xxx.cloudflareaccess.com)과 앱 AUD 태그. 비밀값 아님 */
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;

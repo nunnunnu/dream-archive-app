@@ -10,7 +10,7 @@ import { callModel, hasLlmKey } from './llm.ts';
 import { mentionedMembers } from './members.ts';
 import type { FeedItem } from './publish.ts';
 import type { Repo } from './repo.ts';
-import { SERIES_HINT_KINDS, saveReport, type Report } from './reports.ts';
+import { SERIES_HINT_KINDS, type Report } from './reports.ts';
 import { submissionId } from './submissions.ts';
 import { topicOf } from './topics.ts';
 
@@ -122,7 +122,6 @@ export async function judgeNewsReports(repo: Repo, reports: Record<string, Repor
     }
     if (v.sure) {
       Object.assign(r, { status: v.relevant ? 'approved' : 'rejected', reviewedAt: now.toISOString(), reviewMode: 'auto', reviewReason: `AI 판정: ${v.reason}` });
-      await saveReport(r);
       log.push(`소식 제보 ${r.id}: ${v.relevant ? '소식 탭에 올림' : '거절'} (${v.reason})`);
     } else {
       r.reviewReason = `AI가 확실하지 않다고 봐서 사람이 확인해요: ${v.reason}`;

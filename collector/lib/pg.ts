@@ -35,6 +35,12 @@ export async function pgUpsert(table: string, rows: Record<string, unknown>[], o
   }
 }
 
+/** 조건에 맞는 행의 몇 칸만 바꾸기. where 예: "id=in.(a,b)" */
+export async function pgPatch(table: string, where: string, values: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`${base()}/${table}?${where}`, { method: 'PATCH', headers: { ...headers(), prefer: 'return=minimal' }, body: JSON.stringify(values) });
+  if (!res.ok) throw new Error(`DB 저장 실패 ${table} ${res.status}: ${(await res.text()).slice(0, 200)}`);
+}
+
 /** 문자열 안의 짝 없는 문자(이모지 반쪽)는 JSON 저장을 깨뜨리므로 뺀다 */
 export const pgClean = <T>(v: T): T => JSON.parse(JSON.stringify(v).replace(/\\ud[89ab][0-9a-f]{2}(?!\\ud[c-f])|(?<!\\ud[89ab][0-9a-f]{2})\\ud[c-f][0-9a-f]{2}/gi, ''));
 

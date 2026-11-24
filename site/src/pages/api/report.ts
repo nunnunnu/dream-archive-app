@@ -1,15 +1,15 @@
 /**
  * 제보 받기 (Astro API, Cloudflare에서 실행): POST /api/report
- * 받은 제보는 KV(REPORTS)에 저장한다. 공식 원문 대조를 통과한 추가·보완 제보는 수집기가 자동 승인하고,
+ * 받은 제보는 Supabase reports 테이블에 저장한다 (KV는 무료 쓰기 한도가 하루 1,000번이라 옮김). 공식 원문 대조를 통과한 추가·보완 제보는 수집기가 자동 승인하고,
  * 그 밖의 제보와 삭제 요청은 운영자가 확인한다. 삭제 요청은 일정 또는 소식(target: 'news', newsUrl).
- * 개인정보는 받지 않는다. 같은 IP에서 1분에 5번까지만 (IP는 해시로만 잠깐 쓴다).
+ * 개인정보는 받지 않는다.
+ *  - 한 건: { type, title, ... } → 같은 IP(해시)에서 1분에 5건까지
+ *  - 여러 건(Grok 등 자동 제보): [{...}, {...}] 최대 50건, Authorization: Bearer <REPORT_BULK_TOKEN> 이 있어야 하고 횟수 제한 없음.
+ *    답은 { ok, saved, results: [{ ok, id } | { ok: false, error }] } (보낸 순서대로)
  */
 import type { APIRoute } from 'astro';
-interface KV {
-  get(key: string): Promise<string | null>;
-  put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
-}
-interface Env { REPORTS: KV }
+import { db, dbReady, reportToRow, type DbEnv } from '../../lib/reports-db';
+interface Env extends DbEnv { REPORTS?: KV; REPORT_BULK_TOKEN?: string }
 
 const TYPES = ['add', 'delete', 'fix', 'news'] as const;
 // 소식 제보에 붙이는 시리즈 단서 (선택): 수집기가 같은 이름끼리 시리즈 페이지로 묶는다
@@ -21,19 +21,13 @@ async function sha(text: string) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
+const newId = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const MAX_BULK = 50;
 
-export const POST: APIRoute = async ({ request, locals }) => {
-  const env = (locals.runtime?.env ?? {}) as Env;
-  if (!env.REPORTS) return json({ ok: false, error: '지금은 제보를 받을 수 없어요. 잠시 뒤에 다시 시도해 주세요' }, 503);
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ ok: false, error: '형식이 올바르지 않아요' }, 400);
-  }
-  if (body.website) return json({ ok: true }); // 봇이 채우는 숨은 칸
+/** 제보 하나 검사: 통과하면 저장할 값, 아니면 오류 문구 */
+function parse(body: Record<string, unknown>) {
   const type = body.type as (typeof TYPES)[number];
-  if (!TYPES.includes(type)) return json({ ok: false, error: '제보 종류를 골라 주세요' }, 400);
+  if (!TYPES.includes(type)) return '제보 종류를 골라 주세요';
   const report = {
     type,
     title: clip(body.title, 200),
@@ -55,28 +49,65 @@ export const POST: APIRoute = async ({ request, locals }) => {
     series: SERIES_KINDS.includes(clip(body.seriesKind, 10)) && clip(body.seriesName, 40)
       ? { kind: clip(body.seriesKind, 10), name: clip(body.seriesName, 40) } : undefined,
   };
-  if (type === 'add' && !report.title) return json({ ok: false, error: '일정 이름을 적어 주세요' }, 400);
-  if (type === 'add' && !report.url && !report.message) return json({ ok: false, error: '근거 링크나 내용을 적어 주세요' }, 400);
-  if (type === 'news' && !report.title) return json({ ok: false, error: '어떤 소식인지 한 줄로 적어 주세요' }, 400);
-  if (type === 'news' && !report.url && !report.message) return json({ ok: false, error: '링크나 내용을 적어 주세요' }, 400);
+  if (type === 'add' && !report.title) return '일정 이름을 적어 주세요';
+  if (type === 'add' && !report.url && !report.message) return '근거 링크나 내용을 적어 주세요';
+  if (type === 'news' && !report.title) return '어떤 소식인지 한 줄로 적어 주세요';
+  if (type === 'news' && !report.url && !report.message) return '링크나 내용을 적어 주세요';
   const newsDelete = type === 'delete' && report.target === 'news';
-  if (newsDelete && !/^https?:\/\//i.test(report.newsUrl)) return json({ ok: false, error: '지울 소식의 링크를 넣어 주세요' }, 400);
+  if (newsDelete && !/^https?:\/\//i.test(report.newsUrl)) return '지울 소식의 링크를 넣어 주세요';
   if (newsDelete) report.eventTitle = `소식 · ${report.newsTitle || report.newsUrl}`.slice(0, 200);
-  if ((type === 'fix' || (type === 'delete' && !newsDelete)) && !report.eventId) return json({ ok: false, error: '기존 일정을 선택해 주세요' }, 400);
-  if (type === 'delete' && !report.reasonCode) return json({ ok: false, error: '삭제 요청 이유를 골라 주세요' }, 400);
-  if (report.url && !/^https?:\/\//i.test(report.url)) return json({ ok: false, error: '링크는 http로 시작해야 해요' }, 400);
+  if ((type === 'fix' || (type === 'delete' && !newsDelete)) && !report.eventId) return '기존 일정을 선택해 주세요';
+  if (type === 'delete' && !report.reasonCode) return '삭제 요청 이유를 골라 주세요';
+  if (report.url && !/^https?:\/\//i.test(report.url)) return '링크는 http로 시작해야 해요';
 
-  // 너무 잦은 제보 막기
+  return report;
+}
+
+export const POST: APIRoute = async ({ request, locals }) => {
+  const env = (locals.runtime?.env ?? {}) as Env;
+  if (!dbReady(env)) return json({ ok: false, error: '지금은 제보를 받을 수 없어요. 잠시 뒤에 다시 시도해 주세요' }, 503);
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ ok: false, error: '형식이 올바르지 않아요' }, 400);
+  }
+  const bulk = Array.isArray(body);
+  if (!bulk && (!body || typeof body !== 'object')) return json({ ok: false, error: '형식이 올바르지 않아요' }, 400);
+  if (bulk) {
+    const auth = request.headers.get('authorization') ?? '';
+    if (!env.REPORT_BULK_TOKEN || auth !== `Bearer ${env.REPORT_BULK_TOKEN}`) return json({ ok: false, error: '여러 건 제보는 토큰이 있어야 해요' }, 401);
+    if (!body.length || body.length > MAX_BULK) return json({ ok: false, error: `한 번에 1~${MAX_BULK}건까지 보낼 수 있어요` }, 400);
+  } else if ((body as Record<string, unknown>).website) return json({ ok: true }); // 봇이 채우는 숨은 칸
+
+  const items = (bulk ? body : [body]) as unknown[];
+  const now = Date.now();
+  const results: ({ ok: true; id: string } | { ok: false; error: string })[] = [];
+  const rows: Record<string, unknown>[] = [];
   const ip = await sha(request.headers.get('cf-connecting-ip') ?? 'unknown');
-  const rateKey = `rate:${ip}:${Math.floor(Date.now() / 60000)}`;
-  const count = Number((await env.REPORTS.get(rateKey)) ?? 0);
-  if (count >= 5) return json({ ok: false, error: '잠시 후 다시 보내 주세요' }, 429);
-  await env.REPORTS.put(rateKey, String(count + 1), { expirationTtl: 120 });
+  for (const [i, item] of items.entries()) {
+    const report = item && typeof item === 'object' && !Array.isArray(item) ? parse(item as Record<string, unknown>) : '형식이 올바르지 않아요';
+    if (typeof report === 'string') { results.push({ ok: false, error: report }); continue; }
+    const id = newId() + (bulk ? i.toString(36) : '');
+    // 같은 묶음 안에서도 순서가 지켜지도록 1ms씩 늦춘다
+    rows.push({ ...reportToRow({ id, ...report, status: 'pending', createdAt: new Date(now + i).toISOString() }), ...(bulk ? {} : { ip_hash: ip }) });
+    results.push({ ok: true, id });
+  }
+  if (!bulk && !rows.length) return json(results[0], 400);
 
-  const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  await env.REPORTS.put(`report:${id}`, JSON.stringify({ id, ...report, status: 'pending', createdAt: new Date().toISOString() }));
-  // 15·45분 예약 작업은 이 값의 존재만 보고 새 제보 검증을 깨운다.
-  // 제보 내용은 넣지 않고, 새 제보가 처리 중 들어와도 구분할 수 있도록 마지막 id만 둔다.
-  await env.REPORTS.put('pending-reports', id);
-  return json({ ok: true, id });
+  try {
+    if (!bulk) {
+      // 너무 잦은 제보 막기: 같은 IP에서 1분에 5건까지 (IP는 해시로만 저장)
+      const since = new Date(now - 60_000).toISOString();
+      const recent = await db(env, `reports?select=id&ip_hash=eq.${ip}&created_at=gte.${encodeURIComponent(since)}`, { prefer: 'count=exact' });
+      if (Number(recent.headers.get('content-range')?.split('/')[1] ?? 0) >= 5) return json({ ok: false, error: '잠시 후 다시 보내 주세요' }, 429);
+    }
+    if (rows.length) await db(env, 'reports', { method: 'POST', body: JSON.stringify(rows), prefer: 'return=minimal' });
+  } catch (err) {
+    console.error('제보 저장 실패', (err as Error).message);
+    return json({ ok: false, error: '지금은 제보를 저장하지 못했어요. 잠시 뒤에 다시 시도해 주세요' }, 503);
+  }
+  // 15·45분 예약 작업은 이 신호가 있을 때만 새 제보 검증을 깨운다. 이미 켜져 있으면 다시 쓰지 않는다 (KV 쓰기 아끼기)
+  if (rows.length) try { if (env.REPORTS && !(await env.REPORTS.get('pending-reports'))) await env.REPORTS.put('pending-reports', String(rows[0].id)); } catch { /* 정시 수집이 처리 */ }
+  return bulk ? json({ ok: true, saved: rows.length, results }) : json(results[0]);
 };

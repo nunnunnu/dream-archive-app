@@ -1,9 +1,8 @@
 /**
  * 사이트 제보 확인·승인 (운영자용)
- *   npm run reports                 받은 제보 가져와서 대기 목록 보기 (Cloudflare KV)
+ *   STORE=pg npm run reports        대기 목록 보기 (Supabase reports 테이블)
  *   npm run reports -- --approve ID 승인: 추가 → 제보 처리(링크 읽기·AI), 삭제 → 숨기기, 보완 → 고치기 (config/overrides.json)
  *   npm run reports -- --reject ID  거절
- * 필요한 .env: CF_ACCOUNT_ID, CF_API_TOKEN, CF_KV_REPORTS_ID
  */
 import './lib/env.ts';
 import { loadOverrides, saveOverrides } from './lib/overrides.ts';
@@ -15,28 +14,9 @@ interface Report {
   date: string; time: string; members: string[]; status: 'pending' | 'approved' | 'rejected'; createdAt: string;
 }
 const TYPE = { add: '추가 요청', delete: '삭제 요청', fix: '정보 보완 요청' };
-// .env 이름은 CLOUDFLARE_ACCOUNT_ID·CLOUDFLARE_API_TOKEN 도 받는다 (배포에 쓰는 것과 같은 값)
-const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID ?? process.env.CLOUDFLARE_ACCOUNT_ID;
-const CF_API_TOKEN = process.env.CF_API_TOKEN ?? process.env.CLOUDFLARE_API_TOKEN;
-const { CF_KV_REPORTS_ID } = process.env;
-const kv = (path: string, init?: RequestInit) =>
-  fetch(`https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_REPORTS_ID}${path}`, { ...init, headers: { Authorization: `Bearer ${CF_API_TOKEN}`, ...(init?.headers ?? {}) } });
-
 const repo = new JsonRepo();
+// 제보는 사이트가 Supabase reports 테이블에 바로 넣는다 (STORE=pg 로 실행하면 그 목록을 본다)
 const local = await repo.getState<Record<string, Report>>('reports', {});
-
-// 1) 새 제보 가져오기
-if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_REPORTS_ID) {
-  const keys = ((await (await kv('/keys?prefix=report:')).json()) as { result: { name: string }[] }).result ?? [];
-  for (const k of keys) {
-    const id = k.name.slice('report:'.length);
-    if (local[id]) continue;
-    const r = (await (await kv(`/values/${encodeURIComponent(k.name)}`)).json()) as Report;
-    local[id] = r;
-  }
-} else {
-  console.log('Cloudflare 설정(CF_ACCOUNT_ID, CF_API_TOKEN, CF_KV_REPORTS_ID)이 없어서 저장된 제보만 보여줘요.');
-}
 
 const arg = (name: string) => process.argv[process.argv.indexOf(`--${name}`) + 1];
 const now = new Date();
@@ -61,7 +41,6 @@ if (process.argv.includes('--approve') || process.argv.includes('--reject')) {
     saveOverrides(o);
     r.status = 'approved';
   } else r.status = 'rejected';
-  if (CF_ACCOUNT_ID && CF_API_TOKEN && CF_KV_REPORTS_ID) await kv(`/values/${encodeURIComponent(`report:${id}`)}`, { method: 'PUT', body: JSON.stringify(r) });
 }
 await repo.putState('reports', local);
 

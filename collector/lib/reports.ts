@@ -6,6 +6,7 @@
  */
 import { GROUP } from './group.ts';
 import type { ExtractionRecord, Repo } from './repo.ts';
+import { pgPatch, pgSelect, usePg } from './pg.ts';
 import { submissionId, addSubmission, type Submission } from './submissions.ts';
 import type { OverrideTarget, Overrides } from './overrides.ts';
 import { hideEntry, isNewsDelete, NEWS_HIDE_STATE, type NewsHide } from './newsHide.ts';
@@ -42,68 +43,13 @@ export interface Report {
 export const SERIES_HINT_KINDS = ['광고', '화보', '예능', '드라마', '외부콘텐츠'] as const;
 export type SeriesHintKind = (typeof SERIES_HINT_KINDS)[number];
 
-interface KvConfig { accountId: string; token: string; namespaceId: string }
-
-const config = (): KvConfig | null => {
-  const accountId = process.env.CF_ACCOUNT_ID ?? process.env.CLOUDFLARE_ACCOUNT_ID;
-  const token = process.env.CF_API_TOKEN ?? process.env.CLOUDFLARE_API_TOKEN;
-  const namespaceId = process.env.CF_KV_REPORTS_ID;
-  return accountId && token && namespaceId ? { accountId, token, namespaceId } : null;
-};
-
-const kv = (c: KvConfig, path: string, init?: RequestInit) => fetch(
-  `https://api.cloudflare.com/client/v4/accounts/${c.accountId}/storage/kv/namespaces/${c.namespaceId}${path}`,
-  { ...init, headers: { Authorization: `Bearer ${c.token}`, ...(init?.headers ?? {}) } },
-);
-
-/** 판정한 제보 상태를 사이트(KV)에도 저장 (설정이 없으면 건너뜀) */
-export async function saveReport(r: Report) {
-  const c = config();
-  if (c) await saveRemote(c, r);
-}
-
-/** 대기 중인 제보의 판정 이유가 바뀌면 사이트(KV)에도 저장 (어드민 화면에서 "AI가 넘긴 이유"로 보인다) */
-const remoteReason = new Map<string, string>();
-export async function pushPendingReasons(reports: Record<string, Report>): Promise<number> {
-  const c = config();
-  if (!c) return 0;
-  let n = 0;
-  for (const r of Object.values(reports)) {
-    if (r.status !== 'pending' || !r.reviewReason || remoteReason.get(r.id) === r.reviewReason) continue;
-    await saveRemote(c, r).catch(() => {});
-    remoteReason.set(r.id, r.reviewReason);
-    n++;
-  }
-  return n;
-}
-
-async function saveRemote(c: KvConfig, r: Report) {
-  const res = await kv(c, `/values/${encodeURIComponent(`report:${r.id}`)}`, { method: 'PUT', body: JSON.stringify(r) });
-  if (!res.ok) throw new Error(`제보 상태 저장 실패 ${res.status}`);
-}
-
+/**
+ * 제보는 Supabase reports 테이블 하나에 있다 (사이트 /api/report 가 바로 넣고, 어드민도 여기서 읽고 결정을 적는다).
+ * 예전에는 Cloudflare KV 에 받아서 옮겼는데, 무료 KV 쓰기 한도(하루 1,000번)에 걸려 제보·수집이 멈춰서 옮겼다.
+ */
 export async function pullReports(repo: Repo): Promise<{ reports: Record<string, Report>; fetched: number }> {
   const reports = await repo.getState<Record<string, Report>>('reports', {});
-  const c = config();
-  if (!c) return { reports, fetched: 0 };
-  const res = await kv(c, '/keys?prefix=report:');
-  if (!res.ok) throw new Error(`제보 목록 읽기 실패 ${res.status}`);
-  const keys = ((await res.json()) as { result?: { name: string }[] }).result ?? [];
-  let fetched = 0;
-  for (const k of keys) {
-    const id = k.name.slice('report:'.length);
-    // 처음 보는 제보이거나 아직 판정 전인 것만 가져온다 (전에는 처음 보는 제보를 건너뛰어서 새 제보가 하나도 안 들어왔다)
-    if (reports[id] && reports[id].status !== 'pending') continue;
-    const value = await kv(c, `/values/${encodeURIComponent(k.name)}`);
-    if (!value.ok) continue;
-    const incoming = await value.json() as Report;
-    // 원격 pending 상태는 로컬에서 이미 끝낸 판정을 되돌리지 않는다.
-    if (!reports[id] || reports[id].status === 'pending') reports[id] = incoming;
-    remoteReason.set(id, incoming.reviewReason ?? '');
-    fetched++;
-  }
-  await repo.putState('reports', reports);
-  return { reports, fetched };
+  return { reports, fetched: Object.values(reports).filter((r) => r.status === 'pending').length };
 }
 
 /** 공식 출처가 필요한 제보를 기존 제보 추출 파이프라인에 넣는다. */
@@ -142,7 +88,6 @@ const matching = (r: Report, ext: ExtractionRecord) => ext.checked.filter((e) =>
 );
 
 export async function finalizeReports(repo: Repo, reports: Record<string, Report>, now: Date): Promise<{ approved: number; pending: number }> {
-  const c = config();
   const stateOverrides = await repo.getState<Overrides>('report-overrides', { hide: [], patch: [] });
   let approved = 0;
   for (const r of Object.values(reports)) {
@@ -176,14 +121,13 @@ export async function finalizeReports(repo: Repo, reports: Record<string, Report
     }
     Object.assign(r, { status: 'approved', reviewedAt: now.toISOString(), reviewMode: 'auto', reviewReason: '공식 원문 대조를 통과해 자동 승인했어요.' });
     approved++;
-    if (c) await saveRemote(c, r);
   }
   await repo.putState('report-overrides', stateOverrides);
   await repo.putState('reports', reports);
   return { approved, pending: Object.values(reports).filter((r) => r.status === 'pending').length };
 }
 
-/** 어드민에서 내린 운영자 결정 (사이트 KV report-decision:<id>) */
+/** 어드민에서 내린 운영자 결정 (Supabase reports.decision 칸) */
 export interface ReportDecision { action: 'approve' | 'reject'; note?: string; at: string; by?: string }
 
 /** 제보가 가리키는 일정: 제보할 때 함께 온 일정 정보 → 없으면 "11. 20 대상 · 단계" 제목에서 */
@@ -231,26 +175,18 @@ export function decideReport(r: Report, d: ReportDecision, overrides: Overrides,
   return { applied: true, submit, message: `제보 ${r.id}: 운영자 승인 (${r.type})` };
 }
 
-/** 어드민 결정 가져와 적용: 적용한 결정은 KV에서 지운다. 수집 실행마다 pullReports 바로 뒤에 부른다 */
+/** 어드민 결정(reports.decision 칸) 가져와 적용: 적용한 결정은 지운다. 수집 실행마다 pullReports 바로 뒤에 부른다 */
 export async function applyReportDecisions(repo: Repo, reports: Record<string, Report>, now: Date): Promise<string[]> {
-  const c = config();
-  if (!c) return [];
-  const res = await kv(c, '/keys?prefix=report-decision:');
-  if (!res.ok) return [`어드민 결정 읽기 실패 ${res.status}`];
-  const keys = ((await res.json()) as { result?: { name: string }[] }).result ?? [];
-  if (!keys.length) return [];
+  if (!usePg()) return [];
+  const rows = await pgSelect<{ id: string; decision: ReportDecision | null }>('reports', 'select=id,decision&decision=not.is.null');
+  if (!rows.length) return [];
   const overrides = await repo.getState<Overrides>('report-overrides', { hide: [], patch: [] });
   const newsHidden = await repo.getState<NewsHide[]>(NEWS_HIDE_STATE, []);
   const log: string[] = [];
-  for (const k of keys) {
-    const id = k.name.slice('report-decision:'.length);
-    const value = await kv(c, `/values/${encodeURIComponent(k.name)}`);
-    const d = value.ok ? (await value.json().catch(() => null)) as ReportDecision | null : null;
+  for (const { id, decision: d } of rows) {
     const r = reports[id];
-    const drop = () => kv(c, `/values/${encodeURIComponent(k.name)}`, { method: 'DELETE' });
     if (!d || !r || r.status !== 'pending') {
       log.push(`어드민 결정 ${id}: ${!r ? '제보를 못 찾음' : !d ? '읽지 못함' : '이미 처리된 제보'} → 지움`);
-      await drop();
       continue;
     }
     const out = decideReport(r, d, overrides, now, newsHidden);
@@ -258,13 +194,11 @@ export async function applyReportDecisions(repo: Repo, reports: Record<string, R
     if (out.submit && !(await repo.getState<Submission[]>('submissions', [])).some((s) => s.id === submissionId(out.submit!))) {
       await addSubmission(repo, out.submit, undefined, now, `[운영자 승인 ${r.id}] ${r.title ?? ''} ${r.message}`.trim());
     }
-    await saveRemote(c, r);
-    remoteReason.set(r.id, r.reviewReason ?? '');
-    await drop();
     log.push(out.message);
   }
   await repo.putState('report-overrides', overrides);
   await repo.putState(NEWS_HIDE_STATE, newsHidden);
   await repo.putState('reports', reports);
+  await pgPatch('reports', `id=in.(${rows.map((r) => r.id).join(',')})`, { decision: null });
   return log;
 }

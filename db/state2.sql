@@ -46,3 +46,9 @@ alter table llm_usage   enable row level security;
 -- 소식 제보(news) 추가 (2026-11-24): 이미 만든 DB에는 아래를 한 번 실행
 alter table reports drop constraint if exists reports_type_check;
 alter table reports add constraint reports_type_check check (type in ('add', 'fix', 'delete', 'news'));
+
+-- 제보를 KV 대신 여기에 바로 받는다 (2026-11-24): 어드민 결정 칸, 한 건 제보 횟수 제한용 IP 해시
+alter table reports add column if not exists decision jsonb;
+alter table reports add column if not exists ip_hash text;
+create index if not exists reports_ip_idx on reports (ip_hash, created_at);
+create index if not exists reports_decision_idx on reports (id) where decision is not null;

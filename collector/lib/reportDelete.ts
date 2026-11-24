@@ -12,7 +12,7 @@ import { GROUP } from './group.ts';
 import { callModel, hasLlmKey } from './llm.ts';
 import type { Overrides } from './overrides.ts';
 import type { Repo } from './repo.ts';
-import { saveReport, type Report } from './reports.ts';
+import { type Report } from './reports.ts';
 
 const REASONS: Record<string, string> = { unrelated: '드림 일정이 아님', duplicate: '중복', cancelled: '취소됨', wrong: '잘못된 정보' };
 const sq = (t: string) => t.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
@@ -40,7 +40,7 @@ export async function judgeDeleteReports(repo: Repo, reports: Record<string, Rep
   const done = (r: Report, reason: string) => { Object.assign(r, { status: 'approved', reviewedAt: now.toISOString(), reviewMode: 'auto', reviewReason: reason }); };
   for (const r of todo) {
     const e = findEvent(r, events);
-    if (!e) { done(r, '이미 일정에서 빠져 있어요.'); log.push(`삭제 제보 ${r.id}: 이미 없음`); await saveReport(r); continue; }
+    if (!e) { done(r, '이미 일정에서 빠져 있어요.'); log.push(`삭제 제보 ${r.id}: 이미 없음`); continue; }
     if (isOfficial(e)) { r.reviewReason = '공식 공지·공식 영상에 있는 일정이라 사람이 확인해요.'; continue; }
     if (!hasLlmKey() || !budget.canSpend()) { r.reviewReason = 'AI 판정을 기다려요.'; continue; }
     const res = await callModel({
@@ -68,7 +68,6 @@ export async function judgeDeleteReports(repo: Repo, reports: Record<string, Rep
       overrides.hide.push({ id: e.id, date: e.date, title: `${e.title} ${e.step}`, reason: v.reason, reportId: r.id });
       done(r, `AI 판정으로 자동 삭제했어요: ${v.reason}`);
       log.push(`삭제 제보 ${r.id}: 자동 삭제 (${e.date} ${e.title}) ${v.reason}`);
-      await saveReport(r);
     } else {
       r.reviewReason = `AI가 확실하지 않다고 봐서 사람이 확인해요: ${v.reason}`;
       log.push(`삭제 제보 ${r.id}: 사람 확인 (${v.reason})`);

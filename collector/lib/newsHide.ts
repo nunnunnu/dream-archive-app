@@ -10,7 +10,7 @@ import { GROUP } from './group.ts';
 import { callModel, hasLlmKey } from './llm.ts';
 import type { FeedItem } from './publish.ts';
 import type { Repo } from './repo.ts';
-import { saveReport, type Report } from './reports.ts';
+import { type Report } from './reports.ts';
 
 export interface NewsHide { url: string; urls: string[]; title: string; reason: string; reportId?: string; at: string }
 export const NEWS_HIDE_STATE = 'news-hidden';
@@ -58,7 +58,6 @@ export async function judgeNewsDeleteReports(repo: Repo, reports: Record<string,
   const log: string[] = [];
   const approve = async (r: Report, reason: string) => {
     Object.assign(r, { status: 'approved', reviewedAt: now.toISOString(), reviewMode: 'auto', reviewReason: reason });
-    await saveReport(r);
   };
   const hide = (r: Report, item: FeedItem | undefined, reason: string) => {
     const kept = hidden.filter((h) => h.reportId !== r.id);
