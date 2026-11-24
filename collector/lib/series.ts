@@ -103,10 +103,10 @@ const seriesVideoKind = (v: Video): VideoKind => {
   return kind;
 };
 
+const RECORDING_BEHIND_RE = /recording\s*behind|recording\s*diary|녹음\s*비하인드/i;
 const COLLECTIONS: [string, RegExp][] = [
   ['MV·자켓 비하인드', /behind the scenes|비하인드|making film|jacket/i],
   ['Dance Practice', DANCE_PRACTICE_RE],
-  ['Recording Behind', /recording\s*behind|recording\s*diary|녹음\s*비하인드/i],
   // 커버: "Cover | RENJUN - …", "'Soda Pop' Cover Stage", "YOUTH Cover Behind", "커버" (album cover·Undercover 는 아님)
   // 커버 비하인드는 커버가 아니라 비하인드 (MV·자켓 비하인드 쪽)
   ['Cover', /^(?!.*album\s*cover)(?!.*cover\s*behind)(?:.*(?:^|[|｜]\s*)cover\s*[|｜:]|.*[)'’"]\s*cover\b|.*\bcover\s*(?:stage|ver)|.*\bdance\s+cover\b|.*커버)/i],
@@ -218,8 +218,11 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
         .map(([year, group]) => ({ name: `${year}년`, videos: sortVids(group).reverse() })),
     });
   };
+  const recordings = new Map(seriesVideos.filter((v) => RECORDING_BEHIND_RE.test(v.title.normalize('NFKC'))).map((v) => [v.videoId, v]));
+  addVideoCollection('Recording Behind', [...recordings.values()].map(toVid));
   for (const [name, re] of COLLECTIONS) {
     const list = new Map(seriesVideos.filter((v) => re.test(v.title.normalize('NFKC')) &&
+      (name !== 'MV·자켓 비하인드' || !recordings.has(v.videoId)) &&
       (name !== 'Dance Practice' || seriesVideoKind(v) !== '비하인드')).map((v) => [v.videoId, v]));
     if (name === 'Cover') for (const id of VERIFIED.covers) {
       const v = videoById.get(id);
