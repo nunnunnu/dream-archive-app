@@ -84,3 +84,37 @@ test('배치: 월 상한이 거의 차면 보내지 않는다', async () => {
     assert.equal(called, false);
   } finally { globalThis.fetch = original; }
 });
+
+test('배치: 결과를 못 받을 때 — 404면 다시 보내고, 잠깐 오류면 다음 날 다시 확인, 사흘 넘게 안 끝나면 취소하고 다시 보낸다', async () => {
+  const { repo, state } = fakeRepo([]);
+  const now = new Date('2026-11-25T20:30:00Z');
+  const item = (jobId: string): BatchArticle => ({ queuedAt: now.toISOString(), title: '기사', writtenAt: '2026-11-01T03:00:00Z', url: 'https://a.example/1', jobId });
+  await repo.putState(BATCH_STATE, { gone: item('b-gone'), flaky: item('b-flaky'), slow: item('b-slow'), stuck: item('b-stuck') });
+  await repo.putState(BATCH_JOBS, [
+    { id: 'b-gone', createdAt: '2026-11-24T20:30:00Z', count: 1 },
+    { id: 'b-flaky', createdAt: '2026-11-24T20:30:00Z', count: 1 },
+    { id: 'b-slow', createdAt: '2026-11-24T20:30:00Z', count: 1 },
+    { id: 'b-stuck', createdAt: '2026-11-21T20:30:00Z', count: 1 },
+  ] satisfies BatchJob[]);
+  const budget = await new Budget(repo, now).load();
+  const original = globalThis.fetch;
+  const cancelled: string[] = [];
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    const u = String(url);
+    if (u.endsWith('/b-gone')) return new Response('not found', { status: 404 });
+    if (u.endsWith('/b-flaky')) throw new TypeError('fetch failed');
+    if (u.endsWith('/cancel')) { cancelled.push(u); return Response.json({}); }
+    if (u.endsWith('/b-slow') || u.endsWith('/b-stuck')) return Response.json({ status: 'in_progress', request_counts: { completed: 0, failed: 0, total: 1 } });
+    throw new Error(`예상 못 한 요청 ${u}`);
+  }) as typeof fetch;
+  try {
+    await collectBatches(repo, budget, now);
+    const queue = state.get(BATCH_STATE) as Record<string, BatchArticle>;
+    assert.equal(queue.gone.jobId, undefined); // 다시 보낼 수 있게
+    assert.equal(queue.stuck.jobId, undefined);
+    assert.equal(queue.flaky.jobId, 'b-flaky'); // 그대로 두고 다음 날 확인
+    assert.equal(queue.slow.jobId, 'b-slow');
+    assert.deepEqual((state.get(BATCH_JOBS) as BatchJob[]).map((j) => j.id), ['b-flaky', 'b-slow']);
+    assert.equal(cancelled.length, 1);
+  } finally { globalThis.fetch = original; }
+});

@@ -64,10 +64,27 @@ export async function collectBatches(repo: Repo, budget: Budget, now: Date): Pro
   const keep: BatchJob[] = [];
   const done: { guid: string; kept: number }[] = [];
   for (const job of jobs) {
-    const b = await (await ok(await api(`/batches/${job.id}`), '배치 확인')).json() as { status: string; output_file_id?: string; error_file_id?: string; request_counts?: { completed: number; failed: number; total: number } };
-    if (!['completed', 'failed', 'expired', 'cancelled'].includes(b.status)) { keep.push(job); log.push(`배치 ${job.id}: ${b.status} (${b.request_counts?.completed ?? 0}/${b.request_counts?.total ?? job.count})`); continue; }
+    type BatchInfo = { status: string; output_file_id?: string; error_file_id?: string; request_counts?: { completed: number; failed: number; total: number } };
+    let b: BatchInfo;
     const lines: string[] = [];
-    for (const f of [b.output_file_id, b.error_file_id]) if (f) lines.push(...(await (await ok(await api(`/files/${f}/content`), '배치 결과 받기')).text()).split('\n').filter(Boolean));
+    try {
+      const res = await api(`/batches/${job.id}`);
+      // OpenAI가 묶음을 모르면(404) 결과는 영영 안 온다 → 그 기사들은 다시 보낸다
+      b = res.status === 404 ? { status: 'lost' } : await (await ok(res, '배치 확인')).json() as BatchInfo;
+      const age = now.getTime() - Date.parse(job.createdAt);
+      if (!['completed', 'failed', 'expired', 'cancelled', 'lost'].includes(b.status)) {
+        // 24시간 창을 넘어 사흘이 지나도 안 끝나면 포기하고 다시 보낸다 (가능하면 취소)
+        if (age < 3 * 864e5) { keep.push(job); log.push(`배치 ${job.id}: ${b.status} (${b.request_counts?.completed ?? 0}/${b.request_counts?.total ?? job.count}), 다음 날 다시 확인`); continue; }
+        await api(`/batches/${job.id}/cancel`, { method: 'POST' }).catch(() => null);
+        b = { status: 'stuck' };
+      }
+      for (const f of [b.output_file_id, b.error_file_id]) if (f) lines.push(...(await (await ok(await api(`/files/${f}/content`), '배치 결과 받기')).text()).split('\n').filter(Boolean));
+    } catch (err) {
+      // 잠깐의 네트워크·서버 오류: 묶음은 그대로 두고 다음 날 다시 확인 (다른 묶음과 새로 보내기는 계속)
+      keep.push(job);
+      log.push(`배치 ${job.id}: 확인 실패, 다음 날 다시 (${(err as Error).message.slice(0, 120)})`);
+      continue;
+    }
     let applied = 0, failed = 0;
     for (const line of lines) {
       const row = JSON.parse(line) as { custom_id: string; response?: { status_code: number; body: unknown }; error?: { message?: string } };

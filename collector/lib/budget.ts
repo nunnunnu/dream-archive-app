@@ -2,17 +2,25 @@
  * AI 비용 상한. 월 상한(LLM_MONTHLY_BUDGET_USD, 기본 $5)이나 실행당 호출 수(LLM_MAX_CALLS_PER_RUN, 기본 40)를
  * 넘으면 AI를 부르지 않는다. 그동안 공지는 규칙 방식으로 대신한다.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { aiStats } from './ai-provider.ts';
+import { ROOT } from './store.ts';
 import type { Repo } from './repo.ts';
 import { toKstParts } from './time.ts';
 
 type Usage = Record<string, { costUsd: number; calls: number }>;
+// 달별 상한 (config/budget.json): 한 달만 올릴 때 그 달만 적는다
+const CONFIG = JSON.parse(readFileSync(join(ROOT, 'config', 'budget.json'), 'utf8')) as { monthlyUsd: number; months?: Record<string, number> };
 
 export class Budget {
   /** 개발 비용은 운영 월 상한과 따로 센다: 노트북에서 돌린 것(GitHub Actions가 아닌 실행)과 LLM_BUDGET_BUCKET=dev는 'dev' 누적(상한 LLM_DEV_BUDGET_USD, 기본 $35 ≈ 5만원).
    *  운영 월 상한(LLM_MONTHLY_BUDGET_USD)은 Actions 자동 수집에만 */
   private readonly bucket = process.env.LLM_BUDGET_BUCKET ?? (process.env.GITHUB_ACTIONS === 'true' ? undefined : 'dev');
-  readonly monthlyLimitUsd = this.bucket ? Number(process.env.LLM_DEV_BUDGET_USD ?? 35) : Number(process.env.LLM_MONTHLY_BUDGET_USD ?? 5);
+  get monthlyLimitUsd() {
+    if (this.bucket) return Number(process.env.LLM_DEV_BUDGET_USD ?? 35);
+    return Number(process.env.LLM_MONTHLY_BUDGET_USD ?? CONFIG.months?.[this.month] ?? CONFIG.monthlyUsd);
+  }
   readonly perRunCalls = Number(process.env.LLM_MAX_CALLS_PER_RUN ?? 40);
   private usage: Usage = {};
   private runCalls = 0;
