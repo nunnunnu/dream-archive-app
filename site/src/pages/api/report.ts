@@ -9,7 +9,7 @@
  */
 import type { APIRoute } from 'astro';
 import { db, dbReady, reportToRow, type DbEnv } from '../../lib/reports-db';
-interface Env extends DbEnv { REPORTS?: KV; REPORT_BULK_TOKEN?: string }
+interface Env extends DbEnv { REPORT_BULK_TOKEN?: string }
 
 const TYPES = ['add', 'delete', 'fix', 'news'] as const;
 // 소식 제보에 붙이는 시리즈 단서 (선택): 수집기가 같은 이름끼리 시리즈 페이지로 묶는다
@@ -107,7 +107,5 @@ export const POST: APIRoute = async ({ request, locals }) => {
     console.error('제보 저장 실패', (err as Error).message);
     return json({ ok: false, error: '지금은 제보를 저장하지 못했어요. 잠시 뒤에 다시 시도해 주세요' }, 503);
   }
-  // 15·45분 예약 작업은 이 신호가 있을 때만 새 제보 검증을 깨운다. 이미 켜져 있으면 다시 쓰지 않는다 (KV 쓰기 아끼기)
-  if (rows.length) try { if (env.REPORTS && !(await env.REPORTS.get('pending-reports'))) await env.REPORTS.put('pending-reports', String(rows[0].id)); } catch { /* 정시 수집이 처리 */ }
   return bulk ? json({ ok: true, saved: rows.length, results }) : json(results[0]);
 };

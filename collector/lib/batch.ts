@@ -91,7 +91,8 @@ export async function collectBatches(repo: Repo, budget: Budget, now: Date): Pro
       const row = JSON.parse(line) as { custom_id: string; response?: { status_code: number; body: unknown }; error?: { message?: string } };
       if (row.custom_id.startsWith('report:')) {
         const r = reports[row.custom_id.slice('report:'.length)];
-        if (!r || r.batchJob !== job.id) continue;
+        // 표시가 다른 묶음이면 건너뛴다. 표시가 지워졌어도(그사이 다른 실행이 덮어씀) 아직 대기 중이면 반영한다
+        if (!r || (r.batchJob && r.batchJob !== job.id)) continue;
         try {
           if (row.response?.status_code !== 200) throw new Error(row.error?.message ?? `상태 ${row.response?.status_code}`);
           const res = readOpenAiResponse(BATCH_JUDGE_MODEL, row.response.body as never, { schema: JUDGE_SCHEMA }, true);
@@ -105,7 +106,7 @@ export async function collectBatches(repo: Repo, budget: Budget, now: Date): Pro
       }
       const guid = row.custom_id.replace(/^article:/, '');
       const item = queue[guid];
-      if (!item || item.jobId !== job.id) continue;
+      if (!item || (item.jobId && item.jobId !== job.id)) continue;
       try {
         if (row.response?.status_code !== 200) throw new Error(row.error?.message ?? `상태 ${row.response?.status_code}`);
         const req = articleRequest({ title: item.title, publishedAt: item.writtenAt, body: await bodyOf(repo, guid, item) });

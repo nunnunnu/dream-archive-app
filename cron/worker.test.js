@@ -2,6 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import worker, { isQuiet, modeFor, needsPendingReport } from './worker.js';
 
+const memStore = (init = {}, reports = []) => {
+  const m = new Map(Object.entries(init));
+  return {
+    m,
+    get: async (k) => m.get(k) ?? null,
+    put: async (k, v) => { m.set(k, v); },
+    newReports: async (since) => reports.some((t) => t > since),
+  };
+};
+
+
 test('정각은 full, 30분은 fast, 50분 backfill이다', () => {
   assert.equal(modeFor('0,15,30,45 * * * *', Date.UTC(2026, 10, 20, 0, 0)), 'full');
   assert.equal(modeFor('0,15,30,45 * * * *', Date.UTC(2026, 10, 20, 0, 30)), 'fast');
@@ -28,18 +39,15 @@ test('새벽(한국 2~7시)은 2·4·6시 정각 full만, 0~2시와 7시부터�
   assert.equal(isQuiet(kst(6, 59)), true);
 });
 
-test('새벽에는 제보 신호가 있어도 15·45분에 돌지 않고 신호는 남긴다', async () => {
+test('새벽에는 새 제보가 있어도 15·45분에 돌지 않고, 확인 시각을 안 바꿔서 7시 뒤에 잡힌다', async () => {
   const originalFetch = globalThis.fetch;
   let dispatched = false;
-  let deleted = false;
   globalThis.fetch = async () => { dispatched = true; return new Response(null, { status: 204 }); };
+  const store = memStore({ 'wake/reports': { at: '2026-11-20T17:00:00.000Z' } }, ['2026-11-20T18:10:00.000Z']);
   try {
-    await worker.scheduled(
-      { cron: '*/5 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 18, 15) }, // 한국 3:15
-      { REPORTS: { get: async (k) => (k === 'pending-reports' ? 'report-1' : null), delete: async () => { deleted = true; } }, GH_DISPATCH_TOKEN: 'test' },
-    );
+    await worker.scheduled({ cron: '*/5 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 18, 15) }, { STORE: store, GH_DISPATCH_TOKEN: 'test' }); // 한국 3:15
     assert.equal(dispatched, false);
-    assert.equal(deleted, false);
+    assert.deepEqual(store.m.get('wake/reports'), { at: '2026-11-20T17:00:00.000Z' });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -54,14 +62,14 @@ test('15·45분만 pending 제보가 있어야 실행한다', () => {
   assert.equal(needsPendingReport('50 */3 * * *', Date.UTC(2026, 10, 20, 0, 50)), false);
 });
 
-test('제보가 없으면 dispatch하지 않는다', async () => {
+test('새 제보·결정이 없으면 dispatch하지 않는다', async () => {
   const originalFetch = globalThis.fetch;
   let dispatched = false;
   globalThis.fetch = async () => { dispatched = true; return new Response(null, { status: 204 }); };
   try {
     await worker.scheduled(
-      { cron: '0,15,30,45 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 0, 15) },
-      { REPORTS: { get: async () => null } },
+      { cron: '*/5 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 0, 15) },
+      { STORE: memStore({ 'wake/reports': { at: '2026-11-20T00:00:00.000Z' } }, ['2026-11-19T23:00:00.000Z']) },
     );
     assert.equal(dispatched, false);
   } finally {
@@ -69,16 +77,15 @@ test('제보가 없으면 dispatch하지 않는다', async () => {
   }
 });
 
-test('제보 dispatch 성공 뒤 같은 신호만 지운다', async () => {
+test('지난 확인 뒤 새 제보가 있으면 fast를 띄우고 확인 시각을 적는다', async () => {
   const originalFetch = globalThis.fetch;
-  let deleted = false;
-  globalThis.fetch = async () => new Response(null, { status: 204 });
+  const modes = [];
+  globalThis.fetch = async (_url, init) => { modes.push(JSON.parse(init.body).inputs.mode); return new Response(null, { status: 204 }); };
+  const store = memStore({ 'wake/reports': { at: '2026-11-20T00:00:00.000Z' } }, ['2026-11-20T00:40:00.000Z']);
   try {
-    await worker.scheduled(
-      { cron: '0,15,30,45 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 0, 45) },
-      { REPORTS: { get: async () => 'report-1', delete: async () => { deleted = true; } }, GH_DISPATCH_TOKEN: 'test' },
-    );
-    assert.equal(deleted, true);
+    await worker.scheduled({ cron: '*/5 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 0, 45) }, { STORE: store, GH_DISPATCH_TOKEN: 'test' });
+    assert.deepEqual(modes, ['fast']);
+    assert.deepEqual(store.m.get('wake/reports'), { at: '2026-11-20T00:45:00.000Z' });
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -97,15 +104,10 @@ test('링크 찾기 시각이 되면 links를 한 번만 띄운다', async () =>
   const originalFetch = globalThis.fetch;
   const modes = [];
   globalThis.fetch = async (_url, init) => { modes.push(JSON.parse(init.body).inputs.mode); return new Response(null, { status: 204 }); };
-  const store = new Map([['wake:links', JSON.stringify({ times: ['2026-11-20T00:05:00.000Z'] })]]);
-  const REPORTS = {
-    get: async (k, type) => (store.has(k) ? (type === 'json' ? JSON.parse(store.get(k)) : store.get(k)) : null),
-    put: async (k, v) => { store.set(k, v); },
-    delete: async (k) => { store.delete(k); },
-  };
+  const store = memStore({ 'wake/links': { times: ['2026-11-20T00:05:00.000Z'] } });
   try {
-    await worker.scheduled({ cron: '*/5 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 0, 5) }, { REPORTS });
-    await worker.scheduled({ cron: '*/5 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 0, 10) }, { REPORTS });
+    await worker.scheduled({ cron: '*/5 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 0, 5) }, { STORE: store });
+    await worker.scheduled({ cron: '*/5 * * * *', scheduledTime: Date.UTC(2026, 10, 20, 0, 10) }, { STORE: store });
     assert.deepEqual(modes, ['links']);
   } finally {
     globalThis.fetch = originalFetch;

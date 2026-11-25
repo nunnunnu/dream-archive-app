@@ -9,7 +9,7 @@ import type { APIRoute } from 'astro';
 import { db, dbReady, reportFromRow, reportToRow, type DbEnv, type Report } from '../../../lib/reports-db';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
-type Env = DbEnv & { REPORTS?: KV };
+type Env = DbEnv;
 const envOf = (locals: App.Locals) => (locals.runtime?.env ?? {}) as Env;
 
 export const GET: APIRoute = async ({ locals }) => {
@@ -48,8 +48,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (r.status !== 'pending') return json({ ok: false, error: '이미 처리된 제보예요' }, 409);
   const decision = { action, note: typeof b.note === 'string' ? b.note.trim().slice(0, 300) : '', at: new Date().toISOString(), by: locals.admin?.email ?? '' };
   await db(env, `reports?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify({ decision }), prefer: 'return=minimal' });
-  // 다음 15·45분 빠른 실행도 돌도록 (새 제보와 같은 신호, 이미 켜져 있으면 다시 쓰지 않음)
-  try { if (env.REPORTS && !(await env.REPORTS.get('pending-reports'))) await env.REPORTS.put('pending-reports', id); } catch { /* 정시 수집이 처리 */ }
   return json({ ok: true, decision });
 };
 
@@ -74,6 +72,5 @@ async function toEvent(env: Env, id: string, by: string) {
   // 운영자가 일정이라고 본 것이니 승인 결정을 같이 적는다 (다음 수집이 링크를 읽어 일정으로 넣음)
   const decision = { action: 'approve', note: `소식 제보 ${id}에서 일정으로`, at: now, by };
   await db(env, 'reports', { method: 'POST', body: JSON.stringify({ ...reportToRow(report), decision }), prefer: 'return=minimal' });
-  try { if (env.REPORTS && !(await env.REPORTS.get('pending-reports'))) await env.REPORTS.put('pending-reports', eventId); } catch { /* 정시 수집이 처리 */ }
   return json({ ok: true, id: eventId });
 }

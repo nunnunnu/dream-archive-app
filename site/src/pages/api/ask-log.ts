@@ -2,7 +2,7 @@
  * 최근 질문 목록 (공개): GET /api/ask-log[?cursor=]
  *  - /api/ask 가 KV에 남긴 asklog:* 를 최신순으로 읽고, 같은 질문(qk)은 가장 최근 답 하나로 합친다
  *  - 질문마다 물어본 횟수(askcount), 👍/👎(askvote), 지난 일정 여부(until < 오늘)
- *  - 첫 쪽에는 "오늘 기준 데이터" 카드용 통계(ask:stats)도 같이
+ *  - 첫 쪽에는 "오늘 기준 데이터" 카드용 통계(공개 버킷 ask-stats.json)도 같이
  */
 import type { APIRoute } from 'astro';
 import type { KV } from '../../lib/ask-shared';
@@ -31,6 +31,8 @@ export const GET: APIRoute = async ({ url, locals }) => {
       warn: Boolean(l.warn),
     };
   }));
-  const stats = cursor ? null : await kv.get('ask:stats').then((v) => (v ? JSON.parse(v) : null)).catch(() => null);
+  // "오늘 기준 데이터" 카드: 수집기가 공개 버킷에 올린 ask-stats.json (1분 캐시)
+  const dataUrl = (locals.runtime?.env as { SITE_DATA_URL?: string } | undefined)?.SITE_DATA_URL;
+  const stats = cursor || !dataUrl ? null : await fetch(`${dataUrl.replace(/\/$/, '')}/ask-stats.json`, { cf: { cacheTtl: 60 } } as RequestInit).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   return json({ items, next: page.list_complete ? null : page.cursor ?? null, stats });
 };

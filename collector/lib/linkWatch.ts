@@ -2,7 +2,7 @@
  * 공개 직후 영상 링크 찾기.
  * 외부 콘텐츠는 "기사·SNS로 출연 소식 → '11/22 18:00 공개' 일정 (링크 없음) → 공개 뒤 영상" 순서라,
  * 시각이 정해진 방송·공개 일정 중 유튜브 링크가 없는 것을 공개 시각 +5분, +20분, +60분에 유튜브에서 찾는다.
- *  - 수집할 때마다 다음 찾을 시각 목록을 KV 'wake:links'에 올린다 → 예약 작업(cron/, 5분마다)이 그 시각에 links 실행을 띄운다
+ *  - 수집할 때마다 다음 찾을 시각 목록을 app_state 'wake/links'에 올린다 → 예약 작업(cron/, 5분마다)이 그 시각에 links 실행을 띄운다
  *  - 유튜브 검색은 하루 사용량이 커서 일정 하나에 3번, 하루 20번까지
  * 상태: app_state 'link-watch' = { 일정 id: 찾은 횟수 }, 'link-watch/day' = { 날짜: 검색 수 }
  */
@@ -50,7 +50,7 @@ export async function runLinkWatch(repo: Repo, events: PublicEvent[], now: Date)
   return { searched, found };
 }
 
-/** 다음에 찾을 시각들을 KV에 올린다 (예약 작업이 읽음) */
+/** 다음에 찾을 시각들을 app_state 'wake/links'에 올린다 (예약 작업 cron/ 이 5분마다 읽음) */
 export async function publishLinkWake(repo: Repo, events: PublicEvent[], now: Date): Promise<number> {
   const tries = await repo.getState<Record<string, number>>('link-watch', {});
   const times = watchedEvents(events, now)
@@ -58,13 +58,11 @@ export async function publishLinkWake(repo: Repo, events: PublicEvent[], now: Da
     .filter((t): t is number => t !== null)
     .sort((a, b) => a - b)
     .map((t) => new Date(t).toISOString());
-  const accountId = process.env.CF_ACCOUNT_ID ?? process.env.CLOUDFLARE_ACCOUNT_ID;
-  const token = process.env.CF_API_TOKEN ?? process.env.CLOUDFLARE_API_TOKEN;
-  const ns = process.env.CF_KV_REPORTS_ID;
-  if (!accountId || !token || !ns) return times.length;
-  const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}/storage/kv/namespaces/${ns}/values/wake%3Alinks`, {
-    method: 'PUT', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify({ updatedAt: now.toISOString(), times: [...new Set(times)] }),
-  });
-  if (!res.ok) console.log(`영상 링크 찾기 시각 올리기 실패 ${res.status}`);
+  // 바뀌었을 때만 쓴다
+  const next = [...new Set(times)];
+  const prev = await repo.getState<{ times?: string[] }>('wake/links', {});
+  if (JSON.stringify(prev.times ?? []) !== JSON.stringify(next)) {
+    await repo.putState('wake/links', { updatedAt: now.toISOString(), times: next }).catch((err) => console.log(`영상 링크 찾기 시각 올리기 실패: ${(err as Error).message}`));
+  }
   return times.length;
 }

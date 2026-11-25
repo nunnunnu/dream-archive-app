@@ -1,6 +1,6 @@
 /**
  * 팬 질문 (Astro API, Cloudflare에서 실행): POST /api/ask  { question }
- * 자료(일정·공지·기사)는 수집기가 KV에 올린 ask:index 를 쓰고, 답은 Groq 무료 모델 우선·OpenAI 예비로 만든다.
+ * 자료(일정·공지·기사)는 수집기가 Supabase 비공개 버킷 ask-data 에 올린 index.json 을 쓰고, 답은 Groq 무료 모델 우선·OpenAI 예비로 만든다.
  * 비용 지키기: 질문 200자까지, 같은 IP는 1시간에 10번, 전체는 하루 ASK_DAILY_LIMIT번(기본 50, 질문 1번 약 5원). 횟수는 KV(REPORTS)에 센다.
  * KV가 없으면 운영에서는 받지 않는다 (로컬 시험은 ASK_ALLOW_NO_KV=1).
  */
@@ -9,14 +9,41 @@ import { askCore, supabaseVector, type AskCall, type AskData } from '../../../..
 import { callAi, hasAiKey } from '../../../../collector/lib/ai-provider.ts';
 import { categoryOf, maskPersonal, questionKey, sha, type KV as SharedKV } from '../../lib/ask-shared';
 
-/** 질문 자료 묶음(공지·기사 원문 포함)은 수집기가 KV에 올린다 (npm run publish:site). 버전이 같으면 다시 읽지 않는다 */
+/**
+ * 질문 자료 묶음(공지·기사 원문 포함)은 수집기가 비공개 버킷 ask-data 에 올린다 (npm run publish:site: index.json, version.txt).
+ * 버전은 1분 동안 기억하고, 같은 버전 묶음은 이 인스턴스 메모리와 Cloudflare 캐시(버전이 이름이라 바뀌지 않음)에 둔다.
+ */
 type AskIndex = AskData & { generatedAt?: string };
-let cached: { ver: string | null; data: AskIndex } | null = null;
-async function loadIndex(kv: KV): Promise<AskIndex | null> {
-  const ver = await kv.get('ask:index:version');
-  if (cached && cached.ver === ver) return cached.data;
-  const data = await kv.get<AskIndex>('ask:index', 'json');
-  if (data) cached = { ver, data };
+type StoreEnv = { SUPABASE_URL?: string; SUPABASE_SERVICE_ROLE_KEY?: string };
+const askObject = (env: StoreEnv, path: string) => fetch(`${(env.SUPABASE_URL ?? '').replace(/\/$/, '')}/storage/v1/object/ask-data/${path}`, {
+  headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY ?? '', authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY ?? ''}` },
+});
+let verMemo: { at: number; ver: string } | null = null;
+async function indexVersion(env: StoreEnv): Promise<string> {
+  if (verMemo && Date.now() - verMemo.at < 60_000) return verMemo.ver;
+  const res = await askObject(env, 'version.txt').catch(() => null);
+  const ver = res?.ok ? (await res.text()).trim() : verMemo?.ver ?? '';
+  verMemo = { at: Date.now(), ver };
+  return ver;
+}
+let cached: { ver: string; data: AskIndex } | null = null;
+async function loadIndex(env: StoreEnv): Promise<AskIndex | null> {
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return null;
+  const ver = await indexVersion(env);
+  if (!ver) return cached?.data ?? null;
+  if (cached?.ver === ver) return cached.data;
+  const cache = (globalThis as unknown as { caches?: { default: Cache } }).caches?.default;
+  const cacheKey = `https://ask-index.cache/${ver}.json`;
+  let res = await cache?.match(cacheKey).catch(() => undefined);
+  if (!res) {
+    const got = await askObject(env, 'index.json').catch(() => null);
+    if (!got?.ok) return cached?.data ?? null;
+    const text = await got.text();
+    res = new Response(text, { headers: { 'content-type': 'application/json', 'cache-control': 'max-age=604800' } });
+    await cache?.put(cacheKey, res.clone()).catch(() => {});
+  }
+  const data = await res.json() as AskIndex;
+  cached = { ver, data };
   return data;
 }
 
@@ -87,7 +114,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
   // 같은 질문 답 재사용: 같은 날·같은 질문 자료 버전·이어지는 질문이 아닐 때 (AI를 부르지 않아 0원, 하루 횟수에도 안 셈)
   //   👎가 3개 넘게 쌓인(👍보다 많은) 질문은 재사용하지 않고 새로 답한다
-  const dataVer = kv ? (await kv.get('ask:index:version')) ?? '' : '';
+  const dataVer = await indexVersion(env);
   const cacheKey = `askcache:${kstDay}:${dataVer}:${qk}`;
   const [ups, downs] = kv ? await Promise.all([kv.get(`askvote:${qk}:up`), kv.get(`askvote:${qk}:down`)]).then((v) => v.map((x) => Number(x ?? 0))) : [0, 0];
   const disputed = downs >= 3 && downs > ups;
@@ -117,7 +144,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     ]);
   }
 
-  const index = kv ? await loadIndex(kv) : null;
+  const index = await loadIndex(env);
   if (!index) return json({ ok: false, error: '질문 자료를 준비 중이에요' }, 503);
   try {
     // Supabase 비밀 키가 있으면 하이브리드(낱말 + pgvector 의미 검색), 없으면 낱말 검색만

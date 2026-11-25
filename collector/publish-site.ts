@@ -3,7 +3,8 @@
  *  - data/public 의 사이트용 파일 → Supabase Storage 공개 버킷 `site-data`
  *    파일 이름에 내용 지문을 붙여 올리고(events.3f2a9c1d.json, 바뀌지 않으니 오래 캐시해도 됨),
  *    manifest.json 에 "원래 이름 → 지문 이름"을 적는다. 사이트는 manifest 만 짧게 캐시하고 읽는다.
- *  - 질문 자료 묶음(공지·기사 원문 포함, 비공개) → Cloudflare KV `ask:index` (공개 버킷에 올리지 않는다)
+ *  - 질문 자료 묶음(공지·기사 원문 포함, 비공개) → Supabase Storage **비공개** 버킷 `ask-data` (index.json + version.txt, 공개 버킷에 올리지 않는다)
+ *  - 물어보기 "오늘 기준 데이터" 통계(숫자뿐) → 공개 버킷 `site-data/ask-stats.json`
  * 바뀐 파일만 올리고, manifest 에 없는 지난 파일은 하루 뒤에 지운다.
  * 필요한 값(.env / Actions secrets): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID
  */
@@ -55,7 +56,7 @@ function walk(dir: string): string[] {
   });
 }
 
-// Cloudflare (KV): 응원법 채보 읽기·질문 자료 올리기
+// Cloudflare (KV): 응원법 채보 읽기 (질문 자료는 아래 비공개 버킷으로)
 const account = process.env.CLOUDFLARE_ACCOUNT_ID;
 const token = process.env.CLOUDFLARE_API_TOKEN;
 const toml = existsSync(join(ROOT, 'site', 'wrangler.toml')) ? readFileSync(join(ROOT, 'site', 'wrangler.toml'), 'utf8') : '';
@@ -90,7 +91,7 @@ if (!prev || (prev as { version?: string }).version !== version) await upload('m
 console.log(`사이트 데이터: 파일 ${Object.keys(files).length}개 중 ${uploaded}개 올림 (버전 ${version})`);
 
 // 지난 파일 정리: manifest 에 없고 하루 넘은 것
-const keep = new Set(['manifest.json', ...Object.values(files)]);
+const keep = new Set(['manifest.json', 'ask-stats.json', ...Object.values(files)]);
 const old: string[] = [];
 for (const prefix of ['', 'eras/', 'series/', 'calendar/', 'calendar/flows/']) {
   const res = await fetch(`${url}/storage/v1/object/list/${BUCKET}`, { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ prefix, limit: 1000 }) });
@@ -107,31 +108,44 @@ for (let i = 0; i < old.length; i += 100) {
 }
 if (old.length) console.log(`지난 파일 ${old.length}개 지움`);
 
-// 질문 자료 묶음 → KV (비공개)
-if (account && token && ns) {
+// 질문 자료 묶음 → 비공개 버킷 (사이트 /api/ask 가 비밀 키로 읽고, 버전마다 Cloudflare 캐시에 둔다)
+const ASK_BUCKET = 'ask-data';
+{
   const data = await loadAskData(new JsonRepo(), { articleDays: Number(process.env.ASK_INDEX_ARTICLE_DAYS ?? 120) });
   const index = JSON.stringify({
     generatedAt: new Date().toISOString(),
     ...data,
     events: data.events.map((e) => ({ id: e.id, date: e.date, time: e.time, endDate: e.endDate, title: e.title, step: e.step, kind: e.kind, members: e.members, timezone: e.timezone, kst: e.kst, abroad: e.abroad, evidence: e.evidence?.slice(0, 200), sources: e.sources.slice(0, 2).map((s) => ({ url: s.url, type: s.type })) })),
   });
-  const kv = (k: string, body: string) => fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/storage/kv/namespaces/${ns}/values/${encodeURIComponent(k)}`, { method: 'PUT', headers: { Authorization: `Bearer ${token}` }, body });
   const ver = sha(index.replace(/"generatedAt":"[^"]+"/, ''));
-  const cur = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}/storage/kv/namespaces/${ns}/values/ask%3Aindex%3Aversion`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => (r.ok ? r.text() : ''));
-  if (cur !== ver) {
-    const a = await kv('ask:index', index);
-    const b = await kv('ask:index:version', ver);
-    // KV 쓰기 한도(429) 등으로 못 올려도 사이트 데이터는 이미 올렸으니 실행은 실패시키지 않는다 (물어보기만 지난 자료로)
-    if (!a.ok || !b.ok) console.warn(`질문 자료 KV 올리기 실패 ${a.status}/${b.status}: 물어보기는 지난 자료로 답해요`);
-    else console.log(`질문 자료 묶음 → KV (${(index.length / 1e6).toFixed(1)}MB, 버전 ${ver})`);
-  } else console.log('질문 자료 묶음: 바뀐 것 없음');
-  // 물어보기 화면의 "오늘 기준 데이터" 카드 (마지막 수집 시각·자료 수·확인 대기 수)
+  try {
+    const got = await fetch(`${url}/storage/v1/bucket/${ASK_BUCKET}`, { headers });
+    if (!got.ok) {
+      const made = await fetch(`${url}/storage/v1/bucket`, { method: 'POST', headers: { ...headers, 'content-type': 'application/json' }, body: JSON.stringify({ id: ASK_BUCKET, name: ASK_BUCKET, public: false }) });
+      if (!made.ok) throw new Error(`비공개 버킷 만들기 실패 ${made.status}: ${await made.text()}`);
+      console.log(`비공개 버킷 ${ASK_BUCKET} 을 만들었어요 (질문 자료, 원문 포함)`);
+    }
+    const put = async (path: string, body: string, type: string) => {
+      const res = await fetch(`${url}/storage/v1/object/${ASK_BUCKET}/${path}`, { method: 'POST', headers: { ...headers, 'content-type': type, 'x-upsert': 'true' }, body });
+      if (!res.ok) throw new Error(`${path} ${res.status}: ${(await res.text()).slice(0, 120)}`);
+    };
+    const cur = await fetch(`${url}/storage/v1/object/${ASK_BUCKET}/version.txt?t=${Date.now()}`, { headers }).then((r) => (r.ok ? r.text() : '')).catch(() => '');
+    if (cur.trim() !== ver) {
+      // 묶음 먼저, 버전은 나중 (사이트가 새 버전을 보면 묶음도 이미 새것)
+      await put('index.json', index, 'application/json; charset=utf-8');
+      await put('version.txt', ver, 'text/plain; charset=utf-8');
+      console.log(`질문 자료 묶음 → 비공개 버킷 (${(index.length / 1e6).toFixed(1)}MB, 버전 ${ver})`);
+    } else console.log('질문 자료 묶음: 바뀐 것 없음');
+  } catch (err) {
+    // 사이트 데이터는 이미 올렸으니 실행은 실패시키지 않는다 (물어보기만 지난 자료로)
+    console.warn(`질문 자료 올리기 실패: ${(err as Error).message} → 물어보기는 지난 자료로 답해요`);
+  }
+  // 물어보기 화면의 "오늘 기준 데이터" 카드 (마지막 수집 시각·자료 수·확인 대기 수): 숫자뿐이라 공개 버킷
   const count = (k: string) => data.docs.filter((d) => d.kind === k).length;
   const stats = {
     collectedAt: new Date().toISOString(), notices: count('notice'), articles: count('article'), videos: count('video'),
     events: data.events.length, review: data.events.filter((e) => e.status === 'needs-check').length,
     submissions: data.events.filter((e) => e.sources.some((x) => x.type === 'submission')).length,
   };
-  const st = await kv('ask:stats', JSON.stringify(stats));
-  if (!st.ok) console.log(`물어보기 통계 KV 실패 ${st.status}`);
-} else console.log('질문 자료 묶음: Cloudflare 값이 없어 건너뜀');
+  await upload('ask-stats.json', JSON.stringify(stats), 'application/json; charset=utf-8', 60).catch((err) => console.log(`물어보기 통계 올리기 실패: ${(err as Error).message}`));
+}
