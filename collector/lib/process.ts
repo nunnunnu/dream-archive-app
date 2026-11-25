@@ -3,6 +3,7 @@
  * 이미 처리한 문서(본문 해시·프롬프트 버전이 같음)는 다시 부르지 않는다.
  */
 import { AiHttpError } from './ai-provider.ts';
+import { BATCH_AGE_DAYS, BATCH_STATE, batchEnabled, type BatchArticle } from './batch.ts';
 import type { Page } from 'playwright';
 import { openArticle } from './articleBody.ts';
 import type { Budget } from './budget.ts';
@@ -59,6 +60,9 @@ export async function processArticles(
 ): Promise<string[]> {
   const log: string[] = [];
   const articles = await repo.listArticles(new Date(now.getTime() - opts.windowDays * 24 * 3600 * 1000).toISOString());
+  // 일주일 넘은 기사 묶음은 본문만 읽어 배치 대기열로 (lib/batch.ts, 하루 한 번 OpenAI Batch). 대기열·보낸 묶음에 있는 것은 건너뛴다
+  const batchQueue = batchEnabled() ? await repo.getState<Record<string, BatchArticle>>(BATCH_STATE, {}) : null;
+  let batched = 0;
   const clusters = clusterArticles(articles).sort(
     (a, b) => Math.max(...b.articles.map((x) => Date.parse(x.publishedAt))) - Math.max(...a.articles.map((x) => Date.parse(x.publishedAt))),
   );
@@ -66,6 +70,7 @@ export async function processArticles(
   // 처리할 묶음 고르기
   const queue: { c: Cluster; pending: ArticleRecord[] }[] = [];
   for (const c of clusters) {
+    if (batchQueue && c.articles.some((a) => batchQueue[a.guid])) continue;
     const done = c.articles.find((a) => a.status === 'processed');
     if (done) {
       for (const a of c.articles) if (a.status === 'pending' || !a.status) Object.assign(a, { status: 'skipped', note: `같은 소식: ${done.guid}` });
@@ -118,6 +123,16 @@ export async function processArticles(
       const byUrl = urlDateOf(rep.originalUrl ?? url);
       if (byUrl && Math.abs(Date.parse(byUrl) - Date.parse(rep.publishedAt.slice(0, 10))) > 3 * 864e5) rep.publishedAt = `${byUrl}T03:00:00.000Z`;
       const writtenAt = byUrl && Math.abs(Date.parse(byUrl) - Date.parse((rep.pagePublishedAt ?? rep.publishedAt).slice(0, 10))) > 3 * 864e5 ? rep.publishedAt : rep.pagePublishedAt ?? rep.publishedAt;
+      // 일주일 넘은 소식(가장 새 기사 기준)은 급하지 않으니 배치로. 빈칸 채우기로 찾은 기사는 지금 일정에 필요해서 바로
+      const newest = Math.max(...c.articles.map((a) => Date.parse(a.publishedAt)));
+      if (batchQueue && !rep.focus && rep.origin !== 'followup' && newest < now.getTime() - BATCH_AGE_DAYS * 864e5) {
+        batchQueue[rep.guid] = {
+          queuedAt: now.toISOString(), title: rep.title, writtenAt, url, publisher: rep.source,
+          ...(body.startsWith('(본문을 열지 못해') ? { body } : {}),
+        };
+        batched++;
+        return;
+      }
       try {
         const r = await extractArticleEvents({ title: rep.title, publishedAt: writtenAt, body }, rep.focus);
         budget.record(r.usage.costUsd);
@@ -152,6 +167,10 @@ export async function processArticles(
   });
   await Promise.all(workers);
   if (queue.length) log.push(`이번 실행 한도로 남은 기사 묶음 ${queue.length}개는 다음 실행 때 처리`);
+  if (batchQueue && batched) {
+    await repo.putState(BATCH_STATE, batchQueue);
+    log.push(`일주일 넘은 기사 묶음 ${batched}개는 배치 대기열로 (하루 한 번 처리)`);
+  }
 
   // 일정이 아니라서 AI 해석에서 빠지는 화보·공항 기사도 카드 사진과 정상 원문 링크만 확인한다.
   // 막힌 사이트는 우회하지 않고, 실행마다 최근 항목 몇 개만 재시도한다.

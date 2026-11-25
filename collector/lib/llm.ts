@@ -199,17 +199,24 @@ const SUBMISSION_NOTE = `
  * @param focus 빈칸 채우기 검색으로 찾은 글이면 무엇을 찾던 중인지 (예: "MMA 2026"). 그 대상의 일정도 함께 뽑는다.
  * @param submission 팬 제보 글이면 { note: 제보 메모 }
  */
-export async function extractArticleEvents(
-  article: { title: string; publishedAt: string; body: string },
-  focus?: string,
-  submission?: { note?: string; fallbackModel?: string },
-): Promise<LlmResult<LlmEvent[]>> {
+/** 기사·제보 글 일정 뽑기 요청 (바로 부를 때와 Batch에 똑같이) */
+export function articleRequest(article: { title: string; publishedAt: string; body: string }, focus?: string, submission?: { note?: string }) {
   const input =
     `글 작성일: ${kstStamp(article.publishedAt)} (KST)\n` +
     (focus ? `관련 대상: ${focus}\n` : '') +
     (submission?.note ? `제보 메모: ${submission.note}\n` : '') +
     `글 제목: ${article.title}\n\n글 본문:\n${article.body.slice(0, 6000)}`;
-  const r = await callJson<{ events: LlmEvent[] }>(ARTICLE_INSTRUCTIONS + (submission ? SUBMISSION_NOTE : ''), input, 'article_events', ARTICLE_SCHEMA, submission?.fallbackModel);
+  return { instructions: ARTICLE_INSTRUCTIONS + (submission ? SUBMISSION_NOTE : ''), input, schema: { name: 'article_events', schema: ARTICLE_SCHEMA }, effort: LLM_EFFORT, maxOutputTokens: 16000 };
+}
+export const parseArticleEvents = (value: string) => (JSON.parse(value) as { events: LlmEvent[] }).events;
+
+export async function extractArticleEvents(
+  article: { title: string; publishedAt: string; body: string },
+  focus?: string,
+  submission?: { note?: string; fallbackModel?: string },
+): Promise<LlmResult<LlmEvent[]>> {
+  const req = articleRequest(article, focus, submission);
+  const r = await callJson<{ events: LlmEvent[] }>(req.instructions, req.input, req.schema.name, req.schema.schema, submission?.fallbackModel);
   return { value: r.value.events, usage: r.usage };
 }
 

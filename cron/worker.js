@@ -6,6 +6,7 @@
  *   3시간마다 50분 → backfill (과거 기사 채우기, 다 채우면 금방 끝남)
  *   새벽(한국 시간 2~7시) → 2시간에 한 번 정각 full만 (2·4·6시). 30분 fast·15·45분 제보 실행은 쉬고, 제보 신호는 7시 뒤로 미룬다
  *     (자정 티저 때문에 0~2시는 평소대로. 링크 찾기·backfill은 시각이 정해진 일이라 그대로)
+ *   매일 한국 5:30 → batch (일주일 넘은 기사 OpenAI 배치: 어제 결과 반영 + 새로 보내기)
  *   5분마다 → 공개 직후 영상 링크 찾기 시각(KV 'wake:links', 수집기가 올림)이 됐으면 links
  * 비밀값: GH_DISPATCH_TOKEN (dream-archive-app 저장소 Actions: Read and write 만 있는 토큰)
  */
@@ -20,7 +21,10 @@ export function modeFor(cron, scheduledTime) {
   if (cron === '50 */3 * * *') return 'backfill';
   const minute = new Date(scheduledTime).getUTCMinutes();
   if (minute % 15 !== 0) return null; // 5·10·20분 등은 링크 찾기만
-  if (isQuiet(scheduledTime)) return minute === 0 && kstHour(scheduledTime) % 2 === 0 ? 'full' : null;
+  if (isQuiet(scheduledTime)) {
+    if (kstHour(scheduledTime) === 5 && minute === 30) return 'batch';
+    return minute === 0 && kstHour(scheduledTime) % 2 === 0 ? 'full' : null;
+  }
   return minute === 0 ? 'full' : 'fast';
 }
 

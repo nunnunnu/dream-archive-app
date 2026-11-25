@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'full, fast, links(공개 직후 영상 링크 찾기), site(배포만), backfill(과거 기사 채우기), publish(저장된 데이터만 내보내기)'
+        description: 'full, fast, links(공개 직후 영상 링크 찾기), site(배포만), backfill(과거 기사 채우기), publish(저장된 데이터만 내보내기), batch(일주일 넘은 기사 OpenAI 배치, 하루 한 번)'
         default: full
 
 concurrency:
@@ -70,7 +70,7 @@ jobs:
 
       - name: 수집
         id: collect
-        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill' || env.MODE == 'links' || env.MODE == 'publish'
+        if: env.MODE == 'full' || env.MODE == 'fast' || env.MODE == 'backfill' || env.MODE == 'links' || env.MODE == 'publish' || env.MODE == 'batch'
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_MODEL: qwen/qwen3.8-27b
@@ -90,6 +90,9 @@ jobs:
             npm run namu:watch || true
             npm run backfill:seeds -- --from-state --minutes=10 || true
             npm run backfill:news -- --minutes=20 --total-minutes=45 && npm run collect -- --publish-only
+          elif [ "$MODE" = "batch" ]; then
+            # 일주일 넘은 기사: 지난 배치 결과 반영 → 새 배치 보내기 → 반영된 일정 내보내기
+            npm run batch && npm run collect -- --publish-only
           elif [ "$MODE" = "publish" ]; then
             LLM_MAX_CALLS_PER_RUN=0 npm run collect -- --publish-only
           elif [ "$MODE" = "links" ]; then

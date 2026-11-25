@@ -19,6 +19,8 @@ test('새벽(한국 2~7시)은 2·4·6시 정각 full만, 0~2시와 7시부터�
   assert.equal(modeFor(cron, kst(3, 15)), null);
   assert.equal(modeFor(cron, kst(4, 0)), 'full');
   assert.equal(modeFor(cron, kst(6, 45)), null);
+  assert.equal(modeFor(cron, kst(5, 30)), 'batch'); // 하루 한 번 배치
+  assert.equal(modeFor(cron, kst(4, 30)), null);
   assert.equal(modeFor(cron, kst(7, 0)), 'full');
   assert.equal(modeFor(cron, kst(7, 30)), 'fast');
   assert.equal(modeFor('50 */3 * * *', kst(3, 50)), 'backfill');

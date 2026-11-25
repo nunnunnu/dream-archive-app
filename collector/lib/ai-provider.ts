@@ -56,9 +56,10 @@ export class AiHttpError extends Error {
 const clean = (t: string) => t.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
 // 413: 요청 하나가 Groq 무료 등급의 분당 토큰 한도보다 큼 → 기다려도 안 되니 OpenAI로
 const retryable = (e: unknown) => !(e instanceof AiHttpError) || e.status === 408 || e.status === 409 || e.status === 413 || e.status === 429 || e.status >= 500;
-const usageCost = (model: string, input: number, output: number, cached = 0) => {
+/** 달러 비용. batch: OpenAI Batch API는 절반 값 */
+export const usageCost = (model: string, input: number, output: number, cached = 0, batch = false) => {
   const p = PRICES[model] ?? { input: 0, output: 0 };
-  return ((input - cached) * p.input + cached * p.input * 0.1 + output * p.output) / 1_000_000;
+  return ((input - cached) * p.input + cached * p.input * 0.1 + output * p.output) / 1_000_000 * (batch ? 0.5 : 1);
 };
 
 async function groq(env: AiEnv, req: AiRequest): Promise<AiResult> {
@@ -92,20 +93,35 @@ async function groq(env: AiEnv, req: AiRequest): Promise<AiResult> {
   return { value, usage: { input: body.usage?.prompt_tokens ?? 0, output: body.usage?.completion_tokens ?? 0, costUsd: 0 }, provider: 'groq', model };
 }
 
-async function openai(env: AiEnv, req: AiRequest): Promise<AiResult> {
-  const model = req.fallbackModel ?? env.OPENAI_FALLBACK_MODEL ?? OPENAI_MODEL;
-  if (openaiQuotaOut()) throw new AiHttpError('openai', 429, 'OpenAI 잔액 없음 (충전 전까지 부르지 않음)');
+/** OpenAI Responses API 요청 본문 (바로 부를 때와 Batch 줄에 똑같이 쓴다) */
+export function openaiBody(model: string, req: AiRequest) {
   const userContent: unknown = req.images?.length
     ? [{ type: 'input_text', text: clean(req.input) }, ...req.images.map((image_url) => ({ type: 'input_image', image_url, detail: 'high' }))]
     : clean(req.input);
+  return {
+    model, reasoning: { effort: req.effort ?? 'low' }, max_output_tokens: req.maxOutputTokens ?? 8000,
+    input: [{ role: 'system', content: clean(req.instructions) }, { role: 'user', content: userContent }],
+    ...(req.schema ? { text: { format: { type: 'json_schema', name: req.schema.name, schema: req.schema.schema, strict: true } } } : {}),
+  };
+}
+
+type OpenAiResponseBody = { status?: string; incomplete_details?: { reason?: string }; output?: { type: string; content?: { type: string; text?: string }[] }[]; usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } } };
+/** Responses API 응답 → 글과 사용량 (잘렸거나 JSON이 깨졌으면 오류) */
+export function readOpenAiResponse(model: string, body: OpenAiResponseBody, req: Pick<AiRequest, 'schema'>, batch = false): AiResult {
+  if (body.status === 'incomplete') throw new Error(`OpenAI 응답이 잘림: ${body.incomplete_details?.reason}`);
+  const value = (body.output ?? []).filter((x) => x.type === 'message').flatMap((x) => x.content ?? []).filter((x) => x.type === 'output_text').map((x) => x.text ?? '').join('');
+  if (req.schema) JSON.parse(value);
+  const input = body.usage?.input_tokens ?? 0, output = body.usage?.output_tokens ?? 0;
+  return { value, usage: { input, output, costUsd: usageCost(model, input, output, body.usage?.input_tokens_details?.cached_tokens ?? 0, batch) }, provider: 'openai', model };
+}
+
+async function openai(env: AiEnv, req: AiRequest): Promise<AiResult> {
+  const model = req.fallbackModel ?? env.OPENAI_FALLBACK_MODEL ?? OPENAI_MODEL;
+  if (openaiQuotaOut()) throw new AiHttpError('openai', 429, 'OpenAI 잔액 없음 (충전 전까지 부르지 않음)');
   const res = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST', signal: AbortSignal.timeout(180_000),
     headers: { authorization: `Bearer ${env.OPENAI_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
-      model, reasoning: { effort: req.effort ?? 'low' }, max_output_tokens: req.maxOutputTokens ?? 8000,
-      input: [{ role: 'system', content: clean(req.instructions) }, { role: 'user', content: userContent }],
-      ...(req.schema ? { text: { format: { type: 'json_schema', name: req.schema.name, schema: req.schema.schema, strict: true } } } : {}),
-    }),
+    body: JSON.stringify(openaiBody(model, req)),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -115,12 +131,7 @@ async function openai(env: AiEnv, req: AiRequest): Promise<AiResult> {
     }
     throw new AiHttpError('openai', res.status, `OpenAI 요청 실패 ${res.status}: ${text.slice(0, 240)}`);
   }
-  const body = await res.json() as { status?: string; incomplete_details?: { reason?: string }; output?: { type: string; content?: { type: string; text?: string }[] }[]; usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } } };
-  if (body.status === 'incomplete') throw new Error(`OpenAI 응답이 잘림: ${body.incomplete_details?.reason}`);
-  const value = (body.output ?? []).filter((x) => x.type === 'message').flatMap((x) => x.content ?? []).filter((x) => x.type === 'output_text').map((x) => x.text ?? '').join('');
-  if (req.schema) JSON.parse(value);
-  const input = body.usage?.input_tokens ?? 0, output = body.usage?.output_tokens ?? 0;
-  return { value, usage: { input, output, costUsd: usageCost(model, input, output, body.usage?.input_tokens_details?.cached_tokens ?? 0) }, provider: 'openai', model };
+  return readOpenAiResponse(model, await res.json() as OpenAiResponseBody, req);
 }
 
 export async function callAi(env: AiEnv, req: AiRequest): Promise<AiResult> {

@@ -1,0 +1,147 @@
+/**
+ * 급하지 않은 AI 일(일주일 넘은 기사 일정 뽑기)은 OpenAI Batch API로 하루에 한 번 몰아서 (값 절반, 결과는 24시간 안).
+ *  - 평소 수집(processArticles)은 기사 본문만 읽고 여기 대기열(app_state 'batch/articles')에 넣는다
+ *  - npm run batch (매일 한국 5:30, Cloudflare 예약 작업이 mode=batch 로 띄움):
+ *      1) 지난번에 보낸 묶음 결과를 가져와 바로 부른 것과 똑같이 저장(원문 대조 → extractions, 기사 상태 processed)
+ *      2) 대기열에 남은 것을 새 묶음으로 보낸다 (월 상한 안에서)
+ * Groq 무료 한도는 최근 소식에 남겨 두려는 것.
+ */
+import { createHash } from 'node:crypto';
+import { openaiBody, readOpenAiResponse } from './ai-provider.ts';
+import type { Budget } from './budget.ts';
+import type { SourceRef } from './consolidate.ts';
+import { ARTICLE_PROMPT_VERSION, articleRequest, checkAgainstSource, parseArticleEvents } from './llm.ts';
+import { pgSelect, usePg } from './pg.ts';
+import type { ArticleRecord, Repo } from './repo.ts';
+
+export const BATCH_STATE = 'batch/articles';
+export const BATCH_JOBS = 'batch/jobs';
+/** 이보다 오래된 기사 묶음(가장 새 기사 기준)은 배치로 */
+export const BATCH_AGE_DAYS = 7;
+export const BATCH_MODEL = process.env.BATCH_MODEL ?? process.env.OPENAI_FALLBACK_MODEL ?? 'gpt-5-mini';
+/** OPENAI 키가 있고 BATCH_OLD_ARTICLES=0 이 아니면 켜짐 */
+export const batchEnabled = () => Boolean(process.env.OPENAI_API_KEY) && process.env.BATCH_OLD_ARTICLES !== '0';
+
+export interface BatchArticle {
+  queuedAt: string; title: string; writtenAt: string; url: string; publisher?: string;
+  /** 본문을 못 열어 제목만으로 뽑을 때의 글 (보통은 저장된 본문을 다시 읽는다) */
+  body?: string;
+  /** 보낸 묶음 id (결과를 기다리는 중) */
+  jobId?: string;
+  tries?: number;
+}
+export interface BatchJob { id: string; createdAt: string; count: number }
+
+const hash = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16);
+const api = (path: string, init?: RequestInit) => fetch(`https://api.openai.com/v1${path}`, {
+  ...init, headers: { authorization: `Bearer ${process.env.OPENAI_API_KEY}`, ...(init?.headers ?? {}) },
+});
+const ok = async (res: Response, what: string) => {
+  if (!res.ok) throw new Error(`${what} 실패 ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return res;
+};
+
+async function bodyOf(repo: Repo, guid: string, item: BatchArticle) {
+  return item.body ?? (await repo.getBody('article', guid)) ?? `(본문을 열지 못해 제목만 있음) ${item.title}`;
+}
+
+async function articlesByGuid(repo: Repo, guids: string[]): Promise<ArticleRecord[]> {
+  if (!guids.length) return [];
+  if (!usePg()) { const set = new Set(guids); return (await repo.listArticles('2000-01-01')).filter((a) => set.has(a.guid)); }
+  const out: ArticleRecord[] = [];
+  for (let i = 0; i < guids.length; i += 100) {
+    const list = guids.slice(i, i + 100).map((g) => `"${g.replace(/"/g, '\\"')}"`).join(',');
+    out.push(...(await pgSelect<{ data: ArticleRecord }>('articles', `select=data&guid=in.(${encodeURIComponent(list)})`)).map((r) => r.data));
+  }
+  return out;
+}
+
+/** 1) 끝난 묶음 결과 반영. 결과가 안 온 항목(만료·오류)은 다시 보낼 수 있게 묶음 표시를 지운다 (3번 넘게 실패하면 뺀다) */
+export async function collectBatches(repo: Repo, budget: Budget, now: Date): Promise<string[]> {
+  const queue = await repo.getState<Record<string, BatchArticle>>(BATCH_STATE, {});
+  const jobs = await repo.getState<BatchJob[]>(BATCH_JOBS, []);
+  const log: string[] = [];
+  const keep: BatchJob[] = [];
+  const done: { guid: string; kept: number }[] = [];
+  for (const job of jobs) {
+    const b = await (await ok(await api(`/batches/${job.id}`), '배치 확인')).json() as { status: string; output_file_id?: string; error_file_id?: string; request_counts?: { completed: number; failed: number; total: number } };
+    if (!['completed', 'failed', 'expired', 'cancelled'].includes(b.status)) { keep.push(job); log.push(`배치 ${job.id}: ${b.status} (${b.request_counts?.completed ?? 0}/${b.request_counts?.total ?? job.count})`); continue; }
+    const lines: string[] = [];
+    for (const f of [b.output_file_id, b.error_file_id]) if (f) lines.push(...(await (await ok(await api(`/files/${f}/content`), '배치 결과 받기')).text()).split('\n').filter(Boolean));
+    let applied = 0, failed = 0;
+    for (const line of lines) {
+      const row = JSON.parse(line) as { custom_id: string; response?: { status_code: number; body: unknown }; error?: { message?: string } };
+      const guid = row.custom_id.replace(/^article:/, '');
+      const item = queue[guid];
+      if (!item || item.jobId !== job.id) continue;
+      try {
+        if (row.response?.status_code !== 200) throw new Error(row.error?.message ?? `상태 ${row.response?.status_code}`);
+        const req = articleRequest({ title: item.title, publishedAt: item.writtenAt, body: await bodyOf(repo, guid, item) });
+        const r = readOpenAiResponse(BATCH_MODEL, row.response.body as never, req, true);
+        budget.record(r.usage.costUsd);
+        const events = parseArticleEvents(r.value);
+        const body = await bodyOf(repo, guid, item);
+        const { kept, dropped } = checkAgainstSource(events, `${item.title}\n${body}`, item.writtenAt);
+        const source: SourceRef = { type: 'news', id: guid, url: item.url, title: item.title, publisher: item.publisher, publishedAt: item.writtenAt };
+        await repo.putExtraction({
+          docType: 'article', docId: guid, model: `${BATCH_MODEL} (batch)`, promptVersion: ARTICLE_PROMPT_VERSION, contentHash: hash(body),
+          events, checked: kept, dropped, source, usage: r.usage, createdAt: now.toISOString(),
+        });
+        done.push({ guid, kept: kept.length });
+        delete queue[guid];
+        applied++;
+      } catch {
+        failed++;
+      }
+    }
+    // 결과가 없거나 실패한 항목은 다음 묶음에 다시 (3번째 실패면 뺀다)
+    let retry = 0, dropped = 0;
+    for (const [guid, item] of Object.entries(queue)) {
+      if (item.jobId !== job.id) continue;
+      item.jobId = undefined;
+      item.tries = (item.tries ?? 0) + 1;
+      if (item.tries >= 3) { delete queue[guid]; dropped++; } else retry++;
+    }
+    log.push(`배치 ${job.id}: ${b.status} · 반영 ${applied}개 · 실패 ${failed}개 · 다시 보낼 것 ${retry}개${dropped ? ` · 3번 실패로 뺀 것 ${dropped}개` : ''}`);
+  }
+  // 기사 상태: 처리됨 (같은 묶음의 나머지 기사는 다음 수집이 "같은 소식"으로 정리)
+  const articles = await articlesByGuid(repo, done.map((d) => d.guid));
+  const kept = new Map(done.map((d) => [d.guid, d.kept]));
+  for (const a of articles) Object.assign(a, { status: 'processed', note: `일정 ${kept.get(a.guid) ?? 0}개 (배치)` });
+  if (articles.length) await repo.putArticles(articles);
+  await repo.putState(BATCH_STATE, queue);
+  await repo.putState(BATCH_JOBS, keep);
+  return log;
+}
+
+/** 2) 대기열 → 새 묶음 하나 (월 상한의 남은 몫 안에서, 한 번에 최대 BATCH_MAX개) */
+export async function submitBatch(repo: Repo, budget: Budget, now: Date): Promise<string[]> {
+  const queue = await repo.getState<Record<string, BatchArticle>>(BATCH_STATE, {});
+  const jobs = await repo.getState<BatchJob[]>(BATCH_JOBS, []);
+  const waiting = Object.entries(queue).filter(([, x]) => !x.jobId).sort(([, a], [, b]) => b.writtenAt.localeCompare(a.writtenAt));
+  if (!waiting.length) return ['배치: 보낼 것 없음'];
+  // 한 건 약 0.1센트(gpt-5-mini 배치 값, 본문 6천 자 기준 넉넉히) → 남은 월 상한의 절반까지만
+  const perItem = Number(process.env.BATCH_EST_USD ?? 0.001);
+  const room = Math.max(0, (budget.monthlyLimitUsd - budget.monthCostUsd) * 0.5);
+  const max = Math.min(Number(process.env.BATCH_MAX ?? 1000), Math.floor(room / perItem));
+  if (max <= 0) return [`배치: 이번 달 AI 상한이 거의 차서 보내지 않음 (대기 ${waiting.length}개)`];
+  const pick = waiting.slice(0, max);
+  const lines: string[] = [];
+  for (const [guid, item] of pick) {
+    const req = articleRequest({ title: item.title, publishedAt: item.writtenAt, body: await bodyOf(repo, guid, item) });
+    lines.push(JSON.stringify({ custom_id: `article:${guid}`, method: 'POST', url: '/v1/responses', body: openaiBody(BATCH_MODEL, req) }));
+  }
+  const form = new FormData();
+  form.append('purpose', 'batch');
+  form.append('file', new Blob([lines.join('\n')], { type: 'application/jsonl' }), `articles-${now.toISOString().slice(0, 10)}.jsonl`);
+  const file = await (await ok(await api('/files', { method: 'POST', body: form }), '배치 파일 올리기')).json() as { id: string };
+  const batch = await (await ok(await api('/batches', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ input_file_id: file.id, endpoint: '/v1/responses', completion_window: '24h', metadata: { kind: 'articles' } }),
+  }), '배치 만들기')).json() as { id: string };
+  for (const [, item] of pick) item.jobId = batch.id;
+  jobs.push({ id: batch.id, createdAt: now.toISOString(), count: pick.length });
+  await repo.putState(BATCH_STATE, queue);
+  await repo.putState(BATCH_JOBS, jobs);
+  return [`배치 보냄 ${batch.id}: 기사 ${pick.length}개 (대기 ${waiting.length - pick.length}개 남음)`];
+}
