@@ -121,8 +121,9 @@ if (account && token && ns) {
   if (cur !== ver) {
     const a = await kv('ask:index', index);
     const b = await kv('ask:index:version', ver);
-    if (!a.ok || !b.ok) throw new Error(`질문 자료 KV 올리기 실패 ${a.status}/${b.status}`);
-    console.log(`질문 자료 묶음 → KV (${(index.length / 1e6).toFixed(1)}MB, 버전 ${ver})`);
+    // KV 쓰기 한도(429) 등으로 못 올려도 사이트 데이터는 이미 올렸으니 실행은 실패시키지 않는다 (물어보기만 지난 자료로)
+    if (!a.ok || !b.ok) console.warn(`질문 자료 KV 올리기 실패 ${a.status}/${b.status}: 물어보기는 지난 자료로 답해요`);
+    else console.log(`질문 자료 묶음 → KV (${(index.length / 1e6).toFixed(1)}MB, 버전 ${ver})`);
   } else console.log('질문 자료 묶음: 바뀐 것 없음');
   // 물어보기 화면의 "오늘 기준 데이터" 카드 (마지막 수집 시각·자료 수·확인 대기 수)
   const count = (k: string) => data.docs.filter((d) => d.kind === k).length;

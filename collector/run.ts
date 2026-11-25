@@ -46,7 +46,7 @@ import { addReleases, findActivities } from './lib/activities.ts';
 import { buildDiscography } from './lib/discography.ts';
 import { buildSeries } from './lib/series.ts';
 import { applyOverrides, loadOverrides, mergeOverrides, type Overrides } from './lib/overrides.ts';
-import { applyReportDecisions, finalizeReports, pullReports, queueReports, type Report } from './lib/reports.ts';
+import { applyReportDecisions, closeDuplicateReports, finalizeReports, pullReports, queueReports, type Report } from './lib/reports.ts';
 import { judgeDeleteReports } from './lib/reportDelete.ts';
 import { hideNews, judgeNewsDeleteReports, NEWS_HIDE_STATE, type NewsHide } from './lib/newsHide.ts';
 import { eventDerivatives } from './lib/feedDerivatives.ts';
@@ -269,6 +269,8 @@ try {
   });
   reports = pulled.reports;
   for (const l of await applyReportDecisions(repo, reports, now).catch((err) => [`어드민 결정 반영 실패: ${(err as Error).message}`])) console.log(l);
+  const dupes = closeDuplicateReports(reports, now);
+  if (dupes.length) { console.log(`같은 링크 제보 ${dupes.length}개 닫음`); await repo.putState('reports', reports); }
   const queuedReports = await queueReports(repo, reports, now);
   if (pulled.fetched || queuedReports) console.log(`사이트 제보: 대기 ${pulled.fetched}개 · 자동 검증 대기 ${queuedReports}개`);
   step('① 수집');

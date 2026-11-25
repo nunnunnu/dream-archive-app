@@ -176,8 +176,8 @@ export interface LlmResult<T> {
   usage: { input: number; output: number; costUsd: number };
 }
 
-async function callJson<T>(instructions: string, input: string, schemaName: string, schema: object): Promise<LlmResult<T>> {
-  const res = await callAi(process.env, { instructions, input, schema: { name: schemaName, schema }, effort: LLM_EFFORT, maxOutputTokens: 16000, fallbackModel: process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini' });
+async function callJson<T>(instructions: string, input: string, schemaName: string, schema: object, fallbackModel?: string): Promise<LlmResult<T>> {
+  const res = await callAi(process.env, { instructions, input, schema: { name: schemaName, schema }, effort: LLM_EFFORT, maxOutputTokens: 16000, fallbackModel: fallbackModel ?? process.env.LLM_FALLBACK_MODEL ?? 'gpt-5-mini' });
   return { value: JSON.parse(res.value) as T, usage: res.usage };
 }
 
@@ -202,14 +202,14 @@ const SUBMISSION_NOTE = `
 export async function extractArticleEvents(
   article: { title: string; publishedAt: string; body: string },
   focus?: string,
-  submission?: { note?: string },
+  submission?: { note?: string; fallbackModel?: string },
 ): Promise<LlmResult<LlmEvent[]>> {
   const input =
     `글 작성일: ${kstStamp(article.publishedAt)} (KST)\n` +
     (focus ? `관련 대상: ${focus}\n` : '') +
     (submission?.note ? `제보 메모: ${submission.note}\n` : '') +
     `글 제목: ${article.title}\n\n글 본문:\n${article.body.slice(0, 6000)}`;
-  const r = await callJson<{ events: LlmEvent[] }>(ARTICLE_INSTRUCTIONS + (submission ? SUBMISSION_NOTE : ''), input, 'article_events', ARTICLE_SCHEMA);
+  const r = await callJson<{ events: LlmEvent[] }>(ARTICLE_INSTRUCTIONS + (submission ? SUBMISSION_NOTE : ''), input, 'article_events', ARTICLE_SCHEMA, submission?.fallbackModel);
   return { value: r.value.events, usage: r.usage };
 }
 

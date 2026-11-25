@@ -9,7 +9,7 @@ import type { ExtractionRecord, Repo } from './repo.ts';
 import { pgPatch, pgSelect, usePg } from './pg.ts';
 import { submissionId, addSubmission, type Submission } from './submissions.ts';
 import type { OverrideTarget, Overrides } from './overrides.ts';
-import { hideEntry, isNewsDelete, NEWS_HIDE_STATE, type NewsHide } from './newsHide.ts';
+import { hideEntry, isNewsDelete, NEWS_HIDE_STATE, normUrl, type NewsHide } from './newsHide.ts';
 
 export interface Report {
   id: string;
@@ -50,6 +50,26 @@ export type SeriesHintKind = (typeof SERIES_HINT_KINDS)[number];
 export async function pullReports(repo: Repo): Promise<{ reports: Record<string, Report>; fetched: number }> {
   const reports = await repo.getState<Record<string, Report>>('reports', {});
   return { reports, fetched: Object.values(reports).filter((r) => r.status === 'pending').length };
+}
+
+/**
+ * 같은 종류·같은 링크로 이미 들어온 제보가 있으면 나중 것은 AI 전에 닫는다 (Grok 같은 자동 제보가 같은 글을 여러 번 보내도 AI는 한 번만).
+ * 먼저 온 제보가 거절된 경우는 다시 볼 수 있게 남긴다. 링크 없는 제보는 그대로.
+ */
+export function closeDuplicateReports(reports: Record<string, Report>, now: Date): string[] {
+  const first = new Map<string, Report>();
+  const log: string[] = [];
+  const keyOf = (r: Report) => (r.url && (r.type === 'news' || r.type === 'add') ? `${r.type}|${normUrl(r.url)}` : '');
+  for (const r of Object.values(reports).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))) {
+    const key = keyOf(r);
+    if (!key || r.status === 'rejected') continue;
+    const prev = first.get(key);
+    if (!prev) { first.set(key, r); continue; }
+    if (r.status !== 'pending') continue;
+    Object.assign(r, { status: 'rejected', reviewedAt: now.toISOString(), reviewMode: 'auto', reviewReason: `같은 링크로 먼저 들어온 제보가 있어요 (${prev.id})` });
+    log.push(`제보 ${r.id}: 같은 링크 제보 ${prev.id}가 있어 닫음`);
+  }
+  return log;
 }
 
 /** 공식 출처가 필요한 제보를 기존 제보 추출 파이프라인에 넣는다. */

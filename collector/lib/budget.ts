@@ -2,6 +2,7 @@
  * AI 비용 상한. 월 상한(LLM_MONTHLY_BUDGET_USD, 기본 $5)이나 실행당 호출 수(LLM_MAX_CALLS_PER_RUN, 기본 40)를
  * 넘으면 AI를 부르지 않는다. 그동안 공지는 규칙 방식으로 대신한다.
  */
+import { aiStats } from './ai-provider.ts';
 import type { Repo } from './repo.ts';
 import { toKstParts } from './time.ts';
 
@@ -35,8 +36,10 @@ export class Budget {
     return this.usage[this.month]?.costUsd ?? 0;
   }
 
+  /** 실행당 상한은 성공한 호출(runCalls)과 실패까지 센 시도(aiStats.attempts, 상한의 2배까지) 둘 다 본다.
+   *  예전에는 성공만 세서, AI가 막히면 실패한 호출이 상한에 안 잡혀 제보마다 계속 다시 불렀다 */
   canSpend(): boolean {
-    return this.runCalls < this.perRunCalls && this.monthCostUsd < this.monthlyLimitUsd;
+    return this.runCalls < this.perRunCalls && aiStats.attempts < this.perRunCalls * 2 && this.monthCostUsd < this.monthlyLimitUsd;
   }
 
   record(costUsd: number) {
@@ -48,7 +51,7 @@ export class Budget {
   }
 
   summary() {
-    return `AI ${this.runCalls}번 약 ${Math.round(this.runCost * 1400)}원 (${this.bucket ? '개발 누적' : '이번 달 누적'} 약 ${Math.round(this.monthCostUsd * 1400)}원 / 상한 ${Math.round(this.monthlyLimitUsd * 1400)}원)`;
+    return `AI ${this.runCalls}번 (시도 ${aiStats.attempts}번) 약 ${Math.round(this.runCost * 1400)}원 (${this.bucket ? '개발 누적' : '이번 달 누적'} 약 ${Math.round(this.monthCostUsd * 1400)}원 / 상한 ${Math.round(this.monthlyLimitUsd * 1400)}원)`;
   }
 
   save() {

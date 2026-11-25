@@ -2,6 +2,7 @@
  * 문서 처리: 공지 본문, 대표 기사 본문, 제보 글 → AI 일정 추출 → 원문 대조 → 저장
  * 이미 처리한 문서(본문 해시·프롬프트 버전이 같음)는 다시 부르지 않는다.
  */
+import { AiHttpError } from './ai-provider.ts';
 import type { Page } from 'playwright';
 import { openArticle } from './articleBody.ts';
 import type { Budget } from './budget.ts';
@@ -78,7 +79,7 @@ export async function processArticles(
     }
     // 예전 기준으로 "일정과 무관"이라 건너뛴 묶음도 지금 기준으로 다시 본다
     // 본문을 못 읽어 실패한 것(Actions에서 구글 뉴스 링크가 원문으로 안 넘어감)과 예전 타이틀곡 채우기에서 목록용으로만 둔 "지난 기사"도 다시 본다
-    const pending = c.articles.filter((a) => a.status === 'pending' || !a.status || (a.status === 'skipped' && (a.note === '일정과 무관해 보임' || a.note?.startsWith('지난 기사'))) || (a.status === 'failed' && a.note === '본문을 못 읽음'));
+    const pending = c.articles.filter((a) => a.status === 'pending' || !a.status || (a.status === 'skipped' && (a.note === '일정과 무관해 보임' || a.note?.startsWith('지난 기사'))) || (a.status === 'failed' && (a.note === '본문을 못 읽음' || /^AI 실패: (Groq|OpenAI) 요청 실패 429/.test(a.note ?? ''))));
     if (!pending.length) continue;
     if (!looksLikeSchedule(c) && !c.articles.some((a) => a.origin === 'followup')) {
       for (const a of pending) Object.assign(a, { status: 'skipped', note: '일정과 무관해 보임' });
@@ -130,6 +131,8 @@ export async function processArticles(
         for (const a of c.articles) if (a !== rep && (a.status === 'pending' || !a.status)) Object.assign(a, { status: 'skipped', note: `같은 소식: ${rep.guid}` });
         log.push(`기사 "${rep.title.slice(0, 40)}"${c.articles.length > 1 ? ` 외 ${c.articles.length - 1}개` : ''}: 일정 ${kept.length}개`);
       } catch (err) {
+        // AI 한도·잔액(429)은 기사 탓이 아니라서 그대로 두고 다음 실행에 다시 (실패로 적으면 다시 읽지 않는다)
+        if (err instanceof AiHttpError && err.status === 429) return;
         Object.assign(rep, { status: 'failed', note: `AI 실패: ${(err as Error).message.slice(0, 80)}` });
       }
       return;

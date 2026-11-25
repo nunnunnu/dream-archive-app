@@ -6,6 +6,7 @@
  *  - 그 밖의 사이트: 브라우저로 열어 본문을 읽는다
  * 가져온 글은 기사와 같은 방식(AI 추출 → 원문 대조)으로 일정이 된다.
  */
+import { AiHttpError } from './ai-provider.ts';
 import type { Page } from 'playwright';
 import { createHash } from 'node:crypto';
 import { openArticle } from './articleBody.ts';
@@ -78,7 +79,9 @@ export async function processSubmissions(repo: Repo, page: Page, budget: Budget,
       continue;
     }
     try {
-      const r = await extractArticleEvents({ title: doc.title, publishedAt: doc.publishedAt, body: doc.text }, undefined, { note: sub.note });
+      // 사이트 제보에서 자동으로 들어온 링크는 Groq가 막혔을 때 싼 예비 모델(nano)로 (운영자가 넣은 링크는 그대로 mini)
+      const cheap = sub.note?.startsWith('[자동 검증') ?? false;
+      const r = await extractArticleEvents({ title: doc.title, publishedAt: doc.publishedAt, body: doc.text }, undefined, { note: sub.note, ...(cheap ? { fallbackModel: 'gpt-5-nano' } : {}) });
       budget.record(r.usage.costUsd);
       const { kept, dropped } = checkAgainstSource(r.value, `${doc.title}\n${doc.text}`, doc.publishedAt);
       const source: SourceRef = { type: 'submission', id: sub.id, url: sub.url, title: doc.title, publishedAt: doc.publishedAt };
@@ -90,6 +93,11 @@ export async function processSubmissions(repo: Repo, page: Page, budget: Budget,
       Object.assign(sub, { status: 'processed' });
       log.push(`제보 ${sub.url.slice(0, 50)}: 일정 ${kept.length}개`);
     } catch (err) {
+      // AI 한도·잔액(429)이면 이 링크는 다음 실행에 다시 (실패로 두면 영영 안 읽는다), 이번 실행 제보 처리는 여기서 멈춤
+      if (err instanceof AiHttpError && err.status === 429) {
+        log.push(`제보 처리 멈춤 (AI 429, 남은 것은 다음 실행에): ${err.message.slice(0, 100)}`);
+        break;
+      }
       Object.assign(sub, { status: 'failed' });
       log.push(`제보 ${sub.url.slice(0, 50)} 실패: ${(err as Error).message.slice(0, 100)}`);
     }

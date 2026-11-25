@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { ExtractionRecord } from './repo.ts';
 import type { Overrides } from './overrides.ts';
-import { decideReport, isOfficialReportSource, reportTarget, type Report } from './reports.ts';
+import { closeDuplicateReports, decideReport, isOfficialReportSource, reportTarget, type Report } from './reports.ts';
 
 const extraction = (url: string, title: string) => ({
   source: { type: 'submission', id: 'x', url, title, publishedAt: '2026-11-20T00:00:00Z' },
@@ -64,4 +64,21 @@ test('링크 없는 추가 요청은 승인해도 대기로 남고, 링크가 �
   const out = decideReport(withLink, { action: 'approve', at: now.toISOString() }, empty(), now);
   assert.equal(out.submit, 'https://x.com/a/status/1');
   assert.equal(withLink.status, 'approved');
+});
+
+test('같은 종류·같은 링크 제보는 먼저 온 것만 남기고 나중 대기 제보는 닫는다', () => {
+  const rs = Object.fromEntries([
+    report({ id: 'a', type: 'news', url: 'https://x.com/A/status/1?utm_source=x', createdAt: '2026-11-24T01:00:00Z' }),
+    report({ id: 'b', type: 'news', url: 'https://x.com/A/status/1', createdAt: '2026-11-24T02:00:00Z' }),
+    report({ id: 'c', type: 'add', url: 'https://x.com/A/status/1', createdAt: '2026-11-24T03:00:00Z' }), // 종류가 다르면 따로
+    report({ id: 'd', type: 'news', url: 'https://x.com/B/status/2', status: 'rejected', createdAt: '2026-11-24T01:00:00Z' }),
+    report({ id: 'e', type: 'news', url: 'https://x.com/B/status/2', createdAt: '2026-11-24T02:00:00Z' }), // 먼저 것이 거절이면 다시 본다
+  ].map((r) => [r.id, r]));
+  const log = closeDuplicateReports(rs, now);
+  assert.equal(log.length, 1);
+  assert.equal(rs.b.status, 'rejected');
+  assert.match(rs.b.reviewReason!, /\(a\)/);
+  assert.equal(rs.a.status, 'pending');
+  assert.equal(rs.c.status, 'pending');
+  assert.equal(rs.e.status, 'pending');
 });

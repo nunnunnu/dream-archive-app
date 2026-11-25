@@ -34,6 +34,19 @@ const PRICES: Record<string, { input: number; output: number }> = {
   'gpt-5-mini': { input: 0.25, output: 2.0 },
 };
 
+/** 이 실행(프로세스)에서 AI를 부른 횟수. 실패도 센다 (Budget 실행당 상한이 실패한 호출 때문에 끝없이 돌지 않게) */
+export const aiStats = { attempts: 0 };
+// OpenAI 잔액 없음(insufficient_quota)이면 10분 동안은 부르지 않고 바로 실패 (충전 뒤에는 저절로 다시 부른다)
+let openaiOutUntil = 0;
+export const openaiQuotaOut = () => Date.now() < openaiOutUntil;
+// Groq 하루 토큰 한도(TPD)에 걸린 모델은 알려 준 시각까지 건너뛰고 바로 예비로
+const groqOutUntil = new Map<string, number>();
+/** "Please try again in 1h2m3.5s" → 밀리초 */
+export const retryAfterMs = (text: string) => {
+  const m = text.match(/try again in\s+(?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?/i);
+  return m ? ((Number(m[1] ?? 0) * 60 + Number(m[2] ?? 0)) * 60 + Number(m[3] ?? 0)) * 1000 : 0;
+};
+
 export class AiHttpError extends Error {
   constructor(public provider: 'groq' | 'openai', public status: number, message: string) {
     super(message);
@@ -50,6 +63,7 @@ const usageCost = (model: string, input: number, output: number, cached = 0) => 
 
 async function groq(env: AiEnv, req: AiRequest): Promise<AiResult> {
   const model = req.primaryModel ?? env.GROQ_MODEL ?? GROQ_MODEL;
+  if ((groqOutUntil.get(model) ?? 0) > Date.now()) throw new AiHttpError('groq', 429, `Groq ${model} 하루 한도 초과 (풀릴 때까지 건너뜀)`);
   const userContent: unknown = req.images?.length
     ? [{ type: 'text', text: clean(req.input) }, ...req.images.map((url) => ({ type: 'image_url', image_url: { url } }))]
     : clean(req.input);
@@ -66,7 +80,11 @@ async function groq(env: AiEnv, req: AiRequest): Promise<AiResult> {
       ...(req.schema ? { response_format: { type: 'json_schema', json_schema: { name: req.schema.name, strict: true, schema: req.schema.schema } } } : {}),
     }),
   });
-  if (!res.ok) throw new AiHttpError('groq', res.status, `Groq 요청 실패 ${res.status}: ${(await res.text()).slice(0, 240)}`);
+  if (!res.ok) {
+    const text = await res.text();
+    if (res.status === 429 && /tokens per day|requests per day|\(TPD\)|\(RPD\)/i.test(text)) groqOutUntil.set(model, Date.now() + Math.max(retryAfterMs(text), 60_000));
+    throw new AiHttpError('groq', res.status, `Groq 요청 실패 ${res.status}: ${text.slice(0, 240)}`);
+  }
   const body = await res.json() as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
   const value = body.choices?.[0]?.message?.content ?? '';
   if (!value.trim()) throw new Error('Groq 응답이 비었어요');
@@ -76,6 +94,7 @@ async function groq(env: AiEnv, req: AiRequest): Promise<AiResult> {
 
 async function openai(env: AiEnv, req: AiRequest): Promise<AiResult> {
   const model = req.fallbackModel ?? env.OPENAI_FALLBACK_MODEL ?? OPENAI_MODEL;
+  if (openaiQuotaOut()) throw new AiHttpError('openai', 429, 'OpenAI 잔액 없음 (충전 전까지 부르지 않음)');
   const userContent: unknown = req.images?.length
     ? [{ type: 'input_text', text: clean(req.input) }, ...req.images.map((image_url) => ({ type: 'input_image', image_url, detail: 'high' }))]
     : clean(req.input);
@@ -88,7 +107,14 @@ async function openai(env: AiEnv, req: AiRequest): Promise<AiResult> {
       ...(req.schema ? { text: { format: { type: 'json_schema', name: req.schema.name, schema: req.schema.schema, strict: true } } } : {}),
     }),
   });
-  if (!res.ok) throw new AiHttpError('openai', res.status, `OpenAI 요청 실패 ${res.status}: ${(await res.text()).slice(0, 240)}`);
+  if (!res.ok) {
+    const text = await res.text();
+    if (res.status === 429 && /insufficient_quota|no credits remaining/i.test(text)) {
+      if (!openaiQuotaOut()) console.warn('OpenAI 잔액이 없어요. 10분 동안 OpenAI를 부르지 않아요 (https://platform.openai.com/settings/organization/billing/)');
+      openaiOutUntil = Date.now() + 10 * 60_000;
+    }
+    throw new AiHttpError('openai', res.status, `OpenAI 요청 실패 ${res.status}: ${text.slice(0, 240)}`);
+  }
   const body = await res.json() as { status?: string; incomplete_details?: { reason?: string }; output?: { type: string; content?: { type: string; text?: string }[] }[]; usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number } } };
   if (body.status === 'incomplete') throw new Error(`OpenAI 응답이 잘림: ${body.incomplete_details?.reason}`);
   const value = (body.output ?? []).filter((x) => x.type === 'message').flatMap((x) => x.content ?? []).filter((x) => x.type === 'output_text').map((x) => x.text ?? '').join('');
@@ -98,12 +124,15 @@ async function openai(env: AiEnv, req: AiRequest): Promise<AiResult> {
 }
 
 export async function callAi(env: AiEnv, req: AiRequest): Promise<AiResult> {
+  aiStats.attempts++;
   if (env.GROQ_API_KEY) {
     try {
       return await groq(env, req);
     } catch (e) {
       if (!env.OPENAI_API_KEY || !retryable(e)) throw e;
-      console.warn(`Groq 실패, OpenAI 예비 모델 사용: ${e instanceof Error ? e.message : String(e)}`);
+      // 잔액이 없으면 예비도 소용없으니 Groq 오류를 그대로 (로그도 한 번만 남게)
+      if (openaiQuotaOut()) throw e;
+      if (!(e instanceof Error && e.message.includes('건너뜀'))) console.warn(`Groq 실패, OpenAI 예비 모델 사용: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   if (env.OPENAI_API_KEY) return openai(env, req);

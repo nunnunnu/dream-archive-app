@@ -75,6 +75,8 @@ if (!dry && needDocs.length) {
   const budget0 = await new Budget(repo, new Date()).load();
   // 영상: 40개씩 한 번에
   for (let i = 0; i < videoDocs.length; i += 40) {
+    // 월 상한·실행당 시도 상한을 넘었거나 OpenAI 잔액이 없으면 남은 요약은 다음 실행에
+    if (!budget0.canSpend()) { console.log('\n요약 상한 도달: 남은 영상 요약은 다음 실행에'); break; }
     const batch = videoDocs.slice(i, i + 40);
     const r = await callModel({
       model: 'gpt-5-nano', effort: 'low', instructions: `${SUMMARY_RULE} 여러 건이 번호와 함께 온다. 번호마다 한 줄씩.`,
@@ -95,6 +97,7 @@ if (!dry && needDocs.length) {
   let done = 0;
   const queue = [...textDocs];
   await Promise.all(Array.from({ length: 8 }, async () => { for (let item = queue.shift(); item; item = queue.shift()) {
+    if (!budget0.canSpend()) { queue.length = 0; break; }
     const [url, cs] = item;
     const r = await callModel({ model: 'gpt-5-nano', effort: 'low', instructions: SUMMARY_RULE, input: clean(`${cs[0].title}\n${cs.map((c) => c.content).join('\n').slice(0, 1800)}`), schema: { name: 'summary', schema: { type: 'object', additionalProperties: false, required: ['s'], properties: { s: { type: 'string' } } } } }).catch(() => null);
     if (!r) continue;
@@ -140,7 +143,12 @@ for (let i = 0; i < todo.length; i += 100) {
     headers: { authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'content-type': 'application/json' },
     body: JSON.stringify({ model: MODEL, input: batch.map((c) => clean(`${c.title}\n${c.content}`)) }),
   });
-  if (!res.ok) throw new Error(`임베딩 실패 ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) {
+    const text = (await res.text()).slice(0, 200);
+    // 잔액 없음·한도 초과는 실행을 실패시키지 않는다: 남은 조각은 다음 실행에 (이미 넣은 것은 그대로)
+    if (res.status === 429) { console.log(`\n임베딩 건너뜀 (429, 남은 ${todo.length - i}개는 다음 실행에): ${text.replace(/\s+/g, ' ').slice(0, 120)}`); break; }
+    throw new Error(`임베딩 실패 ${res.status}: ${text}`);
+  }
   const out = (await res.json()) as { data: { embedding: number[] }[]; usage: { total_tokens: number } };
   tokens += out.usage.total_tokens;
   const rows = batch.map((c, j) => ({ ...c, embedding: `[${out.data[j].embedding.join(',')}]`, updated_at: new Date().toISOString() }));
