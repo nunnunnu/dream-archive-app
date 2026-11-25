@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { BATCH_JOBS, BATCH_STATE, collectBatches, submitBatch, type BatchArticle, type BatchJob } from './batch.ts';
 import { Budget } from './budget.ts';
 import type { ArticleRecord, ExtractionRecord, Repo } from './repo.ts';
+import type { Report } from './reports.ts';
 
 // 실제 키로 OpenAI를 부르지 않게: 테스트용 키, 모든 테스트에서 fetch를 바꿔 끼운다
 process.env.OPENAI_API_KEY = 'test';
@@ -15,6 +16,7 @@ function fakeRepo(articles: ArticleRecord[]) {
     putState: async (k: string, v: unknown) => { state.set(k, structuredClone(v)); },
     getBody: async () => '12월 3일 오후 8시 아는 형님 출연',
     putExtraction: async (r: ExtractionRecord) => { extractions.push(r); },
+    getExtraction: async () => null,
     listArticles: async () => articles,
     putArticles: async (list: ArticleRecord[]) => { for (const a of list) Object.assign(articles.find((x) => x.guid === a.guid)!, a); },
   } as unknown as Repo;
@@ -116,5 +118,47 @@ test('배치: 결과를 못 받을 때 — 404면 다시 보내고, 잠깐 오�
     assert.equal(queue.slow.jobId, 'b-slow');
     assert.deepEqual((state.get(BATCH_JOBS) as BatchJob[]).map((j) => j.id), ['b-flaky', 'b-slow']);
     assert.equal(cancelled.length, 1);
+  } finally { globalThis.fetch = original; }
+});
+
+test('배치: 일주일 넘은 소식 제보 판정도 같은 묶음으로 보내고, 결과는 바로 판정과 같은 규칙으로 반영한다', async () => {
+  const { repo, state } = fakeRepo([]);
+  const now = new Date('2026-11-25T20:30:00Z');
+  const base = { type: 'news', url: 'https://x.com/a/1', message: '', eventId: '', eventTitle: '', time: '', members: [], status: 'pending', createdAt: '2026-11-25T01:00:00Z' } as const;
+  await repo.putState('reports', {
+    old: { ...base, id: 'old', title: '재민 차백도 광고', date: '2026-06-01', reviewReason: 'AI 판정을 기다려요.' },
+    named: { ...base, id: 'named', title: '지성 출연', date: '2026-05-01' },
+    fresh: { ...base, id: 'fresh', title: '오늘 소식', date: '2026-11-25' }, // 최근 것은 바로 판정
+    human: { ...base, id: 'human', title: '애매', date: '2026-05-01', reviewReason: 'AI가 확실하지 않다고 봐서 사람이 확인해요: x' }, // 사람 확인은 그대로
+  });
+  const budget = await new Budget(repo, now).load();
+  const original = globalThis.fetch;
+  let uploaded = '';
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    if (u.endsWith('/files') && init?.method === 'POST') { uploaded = await ((init.body as FormData).get('file') as Blob).text(); return Response.json({ id: 'f' }); }
+    if (u.endsWith('/batches') && init?.method === 'POST') return Response.json({ id: 'bj' });
+    if (u.endsWith('/batches/bj')) return Response.json({ status: 'completed', output_file_id: 'o' });
+    if (u.endsWith('/files/o/content')) return new Response([
+      JSON.stringify({ custom_id: 'report:old', response: { status_code: 200, body: responseBody('{"relevant":true,"sure":true,"reason":"재민 광고 소식"}') } }),
+      JSON.stringify({ custom_id: 'report:named', response: { status_code: 200, body: responseBody('{"relevant":false,"sure":true,"reason":"다른 사람"}') } }),
+    ].join('\n'));
+    throw new Error(`예상 못 한 요청 ${u}`);
+  }) as typeof fetch;
+  try {
+    assert.match((await submitBatch(repo, budget, now))[0], /소식 제보 판정 2개/);
+    const lines = uploaded.split('\n').map((l) => JSON.parse(l));
+    assert.deepEqual(lines.map((l) => l.custom_id).sort(), ['report:named', 'report:old']);
+    assert.equal(lines[0].body.model, 'gpt-5-nano');
+    let rs = state.get('reports') as Record<string, Report>;
+    assert.equal(rs.old.batchJob, 'bj');
+    assert.equal(rs.fresh.batchJob, undefined);
+    await collectBatches(repo, budget, now);
+    rs = state.get('reports') as Record<string, Report>;
+    assert.equal(rs.old.status, 'approved');
+    assert.equal(rs.old.batchJob, undefined);
+    assert.equal(rs.named.status, 'pending'); // 멤버 이름이 있으면 AI 혼자 거절하지 않는다
+    assert.match(rs.named.reviewReason!, /사람이 확인/);
+    assert.equal(rs.human.reviewReason, 'AI가 확실하지 않다고 봐서 사람이 확인해요: x');
   } finally { globalThis.fetch = original; }
 });

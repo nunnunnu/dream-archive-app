@@ -4,6 +4,7 @@
  *  - 소식 탭에는 AI(무료 Groq 작은 모델 → 막히면 nano)가 "드림·멤버 소식이 맞다"고 확실히 볼 때만 올린다.
  *    확실히 관련 없으면 거절, 애매하면 사람 확인으로 남긴다
  */
+import { BATCH_AGE_DAYS, BATCH_WAIT_REASON, batchEnabled } from './batchConfig.ts';
 import type { Budget } from './budget.ts';
 import { GROUP, GROUP_NAME_RE } from './group.ts';
 import { callModel, hasLlmKey } from './llm.ts';
@@ -92,6 +93,38 @@ export function judgePrompt(today: string): string {
   ].join('\n');
 }
 
+export const JUDGE_SCHEMA = { name: 'judge', schema: { type: 'object', additionalProperties: false, required: ['relevant', 'sure', 'reason'], properties: { relevant: { type: 'boolean' }, sure: { type: 'boolean' }, reason: { type: 'string' } } } };
+export interface Judgement { relevant: boolean; sure: boolean; reason: string }
+
+/** 판정 요청 (바로 부를 때와 배치에 똑같이) */
+export async function judgeRequest(repo: Repo, r: Report, now: Date) {
+  const ext = r.url ? await repo.getExtraction('submission', submissionId(r.url)) : null;
+  return {
+    instructions: judgePrompt(now.toISOString().slice(0, 10)), effort: 'low' as const, schema: JUDGE_SCHEMA,
+    input: [`제보 제목: ${r.title ?? ''}`, `덧붙인 말: ${r.message}`, `링크: ${r.url || '없음'}`, ext ? `링크 원문 제목: ${ext.source.title}` : ''].filter(Boolean).join('\n'),
+  };
+}
+
+/** AI 판정 반영: 확실하면 승인·거절, 아니면 사람 확인. 멤버·유닛 이름이 있으면 AI 혼자 거절하지 않는다 */
+export function applyJudgement(r: Report, v: Judgement, now: Date): string {
+  if (!v.relevant && namesGroup(r)) {
+    r.reviewReason = `멤버·유닛 이름이 있어 사람이 확인해요 (AI 의견: ${v.reason})`;
+    return `소식 제보 ${r.id}: 사람 확인 (이름 있음, AI 의견: ${v.reason})`;
+  }
+  if (v.sure) {
+    Object.assign(r, { status: v.relevant ? 'approved' : 'rejected', reviewedAt: now.toISOString(), reviewMode: 'auto', reviewReason: `AI 판정: ${v.reason}` });
+    return `소식 제보 ${r.id}: ${v.relevant ? '소식 탭에 올림' : '거절'} (${v.reason})`;
+  }
+  r.reviewReason = `AI가 확실하지 않다고 봐서 사람이 확인해요: ${v.reason}`;
+  return `소식 제보 ${r.id}: 사람 확인 (${v.reason})`;
+}
+
+/** 소식 날짜가 일주일 넘었는지 (날짜가 없으면 최근 것으로 본다) */
+export const isOldNews = (r: Report, now: Date) => Boolean(r.date) && Date.parse(`${r.date}T00:00:00+09:00`) < now.getTime() - BATCH_AGE_DAYS * 864e5;
+/** 배치로 판정할 소식 제보: 대기 중·AI가 아직 안 본 것(사람 확인으로 넘긴 것은 빼고)·오래된 소식 */
+export const batchJudgeable = (r: Report, now: Date) => r.type === 'news' && r.status === 'pending' && r.reviewMode !== 'manual'
+  && (!r.reviewReason || r.reviewReason === 'AI 판정을 기다려요.' || r.reviewReason === BATCH_WAIT_REASON) && isOldNews(r, now);
+
 export async function judgeNewsReports(repo: Repo, reports: Record<string, Report>, budget: Budget, now: Date): Promise<string[]> {
   const log: string[] = [];
   // 예전 판정이 멤버·유닛 이름이 있는데도 AI 혼자 거절한 것("재민은 다른 그룹 멤버" 같은 지어낸 이유)은 다시 판정한다
@@ -102,32 +135,21 @@ export async function judgeNewsReports(repo: Repo, reports: Record<string, Repor
     }
   }
   const todo = Object.values(reports).filter((r) => r.type === 'news' && r.status === 'pending' && r.reviewMode !== 'manual');
+  let batched = 0;
   for (const r of todo) {
-    if (!hasLlmKey() || !budget.canSpend()) { r.reviewReason = 'AI 판정을 기다려요.'; continue; }
-    const ext = r.url ? await repo.getExtraction('submission', submissionId(r.url)) : null;
-    const res = await callModel({
-      model: 'gpt-5-nano', effort: 'low',
-      instructions: judgePrompt(now.toISOString().slice(0, 10)),
-      input: [`제보 제목: ${r.title ?? ''}`, `덧붙인 말: ${r.message}`, `링크: ${r.url || '없음'}`, ext ? `링크 원문 제목: ${ext.source.title}` : ''].filter(Boolean).join('\n'),
-      schema: { name: 'judge', schema: { type: 'object', additionalProperties: false, required: ['relevant', 'sure', 'reason'], properties: { relevant: { type: 'boolean' }, sure: { type: 'boolean' }, reason: { type: 'string' } } } },
-    }).catch(() => null);
-    if (!res) { r.reviewReason = 'AI 판정을 기다려요.'; continue; }
-    budget.record(res.usage.costUsd);
-    const v = JSON.parse(res.value) as { relevant: boolean; sure: boolean; reason: string };
-    // 멤버·유닛 이름이 있는 제보는 AI가 "아님"이라고 해도 혼자 거절하지 않고 사람이 확인한다
-    if (!v.relevant && namesGroup(r)) {
-      r.reviewReason = `멤버·유닛 이름이 있어 사람이 확인해요 (AI 의견: ${v.reason})`;
-      log.push(`소식 제보 ${r.id}: 사람 확인 (이름 있음, AI 의견: ${v.reason})`);
+    // 일주일 넘은 소식은 급하지 않으니 하루 한 번 배치(lib/batch.ts)로. 이미 보낸 것도 결과를 기다린다
+    if (r.batchJob || (batchEnabled() && batchJudgeable(r, now))) {
+      if (!r.batchJob) { r.reviewReason = BATCH_WAIT_REASON; batched++; }
       continue;
     }
-    if (v.sure) {
-      Object.assign(r, { status: v.relevant ? 'approved' : 'rejected', reviewedAt: now.toISOString(), reviewMode: 'auto', reviewReason: `AI 판정: ${v.reason}` });
-      log.push(`소식 제보 ${r.id}: ${v.relevant ? '소식 탭에 올림' : '거절'} (${v.reason})`);
-    } else {
-      r.reviewReason = `AI가 확실하지 않다고 봐서 사람이 확인해요: ${v.reason}`;
-      log.push(`소식 제보 ${r.id}: 사람 확인 (${v.reason})`);
-    }
+    if (!hasLlmKey() || !budget.canSpend()) { r.reviewReason = 'AI 판정을 기다려요.'; continue; }
+    const req = await judgeRequest(repo, r, now);
+    const res = await callModel({ model: 'gpt-5-nano', ...req }).catch(() => null);
+    if (!res) { r.reviewReason = 'AI 판정을 기다려요.'; continue; }
+    budget.record(res.usage.costUsd);
+    log.push(applyJudgement(r, JSON.parse(res.value) as Judgement, now));
   }
+  if (batched) log.push(`오래된 소식 제보 ${batched}개는 하루 한 번 배치로 판정`);
   if (todo.length || log.length) await repo.putState('reports', reports);
   return log;
 }

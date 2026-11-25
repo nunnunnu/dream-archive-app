@@ -3,7 +3,8 @@
  * 이미 처리한 문서(본문 해시·프롬프트 버전이 같음)는 다시 부르지 않는다.
  */
 import { AiHttpError } from './ai-provider.ts';
-import { BATCH_AGE_DAYS, BATCH_STATE, batchEnabled, type BatchArticle } from './batch.ts';
+import { BATCH_STATE, type BatchArticle } from './batch.ts';
+import { BATCH_AGE_DAYS, batchEnabled } from './batchConfig.ts';
 import type { Page } from 'playwright';
 import { openArticle } from './articleBody.ts';
 import type { Budget } from './budget.ts';

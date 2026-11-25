@@ -38,6 +38,9 @@ export interface Report {
   reviewReason?: string;
   /** 소식 제보의 시리즈 단서 (선택, 예: 광고 · 차백도). series.ts가 같은 이름끼리 시리즈 페이지로 묶는다 */
   series?: { kind: SeriesHintKind; name: string };
+  /** 배치로 보낸 판정 묶음 id (결과를 기다리는 중), 배치 실패 횟수 */
+  batchJob?: string;
+  batchTries?: number;
 }
 
 export const SERIES_HINT_KINDS = ['광고', '화보', '예능', '드라마', '외부콘텐츠'] as const;
