@@ -159,6 +159,12 @@ export async function submitBatch(repo: Repo, budget: Budget, now: Date): Promis
   const queue = await repo.getState<Record<string, BatchArticle>>(BATCH_STATE, {});
   const jobs = await repo.getState<BatchJob[]>(BATCH_JOBS, []);
   const reports = await repo.getState<Record<string, Report>>('reports', {});
+  // 없어진 묶음을 가리키는 표시는 지운다 (다른 실행이 지난 상태를 덮어써서 남은 것: 그대로 두면 영영 다시 안 보낸다)
+  const live = new Set(jobs.map((j) => j.id));
+  let stale = 0;
+  for (const item of Object.values(queue)) if (item.jobId && !live.has(item.jobId)) { item.jobId = undefined; stale++; }
+  for (const r of Object.values(reports)) if (r.batchJob && !live.has(r.batchJob)) { r.batchJob = undefined; stale++; }
+  if (stale) await repo.putState('reports', reports);
   const waiting = Object.entries(queue).filter(([, x]) => !x.jobId).sort(([, a], [, b]) => b.writtenAt.localeCompare(a.writtenAt));
   const judge = Object.values(reports).filter((r) => !r.batchJob && batchJudgeable(r, now)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   if (!waiting.length && !judge.length) return ['배치: 보낼 것 없음'];

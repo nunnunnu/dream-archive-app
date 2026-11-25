@@ -192,16 +192,33 @@ export class JsonRepo implements Repo {
     return out.filter(Boolean);
   }
 
+  /** 제보·AI 비용은 읽은 때 모습을 기억했다가, 저장할 때 바뀐 행만 쓴다.
+   *  (전에는 전부 다시 써서, 다른 실행이 그사이 바꾼 행 — 배치 판정 결과·다른 묶음 비용 — 을 지난 모습으로 되돌렸다) */
+  private loaded = new Map<string, Map<string, string>>();
+  private remember(key: string, rows: { id: string; json: string }[]) {
+    this.loaded.set(key, new Map(rows.map((r) => [r.id, r.json])));
+  }
+  private changed<R>(key: string, rows: R[], idOf: (r: R) => string): R[] {
+    const seen = this.loaded.get(key) ?? new Map<string, string>();
+    const out = rows.filter((r) => seen.get(idOf(r)) !== JSON.stringify(r));
+    for (const r of out) seen.set(idOf(r), JSON.stringify(r));
+    this.loaded.set(key, seen);
+    return out;
+  }
+
   async getState<T>(key: string, fallback: T): Promise<T> {
     if (!usePg()) return readJson<T>(`state/${key}.json`, fallback);
     // 제보·출처 링크·AI 비용은 정식 테이블, 나머지는 app_state(jsonb)
     if (key === 'usage') {
       const rows = await pgSelect<{ bucket: string; cost_usd: string; calls: number }>('llm_usage', 'select=bucket,cost_usd,calls');
+      this.remember('usage', rows.map((r) => ({ id: r.bucket, json: JSON.stringify(usageRow(r.bucket, { costUsd: Number(r.cost_usd), calls: r.calls })) })));
       return (rows.length ? Object.fromEntries(rows.map((r) => [r.bucket, { costUsd: Number(r.cost_usd), calls: r.calls }])) : fallback) as T;
     }
     if (key === 'reports') {
       const rows = await pgSelect<ReportRow>('reports', 'select=*');
-      return (rows.length ? Object.fromEntries(rows.map((r) => [r.id, reportFromRow(r)])) : fallback) as T;
+      const reports = rows.map(reportFromRow);
+      this.remember('reports', reports.map((r) => ({ id: r.id as string, json: JSON.stringify(reportToRow(r)) })));
+      return (rows.length ? Object.fromEntries(reports.map((r) => [r.id, r])) : fallback) as T;
     }
     if (key === 'submissions') {
       const rows = await pgSelect<{ data: unknown }>('submissions', 'select=data&order=added_at.asc');
@@ -213,9 +230,13 @@ export class JsonRepo implements Repo {
   async putState(key: string, value: unknown) {
     if (!usePg()) return writeJson(`state/${key}.json`, value);
     if (key === 'usage') {
-      return pgUpsert('llm_usage', Object.entries(value as Record<string, { costUsd: number; calls: number }>).map(([bucket, u]) => ({ bucket, cost_usd: u.costUsd, calls: u.calls, updated_at: now() })), 'bucket');
+      const rows = this.changed('usage', Object.entries(value as Record<string, { costUsd: number; calls: number }>).map(([bucket, u]) => usageRow(bucket, u)), (r) => r.bucket);
+      return rows.length ? pgUpsert('llm_usage', rows.map((r) => ({ ...r, updated_at: now() })), 'bucket') : undefined;
     }
-    if (key === 'reports') return pgUpsert('reports', Object.values(value as Record<string, Record<string, unknown>>).map(reportToRow), 'id');
+    if (key === 'reports') {
+      const rows = this.changed('reports', Object.values(value as Record<string, Record<string, unknown>>).map(reportToRow), (r) => r.id as string);
+      return rows.length ? pgUpsert('reports', rows, 'id') : undefined;
+    }
     if (key === 'submissions') {
       return pgUpsert('submissions', (value as { id: string; url: string; note?: string; status?: string; addedAt?: string }[]).map((x) => ({ id: x.id, url: x.url, note: x.note ?? null, status: x.status ?? null, added_at: x.addedAt ?? now(), data: pgClean(x) })), 'id');
     }
@@ -227,6 +248,7 @@ export class JsonRepo implements Repo {
   }
 }
 
+const usageRow = (bucket: string, u: { costUsd: number; calls: number }) => ({ bucket, cost_usd: u.costUsd, calls: u.calls });
 /** 제보 ↔ reports 테이블 행: 알려진 값은 열로, 일정 당시 모습은 스냅샷, 나머지 제안 값은 proposed_changes */
 interface ReportRow { id: string; type: string; event_id: string | null; event_snapshot: Record<string, unknown> | null; title: string | null; source_url: string | null; proposed_changes: Record<string, unknown> | null; message: string | null; status: string; review_reason: string | null; created_at: string; reviewed_at: string | null }
 function reportToRow(r: Record<string, unknown>): Record<string, unknown> {

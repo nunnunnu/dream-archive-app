@@ -138,6 +138,7 @@ export async function judgeNewsReports(repo: Repo, reports: Record<string, Repor
   let batched = 0;
   for (const r of todo) {
     // 일주일 넘은 소식은 급하지 않으니 하루 한 번 배치(lib/batch.ts)로. 이미 보낸 것도 결과를 기다린다
+    // (보낸 묶음 표시가 남아 있어도 배치 쪽이 없어진 묶음 표시는 지우고 다시 보낸다: lib/batch.ts submitBatch)
     if (r.batchJob || (batchEnabled() && batchJudgeable(r, now))) {
       if (!r.batchJob) { r.reviewReason = BATCH_WAIT_REASON; batched++; }
       continue;
