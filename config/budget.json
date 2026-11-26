@@ -1,7 +1,7 @@
 {
-  "_설명": "수집 AI 월 상한(달러, Actions 자동 수집만). months 에 적은 달만 그 값, 나머지는 monthlyUsd. 환경변수 LLM_MONTHLY_BUDGET_USD 가 있으면 그게 우선. 물어보기(사이트) 상한 3,000원과 합쳐 월 1만원 안",
+  "_설명": "수집 AI 월 상한(달러, Actions 자동 수집만). months 에 적은 달만 그 값, 나머지는 monthlyUsd. 환경변수 LLM_MONTHLY_BUDGET_USD 가 있으면 그게 우선. 물어보기(사이트) 상한 3,000원과 합쳐 월 1만원 안. 2026-11은 사용자 결정으로 5만원(제보 대량 처리)",
   "monthlyUsd": 5,
   "months": {
-    "2026-11": 6.8
+    "2026-11": 35.7
   }
 }
