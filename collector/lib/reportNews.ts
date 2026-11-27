@@ -30,7 +30,12 @@ const josa = (w: string, withB: string, without: string) => {
 /** 제보 심사 프롬프트: 멤버·유닛·별칭·탈퇴 멤버는 config/group.json에서 채운다 */
 export function judgePrompt(today: string): string {
   const G = GROUP.name;
-  const names = GROUP.members.map((m) => `${m.name}(${m.aliases.filter((a) => a !== m.name && /^[A-Za-z]+$/.test(a)).join('·') || m.name})`).join(', ');
+  // 본명도 같이 적는다 (지성 = 박지성, 해찬 = 이동혁): 기사·SNS는 본명으로 쓸 때가 많다
+  const names = GROUP.members.map((m) => {
+    const real = (m as { realName?: string }).realName?.replace(/\s*\(.*\)$/, '');
+    const latin = m.aliases.filter((a) => a !== m.name && /^[A-Za-z]+$/.test(a)).join('·');
+    return `${m.name}(${[real && real !== m.name ? `본명 ${real}` : '', latin].filter(Boolean).join(', ') || m.name})`;
+  }).join(', ');
   const aliases = [...GROUP.nameVariants, ...GROUP.nicknames.filter((n) => n.length > 2), ...GROUP.fandom.map((f) => `${f}(팬덤)`),
     ...GROUP.members.flatMap((m) => [...m.aliases, ...(m.nicknames ?? [])].filter((a) => a !== m.name && !/^[A-Za-z]+$/.test(a)))];
   const units = GROUP.units.map((u) => `${u.name}(${u.members.join('·')})`).join(', ');
@@ -47,6 +52,7 @@ export function judgePrompt(today: string): string {
     '',
     '[가장 중요한 규칙]',
     `- 위 명단이 정답이다. 이름이 명단에 있으면 ${G} 멤버로 본다. 네가 아는 아이돌 정보로 "다른 그룹 멤버"라고 판단하지 않는다.`,
+    `- 본명도 멤버 이름이다. 본명이 연예·방송·드라마·광고·화보·SM 아티스트 소식에 나오면 그 멤버 본인이다 (동명이인이라고 하지 않는다).`,
     `- 멤버 이름이 나오면 다른 그룹 이름이 같이 있어도 아래 기준대로 판단한다.`,
     ...dual.map((m) => `- ${josa(m.name, '은', '는')} ${m.otherGroups!.join('·')} 멤버이기도 하다. ${m.otherGroups!.join('·')} 단체 활동(컴백·콘서트·단체 출연)은 ${josa(m.name, '이', '가')} 나와도 false. ${m.name} 개인 활동(개인 출연·화보·광고·솔로·SNS)은 true.`),
     `- 네가 모르는 행사·시상식·프로그램·연도도 실제로 있는 것이다. "가상", "존재하지 않음", "미래"라는 이유로 false라고 하지 않는다.`,
@@ -63,7 +69,7 @@ export function judgePrompt(today: string): string {
     'relevant = false (관련 없음):',
     '- 위 멤버가 안 나오는 다른 가수 소식 (NCT 127, WayV, NCT WISH 단독 소식 포함)',
     ...(former.length ? [`- 탈퇴한 멤버(${former.join(', ')})만 나오는 소식`] : []),
-    '- 멤버 이름과 상관없는 동명이인 (예: 축구 선수 박지성, 일반 단어 "드림")',
+    '- 동명이인: 연예 활동과 전혀 이어지지 않을 때만 (예: 축구 경기·스포츠 소식의 선수, 일반 단어 "드림"). 연예·방송 소식이면 동명이인으로 보지 않는다',
     '- 개인 간 굿즈·티켓 양도·판매·교환, 홍보·스팸·도박·성인 링크',
     '- 내용 없는 글, 테스트, 의미 없는 문자',
     '',

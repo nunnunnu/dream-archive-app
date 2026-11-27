@@ -175,27 +175,39 @@ export async function submitBatch(repo: Repo, budget: Budget, now: Date): Promis
   room -= pickJudge.length * perJudge;
   const pick = waiting.slice(0, Math.min(Number(process.env.BATCH_MAX ?? 1000), Math.floor(room / perArticle)));
   if (!pick.length && !pickJudge.length) return [`배치: 이번 달 AI 상한이 거의 차서 보내지 않음 (기사 ${waiting.length}개 · 제보 판정 ${judge.length}개 대기)`];
-  const lines: string[] = [];
-  for (const [guid, item] of pick) {
-    const req = articleRequest({ title: item.title, publishedAt: item.writtenAt, body: await bodyOf(repo, guid, item) });
-    lines.push(JSON.stringify({ custom_id: `article:${guid}`, method: 'POST', url: '/v1/responses', body: openaiBody(BATCH_MODEL, req) }));
+  // OpenAI Batch 는 묶음 하나에 모델 하나만 받는다 → 기사(mini)와 제보 판정(nano)은 따로 보낸다
+  const send = async (kind: string, lines: string[]) => {
+    const form = new FormData();
+    form.append('purpose', 'batch');
+    form.append('file', new Blob([lines.join('\n')], { type: 'application/jsonl' }), `${kind}-${now.toISOString().slice(0, 10)}.jsonl`);
+    const file = await (await ok(await api('/files', { method: 'POST', body: form }), '배치 파일 올리기')).json() as { id: string };
+    const batch = await (await ok(await api('/batches', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ input_file_id: file.id, endpoint: '/v1/responses', completion_window: '24h', metadata: { kind } }),
+    }), '배치 만들기')).json() as { id: string };
+    jobs.push({ id: batch.id, createdAt: now.toISOString(), count: lines.length });
+    return batch.id;
+  };
+  const log: string[] = [];
+  if (pick.length) {
+    const lines: string[] = [];
+    for (const [guid, item] of pick) {
+      const req = articleRequest({ title: item.title, publishedAt: item.writtenAt, body: await bodyOf(repo, guid, item) });
+      lines.push(JSON.stringify({ custom_id: `article:${guid}`, method: 'POST', url: '/v1/responses', body: openaiBody(BATCH_MODEL, req) }));
+    }
+    const id = await send('articles', lines);
+    for (const [, item] of pick) item.jobId = id;
+    await repo.putState(BATCH_STATE, queue);
+    log.push(`배치 보냄 ${id}: 기사 ${pick.length}개 (${BATCH_MODEL}, 남은 대기 ${waiting.length - pick.length}개)`);
   }
-  for (const r of pickJudge) {
-    lines.push(JSON.stringify({ custom_id: `report:${r.id}`, method: 'POST', url: '/v1/responses', body: openaiBody(BATCH_JUDGE_MODEL, { ...(await judgeRequest(repo, r, now)), maxOutputTokens: 4000 }) }));
+  if (pickJudge.length) {
+    const lines: string[] = [];
+    for (const r of pickJudge) lines.push(JSON.stringify({ custom_id: `report:${r.id}`, method: 'POST', url: '/v1/responses', body: openaiBody(BATCH_JUDGE_MODEL, { ...(await judgeRequest(repo, r, now)), maxOutputTokens: 4000 }) }));
+    const id = await send('reports', lines);
+    for (const r of pickJudge) Object.assign(r, { batchJob: id, reviewReason: BATCH_WAIT_REASON });
+    await repo.putState('reports', reports);
+    log.push(`배치 보냄 ${id}: 소식 제보 판정 ${pickJudge.length}개 (${BATCH_JUDGE_MODEL}, 남은 대기 ${judge.length - pickJudge.length}개)`);
   }
-  const form = new FormData();
-  form.append('purpose', 'batch');
-  form.append('file', new Blob([lines.join('\n')], { type: 'application/jsonl' }), `batch-${now.toISOString().slice(0, 10)}.jsonl`);
-  const file = await (await ok(await api('/files', { method: 'POST', body: form }), '배치 파일 올리기')).json() as { id: string };
-  const batch = await (await ok(await api('/batches', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ input_file_id: file.id, endpoint: '/v1/responses', completion_window: '24h', metadata: { kind: 'articles+reports' } }),
-  }), '배치 만들기')).json() as { id: string };
-  for (const [, item] of pick) item.jobId = batch.id;
-  for (const r of pickJudge) Object.assign(r, { batchJob: batch.id, reviewReason: BATCH_WAIT_REASON });
-  jobs.push({ id: batch.id, createdAt: now.toISOString(), count: pick.length + pickJudge.length });
-  await repo.putState(BATCH_STATE, queue);
-  if (pickJudge.length) await repo.putState('reports', reports);
   await repo.putState(BATCH_JOBS, jobs);
-  return [`배치 보냄 ${batch.id}: 기사 ${pick.length}개 · 소식 제보 판정 ${pickJudge.length}개 (남은 대기: 기사 ${waiting.length - pick.length}개 · 제보 ${judge.length - pickJudge.length}개)`];
+  return log;
 }

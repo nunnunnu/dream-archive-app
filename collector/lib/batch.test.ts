@@ -162,3 +162,29 @@ test('배치: 일주일 넘은 소식 제보 판정도 같은 묶음으로 보�
     assert.equal(rs.human.reviewReason, 'AI가 확실하지 않다고 봐서 사람이 확인해요: x');
   } finally { globalThis.fetch = original; }
 });
+
+test('배치: 기사와 제보 판정은 모델이 달라서 묶음을 따로 보낸다 (OpenAI는 묶음 하나에 모델 하나)', async () => {
+  const { repo, state } = fakeRepo([]);
+  const now = new Date('2026-11-25T20:30:00Z');
+  await repo.putState(BATCH_STATE, { g1: { queuedAt: now.toISOString(), title: '기사', writtenAt: '2026-11-01T03:00:00Z', url: 'https://a.example/1' } });
+  await repo.putState('reports', { r1: { id: 'r1', type: 'news', title: '재민 광고', url: 'https://x.com/a/1', message: '', eventId: '', eventTitle: '', date: '2026-06-01', time: '', members: [], status: 'pending', createdAt: now.toISOString() } });
+  const budget = await new Budget(repo, now).load();
+  const original = globalThis.fetch;
+  const files: string[] = [];
+  let n = 0;
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    if (u.endsWith('/files')) { files.push(await ((init!.body as FormData).get('file') as Blob).text()); return Response.json({ id: `f${files.length}` }); }
+    if (u.endsWith('/batches')) return Response.json({ id: `b${++n}` });
+    throw new Error(u);
+  }) as typeof fetch;
+  try {
+    const log = await submitBatch(repo, budget, now);
+    assert.equal(log.length, 2);
+    const models = files.map((f) => [...new Set(f.split('\n').map((l) => JSON.parse(l).body.model))]);
+    assert.deepEqual(models, [['gpt-5-mini'], ['gpt-5-nano']]);
+    assert.equal((state.get(BATCH_STATE) as Record<string, BatchArticle>).g1.jobId, 'b1');
+    assert.equal((state.get('reports') as Record<string, Report>).r1.batchJob, 'b2');
+    assert.deepEqual((state.get(BATCH_JOBS) as BatchJob[]).map((j) => j.id), ['b1', 'b2']);
+  } finally { globalThis.fetch = original; }
+});
