@@ -43,6 +43,18 @@
 .more-list summary { cursor: pointer; color: #4d7a00; font-weight: 700; margin-bottom: 12px; list-style: none; }
 .more-list summary::-webkit-details-marker { display: none; }
 .ep-list { margin-top: 20px; }
+.ep-block + .ep-block { margin-top: 28px; }
+.ep-head { font-size: 15px; font-weight: 800; margin: 24px 0 0; }
+.ep-head span { color: var(--sub); font-weight: 600; margin-left: 4px; }
+/* 썸네일 없는 기록(인스타그램·X·기사): 카드 대신 줄 목록 */
+.ep-rows { list-style: none; margin: 12px 0 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.ep-rows li + li { border-top: 1px solid var(--line); }
+.ep-rows a { display: grid; grid-template-columns: 7.5em 1fr; gap: 2px 12px; padding: 12px 14px; text-decoration: none; color: inherit; }
+.ep-rows time { grid-row: span 2; color: var(--sub); font-size: 12.5px; font-variant-numeric: tabular-nums; padding-top: 1px; }
+.ep-rows b { font-size: 14px; line-height: 1.4; min-width: 0; overflow-wrap: anywhere; }
+.ep-rows small { color: var(--sub); font-size: 12px; }
+.ep-rows a:hover b { text-decoration: underline; }
+@media (max-width: 520px) { .ep-rows a { grid-template-columns: 1fr; } .ep-rows time { grid-row: auto; } }
 
 .act-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 20px; }
 .act-card { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 14px; padding: 12px; text-decoration: none; align-items: center; }

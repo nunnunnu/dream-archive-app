@@ -16,6 +16,14 @@ const clean = (t: string) => t.replace(GROUP_RE, '').replace(/#\S+/g, '').replac
 const memberCount = new Map<string, number>();
 for (const se of sr.seasons) for (const v of se.videos) for (const m of v.members) memberCount.set(m, (memberCount.get(m) ?? 0) + 1);
 const seriesMembers = [...memberCount.entries()].sort((a, b) => b[1] - a[1]).map(([m]) => m);
+// 회차·기록: 썸네일이 있는 것(영상·대표 이미지)은 카드로, 없는 것(인스타그램·X·기사 링크)은 아래 목록으로 따로
+const epCards = (sr.episodes ?? []).filter((e) => e.thumb);
+const epPosts = (sr.episodes ?? []).filter((e) => !e.thumb);
+const SITE_NAMES: [RegExp, string][] = [[/instagram\.com/, '인스타그램'], [/(^|\.)(x|twitter)\.com/, 'X'], [/weverse\.io/, '위버스'], [/weibo\.com/, '웨이보'], [/tiktok\.com/, '틱톡'], [/youtu/, '유튜브'], [/bilibili\.com/, '빌리빌리'], [/naver\.com/, '네이버']];
+const siteOf = (url?: string) => {
+  if (!url) return '';
+  try { const host = new URL(url).hostname.replace(/^(www|m)\./, ''); return SITE_NAMES.find(([re]) => re.test(host))?.[1] ?? host; } catch { return ''; }
+};
 ---
 <Base title={sr.name} current="series">
   <nav class="crumbs wrap" aria-label="경로"><a href="/series/">시리즈</a><span>/</span>{category && <><a href={categoryHref(category.id)}>{category.name}</a><span>/</span></>}<b>{sr.name}</b></nav>
@@ -56,15 +64,34 @@ const seriesMembers = [...memberCount.entries()].sort((a, b) => b[1] - a[1]).map
       </details>
     ))}
 
-    {sr.episodes && (
-      <div class="vgrid ep-list">
-        {sr.episodes.map((e) => (
-          <a class="vcard" href={e.url} target="_blank" rel="noopener">
-            <span class={`thumb${e.thumb ? '' : ' none'}`}>{e.thumb ? <img src={e.thumb} alt="" loading="lazy" /> : <em>{e.title}</em>}</span>
-            <b>{e.step}</b><small>{ymd(e.date)}{e.time ? ` ${e.time}` : ''} · {e.members.length ? e.members.join('·') : '단체'}</small>
-          </a>
-        ))}
-      </div>
+    {epCards.length > 0 && (
+      <section class="ep-block">
+        {epPosts.length > 0 && <h2 class="ep-head">영상 <span>{epCards.length}</span></h2>}
+        <div class="vgrid ep-list">
+          {epCards.map((e) => (
+            <a class="vcard" href={e.url} target="_blank" rel="noopener">
+              <span class="thumb"><img src={e.thumb} alt="" loading="lazy" /></span>
+              <b>{e.step}</b><small>{ymd(e.date)}{e.time ? ` ${e.time}` : ''} · {e.members.length ? e.members.join('·') : '단체'}</small>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
+    {epPosts.length > 0 && (
+      <section class="ep-block">
+        {epCards.length > 0 && <h2 class="ep-head">소식·게시물 <span>{epPosts.length}</span></h2>}
+        <ul class="ep-rows">
+          {epPosts.map((e) => (
+            <li>
+              <a href={e.url} target="_blank" rel="noopener">
+                <time>{ymd(e.date)}{e.time ? ` ${e.time}` : ''}</time>
+                <b>{e.step}</b>
+                <small>{[siteOf(e.url), e.members.length ? e.members.join('·') : '단체'].filter(Boolean).join(' · ')}</small>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
     )}
 
     {sr.activities && (
