@@ -3,34 +3,218 @@
     "id": "c-참여음반ost",
     "name": "참여 음반·OST",
     "records": [
-      {"date":"2021-02-24", "title":"IMLAY · Too Good", "step":"Too Good (Feat. 천러)", "members":["천러"], "url":"https://music.apple.com/us/album/utopia-ep/1554796259"},
-      {"date":"2021-10-13", "title":"동해 · California Love", "step":"California Love (Feat. 제노)", "members":["제노"], "url":"https://www.youtube.com/watch?v=HMQc3PdLOQ8", "thumb":"https://i.ytimg.com/vi/HMQc3PdLOQ8/hqdefault.jpg"},
-      {"date":"2021-12-27", "title":"2021 Winter SMTOWN : SMCU EXPRESS", "step":"12월의 인사 (Goodbye)", "members":["런쥔"], "url":"https://music.bugs.co.kr/track/32425720"},
-      {"date":"2021-12-27", "title":"2021 Winter SMTOWN : SMCU EXPRESS", "step":"Snow Dream 2021", "members":["해찬", "천러", "지성"], "url":"https://music.bugs.co.kr/track/32425718"},
-      {"date":"2022-08-30", "title":"KEY · Gasoline", "step":"Villain (Feat. 제노)", "members":["제노"], "url":"https://www.youtube.com/watch?v=4ToOvLlq5eo"},
-      {"date":"2022-12-26", "title":"2022 Winter SMTOWN : SMCU PALACE", "step":"Hot & Cold (온도차)", "members":["제노"], "url":"https://www.youtube.com/watch?v=lOX73kBRyWs", "thumb":"https://i.ytimg.com/vi/lOX73kBRyWs/hqdefault.jpg"},
-      {"date":"2022-12-26", "title":"2022 Winter SMTOWN : SMCU PALACE", "step":"Happier", "members":["런쥔"], "url":"https://www.youtube.com/watch?v=QapftZXuzaI"},
-      {"date":"2022-12-26", "title":"2022 Winter SMTOWN : SMCU PALACE", "step":"Jet", "members":["재민"], "url":"https://music.bugs.co.kr/track/32729699"},
-      {"date":"2022-12-26", "title":"2022 Winter SMTOWN : SMCU PALACE", "step":"넌 어디에 (Where You Are)", "members":["천러"], "url":"https://music.bugs.co.kr/track/32729702"},
-      {"date":"2024-06-11", "title":"묵우운간 OST", "step":"活下去愛下去 · 공식 OST 앨범 수록", "members":["천러"], "url":"https://music.apple.com/us/song/1755547128"},
-      {"date":"2021-12-27", "title":"2021 Winter SMTOWN : SMCU EXPRESS", "step":"ZOO · 제노 참여", "members":["제노"], "url":"https://www.youtube.com/watch?v=0IBSemQmno8", "thumb":"https://i.ytimg.com/vi/0IBSemQmno8/hqdefault.jpg"},
-      {"date":"2022-03-05", "title":"플렌즈 서연대 22학번 편 OST", "step":"좋은 사람 (2022)", "members":["해찬"], "url":"https://music.bugs.co.kr/album/20454409"},
-      {"date":"2025-05-05", "title":"천러 중국 스페셜 앨범", "step":"灿 (Lucid) · Tear Bridge · Cosmic Joke", "members":["천러"], "url":"https://enews.imbc.com/News/ViewAmp/459677"},
-      {"date":"2025-05-26", "title":"금주를 부탁해 OST Part 3", "step":"니가 좋은 이유", "members":["해찬"], "url":"https://music.bugs.co.kr/album/20728334"},
-      {"date":"2026-03-29", "title":"대한민국에서 건물주 되는 법 OST Part 2", "step":"Bitter Sweet (Addiction) · 태용·해찬", "members":["해찬"], "url":"https://www.youtube.com/watch?v=jyUGIDbK12I", "thumb":"https://i.ytimg.com/vi/jyUGIDbK12I/hqdefault.jpg"}
+      {
+        "date": "2021-02-24",
+        "title": "IMLAY · Too Good",
+        "step": "Too Good (Feat. 천러)",
+        "members": [
+          "천러"
+        ],
+        "url": "https://music.apple.com/us/album/utopia-ep/1554796259"
+      },
+      {
+        "date": "2021-10-13",
+        "title": "동해 · California Love",
+        "step": "California Love (Feat. 제노)",
+        "members": [
+          "제노"
+        ],
+        "url": "https://www.youtube.com/watch?v=HMQc3PdLOQ8",
+        "thumb": "https://i.ytimg.com/vi/HMQc3PdLOQ8/hqdefault.jpg"
+      },
+      {
+        "date": "2021-12-27",
+        "title": "2021 Winter SMTOWN : SMCU EXPRESS",
+        "step": "12월의 인사 (Goodbye)",
+        "members": [
+          "런쥔"
+        ],
+        "url": "https://music.bugs.co.kr/track/32425720"
+      },
+      {
+        "date": "2021-12-27",
+        "title": "2021 Winter SMTOWN : SMCU EXPRESS",
+        "step": "Snow Dream 2021",
+        "members": [
+          "해찬",
+          "천러",
+          "지성"
+        ],
+        "url": "https://music.bugs.co.kr/track/32425718"
+      },
+      {
+        "date": "2022-08-30",
+        "title": "KEY · Gasoline",
+        "step": "Villain (Feat. 제노)",
+        "members": [
+          "제노"
+        ],
+        "url": "https://www.youtube.com/watch?v=4ToOvLlq5eo"
+      },
+      {
+        "date": "2022-12-26",
+        "title": "2022 Winter SMTOWN : SMCU PALACE",
+        "step": "Hot & Cold (온도차)",
+        "members": [
+          "제노"
+        ],
+        "url": "https://www.youtube.com/watch?v=lOX73kBRyWs",
+        "thumb": "https://i.ytimg.com/vi/lOX73kBRyWs/hqdefault.jpg"
+      },
+      {
+        "date": "2022-12-26",
+        "title": "2022 Winter SMTOWN : SMCU PALACE",
+        "step": "Happier",
+        "members": [
+          "런쥔"
+        ],
+        "url": "https://www.youtube.com/watch?v=QapftZXuzaI"
+      },
+      {
+        "date": "2022-12-26",
+        "title": "2022 Winter SMTOWN : SMCU PALACE",
+        "step": "Jet",
+        "members": [
+          "재민"
+        ],
+        "url": "https://music.bugs.co.kr/track/32729699"
+      },
+      {
+        "date": "2022-12-26",
+        "title": "2022 Winter SMTOWN : SMCU PALACE",
+        "step": "넌 어디에 (Where You Are)",
+        "members": [
+          "천러"
+        ],
+        "url": "https://music.bugs.co.kr/track/32729702"
+      },
+      {
+        "date": "2024-06-11",
+        "title": "묵우운간 OST",
+        "step": "活下去愛下去 · 공식 OST 앨범 수록",
+        "members": [
+          "천러"
+        ],
+        "url": "https://music.apple.com/us/song/1755547128"
+      },
+      {
+        "date": "2021-12-27",
+        "title": "2021 Winter SMTOWN : SMCU EXPRESS",
+        "step": "ZOO · 제노 참여",
+        "members": [
+          "제노"
+        ],
+        "url": "https://www.youtube.com/watch?v=0IBSemQmno8",
+        "thumb": "https://i.ytimg.com/vi/0IBSemQmno8/hqdefault.jpg"
+      },
+      {
+        "date": "2022-03-05",
+        "title": "플렌즈 서연대 22학번 편 OST",
+        "step": "좋은 사람 (2022)",
+        "members": [
+          "해찬"
+        ],
+        "url": "https://music.bugs.co.kr/album/20454409"
+      },
+      {
+        "date": "2025-05-05",
+        "title": "천러 중국 스페셜 앨범",
+        "step": "灿 (Lucid) · Tear Bridge · Cosmic Joke",
+        "members": [
+          "천러"
+        ],
+        "url": "https://enews.imbc.com/News/ViewAmp/459677"
+      },
+      {
+        "date": "2025-05-26",
+        "title": "금주를 부탁해 OST Part 3",
+        "step": "니가 좋은 이유",
+        "members": [
+          "해찬"
+        ],
+        "url": "https://music.bugs.co.kr/album/20728334"
+      },
+      {
+        "date": "2026-03-29",
+        "title": "대한민국에서 건물주 되는 법 OST Part 2",
+        "step": "Bitter Sweet (Addiction) · 태용·해찬",
+        "members": [
+          "해찬"
+        ],
+        "url": "https://www.youtube.com/watch?v=jyUGIDbK12I",
+        "thumb": "https://i.ytimg.com/vi/jyUGIDbK12I/hqdefault.jpg"
+      }
     ]
   },
   {
     "id": "c-방송라디오기록",
     "name": "방송 출연 기록",
     "records": [
-      {"date":"2018-05-05", "title":"JTBC4 WHY NOT – 더 댄서", "step":"지성 출연 · JTBC 1회 비방 클립", "members":["지성"], "url":"https://tv.jtbc.co.kr/clip/pr10010490/pm10043681/vo10225205/view"},
-      {"date":"2019-05-04", "title":"채널A 같이 할래? GG", "step":"재민 출연 · 1회 다시보기", "members":["재민"], "url":"https://www.youtube.com/watch?v=dQcpGpWtQQ0", "thumb":"https://i.ytimg.com/vi/dQcpGpWtQQ0/hqdefault.jpg"},
-      {"date":"2025-12-25", "title":"2025 SBS 가요대전", "step":"재민 MC · SBS 공식 출연 발표", "members":["재민"], "url":"https://news.sbs.co.kr/news/endPage.do?gubun=95&newsId=N1008334369&serviceDt="},
-      {"date":"2018-05-22", "title":"SBS MTV 더쇼", "step":"제노 고정 MC 첫 진행", "members":["제노"], "url":"https://ent.sbs.co.kr/news/article.do?article_id=E10009082004"},
-      {"date":"2019-04-16", "title":"JTBC 아이돌룸", "step":"천러 출연 · 46회", "members":["천러"], "url":"https://vod.jtbc.co.kr/player/program/ep20049866"},
-      {"date":"2020-10-01", "title":"MBC 아이돌 e스포츠 선수권 대회", "step":"천러 모바일 슈팅 개인전 우승", "members":["천러"], "url":"https://www.youtube.com/watch?v=zdMK04qtDNk", "thumb":"https://i.ytimg.com/vi/zdMK04qtDNk/hqdefault.jpg"},
-      {"date":"2024-10-20", "title":"수원 KT 소닉붐 홈 개막전", "step":"천러 시투", "members":["천러"], "url":"https://www.instagram.com/reel/DBVw_uzNTwT/"}
+      {
+        "date": "2018-05-05",
+        "title": "JTBC4 WHY NOT – 더 댄서",
+        "step": "지성 출연 · JTBC 1회 비방 클립",
+        "members": [
+          "지성"
+        ],
+        "url": "https://tv.jtbc.co.kr/clip/pr10010490/pm10043681/vo10225205/view"
+      },
+      {
+        "date": "2019-05-04",
+        "title": "채널A 같이 할래? GG",
+        "step": "재민 출연 · 1회 다시보기",
+        "members": [
+          "재민"
+        ],
+        "url": "https://www.youtube.com/watch?v=dQcpGpWtQQ0",
+        "thumb": "https://i.ytimg.com/vi/dQcpGpWtQQ0/hqdefault.jpg"
+      },
+      {
+        "date": "2025-12-25",
+        "title": "2025 SBS 가요대전",
+        "step": "재민 MC · SBS 공식 출연 발표",
+        "members": [
+          "재민"
+        ],
+        "url": "https://news.sbs.co.kr/news/endPage.do?gubun=95&newsId=N1008334369&serviceDt="
+      },
+      {
+        "date": "2018-05-22",
+        "title": "SBS MTV 더쇼",
+        "step": "제노 고정 MC 첫 진행",
+        "members": [
+          "제노"
+        ],
+        "url": "https://ent.sbs.co.kr/news/article.do?article_id=E10009082004"
+      },
+      {
+        "date": "2019-04-16",
+        "title": "JTBC 아이돌룸",
+        "step": "천러 출연 · 46회",
+        "members": [
+          "천러"
+        ],
+        "url": "https://vod.jtbc.co.kr/player/program/ep20049866"
+      },
+      {
+        "date": "2020-10-01",
+        "title": "MBC 아이돌 e스포츠 선수권 대회",
+        "step": "천러 모바일 슈팅 개인전 우승",
+        "members": [
+          "천러"
+        ],
+        "url": "https://www.youtube.com/watch?v=zdMK04qtDNk",
+        "thumb": "https://i.ytimg.com/vi/zdMK04qtDNk/hqdefault.jpg"
+      },
+      {
+        "date": "2024-10-20",
+        "title": "수원 KT 소닉붐 홈 개막전",
+        "step": "천러 시투",
+        "members": [
+          "천러"
+        ],
+        "url": "https://www.instagram.com/reel/DBVw_uzNTwT/"
+      }
     ]
   },
   {
@@ -38,10 +222,44 @@
     "name": "MBC FM4U 친한친구 방송반",
     "type": "라디오",
     "records": [
-      {"date":"2025-05-23", "title":"MBC FM4U 친한친구 방송반", "step":"지성 DJ · 5월 23일 방송", "members":["지성"], "url":"https://www.youtube.com/watch?v=zr-NO7VrEjU", "thumb":"https://i.ytimg.com/vi/zr-NO7VrEjU/hqdefault.jpg"},
-      {"date":"2025-05-30", "title":"MBC FM4U 친한친구 방송반", "step":"지성 DJ · 5월 30일 방송", "members":["지성"], "url":"https://clip.imbc.com/m/ClipPlay/M01_TS202507310838"},
-      {"date":"2025-06-06", "title":"MBC FM4U 친한친구 방송반", "step":"지성 DJ · 6월 6일 방송", "members":["지성"], "url":"https://miniwebapp.imbc.com/index?service=podcast&program=1006629100000100000&episode=202787"},
-      {"date":"2025-06-13", "title":"MBC FM4U 친한친구 방송반", "step":"지성 DJ · 6월 13일 마지막 방송", "members":["지성"], "url":"https://www.youtube.com/watch?v=7OqIybNWkug", "thumb":"https://i.ytimg.com/vi/7OqIybNWkug/hqdefault.jpg"}
+      {
+        "date": "2025-05-23",
+        "title": "MBC FM4U 친한친구 방송반",
+        "step": "지성 DJ · 5월 23일 방송",
+        "members": [
+          "지성"
+        ],
+        "url": "https://www.youtube.com/watch?v=zr-NO7VrEjU",
+        "thumb": "https://i.ytimg.com/vi/zr-NO7VrEjU/hqdefault.jpg"
+      },
+      {
+        "date": "2025-05-30",
+        "title": "MBC FM4U 친한친구 방송반",
+        "step": "지성 DJ · 5월 30일 방송",
+        "members": [
+          "지성"
+        ],
+        "url": "https://clip.imbc.com/m/ClipPlay/M01_TS202507310838"
+      },
+      {
+        "date": "2025-06-06",
+        "title": "MBC FM4U 친한친구 방송반",
+        "step": "지성 DJ · 6월 6일 방송",
+        "members": [
+          "지성"
+        ],
+        "url": "https://miniwebapp.imbc.com/index?service=podcast&program=1006629100000100000&episode=202787"
+      },
+      {
+        "date": "2025-06-13",
+        "title": "MBC FM4U 친한친구 방송반",
+        "step": "지성 DJ · 6월 13일 마지막 방송",
+        "members": [
+          "지성"
+        ],
+        "url": "https://www.youtube.com/watch?v=7OqIybNWkug",
+        "thumb": "https://i.ytimg.com/vi/7OqIybNWkug/hqdefault.jpg"
+      }
     ]
   },
   {
@@ -49,8 +267,26 @@
     "name": "TBS eFM 악동서울",
     "type": "라디오",
     "records": [
-      {"date":"2020-08-29", "title":"TBS eFM 악동서울", "step":"런쥔 DJ · 1주년 비하인드 공개", "members":["런쥔"], "url":"https://www.youtube.com/watch?v=-FjQOSzyhYU", "thumb":"https://i.ytimg.com/vi/-FjQOSzyhYU/hqdefault.jpg"},
-      {"date":"2020-10-12", "title":"TBS eFM 악동서울", "step":"천러 정식 DJ 첫 방송", "members":["천러"], "url":"https://www.youtube.com/watch?v=ZHOYkqufAPI", "thumb":"https://i.ytimg.com/vi/ZHOYkqufAPI/hqdefault.jpg"}
+      {
+        "date": "2020-08-29",
+        "title": "TBS eFM 악동서울",
+        "step": "런쥔 DJ · 1주년 비하인드 공개",
+        "members": [
+          "런쥔"
+        ],
+        "url": "https://www.youtube.com/watch?v=-FjQOSzyhYU",
+        "thumb": "https://i.ytimg.com/vi/-FjQOSzyhYU/hqdefault.jpg"
+      },
+      {
+        "date": "2020-10-12",
+        "title": "TBS eFM 악동서울",
+        "step": "천러 정식 DJ 첫 방송",
+        "members": [
+          "천러"
+        ],
+        "url": "https://www.youtube.com/watch?v=ZHOYkqufAPI",
+        "thumb": "https://i.ytimg.com/vi/ZHOYkqufAPI/hqdefault.jpg"
+      }
     ]
   },
   {
@@ -58,8 +294,30 @@
     "name": "재민의 토끼 고양이 라디오",
     "type": "라디오",
     "records": [
-      {"date":"2026-09-24","title":"재민의 토끼 고양이 라디오","step":"interfm · 9월 24일 방송 소개","members":["재민"],"url":"https://www.interfm.co.jp/news/single/usaneko09242026"},
-      {"date":"2026-09-17","title":"재민의 토끼 고양이 라디오","step":"interfm · 9월 17일 방송 소개","members":["재민"],"url":"https://www.interfm.co.jp/news/single/usaneko09172026"}
+      {
+        "date": "2026-09-24",
+        "title": "재민의 토끼 고양이 라디오",
+        "step": "interfm · 9월 24일 방송 소개",
+        "members": [
+          "재민"
+        ],
+        "url": "https://www.interfm.co.jp/news/single/usaneko09242026"
+      },
+      {
+        "date": "2026-09-17",
+        "title": "재민의 토끼 고양이 라디오",
+        "step": "interfm · 9월 17일 방송 소개",
+        "members": [
+          "재민"
+        ],
+        "url": "https://www.interfm.co.jp/news/single/usaneko09172026"
+      }
+    ],
+    "aliases": [
+      "우사기짱 네코짱 라디오",
+      "재민의 우사기짱 네코짱 라디오",
+      "うさぎちゃんねこちゃんラジオ",
+      "토끼 고양이 라디오"
     ]
   }
 ]

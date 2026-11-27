@@ -18,7 +18,9 @@ const shown = preview ? cards.slice(0, 4) : cards;
   {shown.length ? <div class="series-grid">
     {shown.map((card) => (
       <a class="card series-card" href={card.href}>
-        <span class="poster">{card.thumb ? <img src={card.thumb} alt="" loading="lazy" /> : <em>{card.name}</em>}</span>
+        {card.thumb
+          ? <span class="poster"><img src={card.thumb} alt="" loading="lazy" /></span>
+          : <span class="poster text-poster" aria-hidden="true"><em>{card.name}</em><i>{card.badge}</i></span>}
         <span class="sc-body">
           <span class="sc-type">{card.badge}</span>
           <b>{card.name}</b>

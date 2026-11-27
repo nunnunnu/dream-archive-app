@@ -21,16 +21,20 @@ export const seriesCountLabel = ({ id, count, type }: Pick<SeriesSummary, 'id' |
 
 export function seriesCategoryCards(category: SeriesCategory, series: SeriesSummary[], eras: EraSummary[]) {
   if (category.id === 'drama') {
-    // 같은 이름의 드라마 시리즈(소식·제보 모음)가 있으면 그쪽 카드 하나만 (시리즈 페이지가 아카이브로 이어 줌)
+    // 드라마는 방영 기간(드라마 아카이브 기간)으로 보여 준다. 같은 이름의 드라마 시리즈(소식·제보 모음)가 있으면 카드는 그쪽 하나로
     const key = (t: string) => t.normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '').toLowerCase();
-    const dramaSeries = series.filter((s) => s.type === '드라마');
-    const named = new Set(dramaSeries.map((s) => key(s.name)));
-    return [
-      ...eras.filter((e) => e.kind === '드라마' && !named.has(key(e.title))).map((e) => ({
-        name: e.title, href: `/archive/${e.id}/`, thumb: e.thumb, badge: e.kind, meta: `${e.owner.label} · ${ymd(e.from).slice(0, 7)}`, from: e.from,
-      })),
-      ...dramaSeries.map((s) => ({ name: s.name, href: `/series/${s.id}/`, thumb: s.thumb, badge: s.type, meta: `${seriesCountLabel(s)} · ${ymd(s.from).slice(0, 7)}`, from: s.from })),
-    ].sort((a, b) => b.from.localeCompare(a.from)).map(({ from: _, ...card }) => card);
+    const ym = (d: string) => ymd(d).slice(0, 7);
+    const period = (from: string, to: string) => (ym(from) === ym(to) ? ym(from) : `${ym(from)} – ${ym(to)}`);
+    const dramaSeries = new Map(series.filter((s) => s.type === '드라마').map((s) => [key(s.name), s]));
+    const dramaEras = eras.filter((e) => e.kind === '드라마');
+    const cards = dramaEras.map((e) => {
+      const s = dramaSeries.get(key(e.title));
+      return { name: e.title, href: s ? `/series/${s.id}/` : `/archive/${e.id}/`, thumb: s?.thumb ?? e.thumb, badge: '드라마', meta: `${e.owner.label} · ${period(e.from, e.to)}`, from: e.from };
+    });
+    // 아카이브가 아직 없는 드라마 시리즈
+    const named = new Set(dramaEras.map((e) => key(e.title)));
+    for (const s of dramaSeries.values()) if (!named.has(key(s.name))) cards.push({ name: s.name, href: `/series/${s.id}/`, thumb: s.thumb, badge: '드라마', meta: `${s.members.join('·') || '단체'} · ${period(s.from, s.to)}`, from: s.from });
+    return cards.sort((a, b) => b.from.localeCompare(a.from)).map(({ from: _, ...card }) => card);
   }
   return series.filter((s) => category.types.includes(s.type))
     .sort((a, b) => b.to.localeCompare(a.to) || a.name.localeCompare(b.name, 'ko'))

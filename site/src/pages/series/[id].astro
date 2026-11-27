@@ -64,9 +64,23 @@ const siteOf = (url?: string) => {
       </details>
     ))}
 
+    {sr.type === '드라마' && sr.activities && (
+      <section class="ep-block drama-archive">
+        <h2 class="ep-head">회차·방송 일정</h2>
+        <p class="ep-note">방송 회차와 일정은 드라마 아카이브에서 볼 수 있어요</p>
+      <div class="act-grid">
+        {sr.activities.map((a) => (
+          <a class="card act-card" href={`/archive/${a.id}/`}>
+            <div class="act-cover"><Cover title={a.title} cover={a.cover} image={a.thumb} /></div>
+            <div><span class="sc-type">{a.kind}</span><b>{a.title}</b><small>{a.owner} · {ymd(a.from)} – {md(a.to)}</small></div>
+          </a>
+        ))}
+      </div>
+      </section>
+    )}
     {epCards.length > 0 && (
       <section class="ep-block">
-        {epPosts.length > 0 && <h2 class="ep-head">영상 <span>{epCards.length}</span></h2>}
+        {(epPosts.length > 0 || sr.type === '드라마') && <h2 class="ep-head">영상 <span>{epCards.length}</span></h2>}
         <div class="vgrid ep-list">
           {epCards.map((e) => (
             <a class="vcard" href={e.url} target="_blank" rel="noopener">
@@ -79,7 +93,7 @@ const siteOf = (url?: string) => {
     )}
     {epPosts.length > 0 && (
       <section class="ep-block">
-        {epCards.length > 0 && <h2 class="ep-head">소식·게시물 <span>{epPosts.length}</span></h2>}
+        {(epCards.length > 0 || sr.type === '드라마') && <h2 class="ep-head">소식·게시물 <span>{epPosts.length}</span></h2>}
         <ul class="ep-rows">
           {epPosts.map((e) => (
             <li>
@@ -94,7 +108,7 @@ const siteOf = (url?: string) => {
       </section>
     )}
 
-    {sr.activities && (
+    {sr.type !== '드라마' && sr.activities && (
       <div class="act-grid">
         {sr.activities.map((a) => (
           <a class="card act-card" href={`/archive/${a.id}/`}>

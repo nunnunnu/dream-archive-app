@@ -55,7 +55,7 @@ const VERIFIED = JSON.parse(readFileSync(join(ROOT, 'config', 'verified-series-v
 };
 const STANDALONE_VIDEOS = new Set(VERIFIED.standalone);
 const MEMBER_RECORDS = JSON.parse(readFileSync(join(ROOT, 'config', 'member-records.json'), 'utf8')) as
-  { id: string; name: string; type?: '라디오'; records: Omit<SeriesEpisode, 'time'>[] }[];
+  { id: string; name: string; type?: '라디오'; aliases?: string[]; records: Omit<SeriesEpisode, 'time'>[] }[];
 const CATALOG = JSON.parse(readFileSync(join(ROOT, 'config', 'series-catalog.json'), 'utf8')) as {
   id: string; name: string; type: HintType; publishers: string[]; match?: string[];
   records: (Pick<SeriesEpisode, 'date' | 'title' | 'members'> & { url: string })[];
@@ -342,7 +342,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   }
   addVideoCollection('트랙 비디오', [...trackVideos.values()].map(toVid), [], 'channel-track-video');
   addVideoCollection('뮤직비디오·티저', [...musicVideos.values()].map(toVid), [], 'channel-music');
-  addVideoCollection('쇼츠·챌린지', [...shortVideos.values()].map(toVid), [], 'channel-shorts');
+  addVideoCollection('공식 쇼츠', [...shortVideos.values()].map(toVid), [], 'channel-shorts');
   addVideoCollection('공식 오디오', audio.map(toVid), [], 'channel-audio');
   addVideoCollection('시상식·연말 무대 안무', awardPractice.map(toVid), [], 'award-practice', '시상식·연말 무대');
   addVideoCollection('시상식·연말 무대 비하인드', awardBehind.map(toVid), [], 'award-behind', '시상식·연말 무대');
@@ -436,6 +436,22 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
       const src = e.sources.find((x) => youtubeId(x.url)) ?? e.sources.find((x) => /^https?:/.test(x.url));
       if (src) hint('외부활동', a.name, { url: src.url, title: e.title, date: e.date, members: e.members });
     }
+  }
+  // 드라마 홍보 영상·소식은 채널(ENA DRAMA 등)·외부활동이 아니라 그 드라마로: 제목에 드라마 아카이브 이름이 있으면
+  const dramas = eras.filter((e) => e.kind === '드라마').map((e) => ({ title: e.title, k: sq(e.title) })).filter((d) => d.k.length >= 2);
+  const dramaOf = (text: string) => dramas.find((d) => sq(text).includes(d.k));
+  for (const [key, app] of appearances) {
+    const moved = app.records.filter((r) => dramaOf(r.title));
+    for (const r of moved) hint('드라마', dramaOf(r.title)!.title, r);
+    if (moved.length === app.records.length) appearances.delete(key);
+    else app.records = app.records.filter((r) => !moved.includes(r));
+  }
+  for (const [key, h] of [...hints]) {
+    if (h.type !== '외부활동') continue;
+    const d = dramaOf(h.names[0]) ?? (h.records.every((r) => dramaOf(r.title)) ? dramaOf(h.records[0].title) : undefined);
+    if (!d) continue;
+    hints.delete(key);
+    for (const r of h.records) hint('드라마', d.title, r);
   }
   // 이름 → 설정 목록 시리즈 (제보 단서는 출처 이름으로도 찾는다)
   const catalogOf = new Map<string, string>();
@@ -532,8 +548,25 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   // 남은 단서: 같은 이름의 고정 출연에 더하거나, 새 시리즈 페이지로 (1건부터)
   // 이미 다른 종류로 있는 이름(자체 콘텐츠 'Cafe 7 DREAM' 등)은 외부 시리즈로 새로 만들지 않는다
   const builtNames = new Set(pages.map((p) => sq(p.name)));
+  // 이미 있는 기록 페이지(라디오 등)는 이름·다른 표기(config/member-records.json aliases)로 찾아 거기에 더한다
+  const pageByName = new Map<string, SeriesPage>();
+  for (const p of pages) if (p.episodes) pageByName.set(sq(p.name), p);
+  for (const r of MEMBER_RECORDS) for (const a of r.aliases ?? []) { const p = pages.find((x) => x.id === r.id); if (p) pageByName.set(sq(a), p); }
   for (const [key, h] of hints) {
     const k = key.split('|')[1];
+    const into = pageByName.get(k);
+    if (into?.episodes) {
+      const have = new Set(into.episodes.map((e) => (e.url ? sourceKey(e.url) : `${e.date}|${e.step}`)));
+      for (const r of h.records) {
+        const sk = sourceKey(r.url);
+        if (have.has(sk) || hiddenKeys.has(sk) || unavailableIds.has(sk)) continue;
+        have.add(sk);
+        into.episodes.push(episodeOf(r));
+      }
+      into.episodes.sort((a, b) => b.date.localeCompare(a.date));
+      Object.assign(into, { count: into.episodes.length, ...range(into.episodes.map((e) => e.date)), members: [...new Set([...into.members, ...into.episodes.flatMap((e) => e.members)])] });
+      continue;
+    }
     if (builtNames.has(k)) continue;
     const fixed = h.type === '외부활동' && [...appearancesByShow.values()].find((p) => sq(p.name) === k);
     const bySource = new Map<string, SeriesEpisode>();
