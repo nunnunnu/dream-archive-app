@@ -1,0 +1,4 @@
+{
+  "_설명": "다른 가수 채널의 챌린지 쇼츠를 '챌린지 모아보기'(종류별 모아보기)로 모은다 (collector/lib/series.ts isChallengeClip). 가수가 아닌 회사·방송·프로그램 채널의 쇼츠는 여기 적어서 뺀다 (그 채널은 지금처럼 외부활동으로)",
+  "excludeChannels": ["SM Actist", "YouTube Korea", "1theK Originals - 원더케이 오리지널", "1theK", "Mnet Plus", "KBS Kpop", "TEO 테오", "KITZ 킷츠", "Spotify Korea", "JTBC Entertainment"]
+}

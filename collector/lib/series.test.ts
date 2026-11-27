@@ -109,3 +109,23 @@ test('시리즈 단서: 설정 목록 시리즈는 단서가 없어도 그대로
   const ids = buildSeries([], [], [], []).filter((p) => p.type === '외부활동' || p.type === '광고').map((p) => p.id);
   assert.equal(ids.length, 10);
 });
+
+test('다른 가수 채널의 챌린지 쇼츠는 채널별 외부활동 대신 챌린지 모아보기로, 드라마 홍보·프로그램 쇼츠는 그대로', () => {
+  const events = [
+    ev('c1', '유튜브 RIIZE', [{ type: 'submission', url: 'https://www.youtube.com/shorts/cGiCjD-8Fmc', title: 'RIIZE: 🙏w/ #JAEMIN #RIIZE #NCTDREAM' }], { members: ['재민'] }),
+    ev('c2', '유튜브 ATEEZ', [{ type: 'submission', url: 'https://youtube.com/shorts/HmTzExB70_4', title: 'ATEEZ: 👎 #BAD with 재민 선배님👍 #Shorts' }], { members: ['재민'] }),
+    // 회사 채널 홍보 쇼츠(config/challenges.json), 프로그램 쇼츠, 긴 영상은 챌린지가 아니다
+    ev('n1', '유튜브 SM Actist', [{ type: 'submission', url: 'https://www.youtube.com/shorts/AAAAAAAAAAA', title: 'SM Actist: 지대세로 변신 완료 #박지성 #크래시2' }], { members: ['지성'] }),
+    ev('n2', '유튜브 집대성', [{ type: 'submission', url: 'https://www.youtube.com/shorts/BBBBBBBBBBB', title: '집대성: BOTH SIDES | 집대성 ep.96 NCT JNJM 예고' }]),
+    ev('n3', '유튜브 RIIZE', [{ url: 'https://www.youtube.com/watch?v=CCCCCCCCCCC', title: 'RIIZE 자체 예능 with 재민', publisher: 'RIIZE' }], { members: ['재민'] }),
+  ];
+  const pages = buildSeries([], events, [], []);
+  const ch = pages.find((p) => p.id === 'c-challenges')!;
+  assert.equal(ch.type, '종류별 모아보기');
+  assert.equal(ch.name, '챌린지 모아보기');
+  assert.deepEqual(ch.seasons.flatMap((s) => s.videos.map((v) => v.title)).sort(), ['ATEEZ · 👎 #BAD with 재민 선배님👍 #Shorts', 'RIIZE · 🙏w/ #JAEMIN #RIIZE #NCTDREAM']);
+  assert.ok(!pages.some((p) => p.id.startsWith('x-ateez')));
+  // RIIZE 긴 영상은 그대로 외부활동, SM Actist 홍보 쇼츠도 외부활동
+  assert.ok(pages.find((p) => p.id === 'x-riize')?.episodes?.some((e) => e.url?.includes('CCCCCCCCCCC')));
+  assert.ok(pages.some((p) => p.id.startsWith('x-smactist')));
+});

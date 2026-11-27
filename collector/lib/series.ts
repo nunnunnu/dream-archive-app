@@ -156,6 +156,23 @@ export function sharedSuffixSeries(list: Pick<Video, 'videoId' | 'title'>[]): Ma
   return out;
 }
 
+// 다른 가수 채널의 챌린지 쇼츠: 쇼츠 주소 + 제목에 멤버·그룹 해시태그(#JAEMIN, #재민, #NCTDREAM)·@NCT 계정이나 "with·w/·님과·선배님·챌린지"와 멤버 이름.
+// 회사·방송·프로그램 채널(config/challenges.json excludeChannels)과 예고·선공개·비하인드, "프로그램 | 회차" 꼴 제목은 뺀다
+const CHALLENGE_CONFIG = JSON.parse(readFileSync(join(ROOT, 'config', 'challenges.json'), 'utf8')) as { excludeChannels: string[] };
+const NOT_ARTIST = new Set(CHALLENGE_CONFIG.excludeChannels.map((c) => sq(c)));
+const MEMBER_TAGS = [...GROUP.members.flatMap((m) => [m.name, ...m.aliases]), ...GROUP.nameVariants, ...GROUP.units.flatMap((u) => [u.name, ...u.aliases])]
+  .map((a) => sq(a)).filter((a) => a.length >= 2);
+const PROMO_RE = /\[\s*\d+\s*회|선공개|예고|티저|teaser|\bEP\.?\s*\d|본방|드라마|비하인드|behind|trailer|countdown/i;
+export function isChallengeClip(url: string, title: string, channel = ''): boolean {
+  if (!/\/shorts\//i.test(url) || (channel && NOT_ARTIST.has(sq(channel)))) return false;
+  const t = title.normalize('NFKC');
+  if (PROMO_RE.test(t) || /[|｜]/.test(t)) return false;
+  const tags = [...t.matchAll(/#([^\s#]+)/g)].map((m) => sq(m[1]));
+  const tagged = tags.some((x) => MEMBER_TAGS.includes(x) || MEMBER_TAGS.some((a) => a.length >= 3 && x.startsWith(a))) || /@NCT/i.test(t);
+  const withMember = /\bw\/|\bwith\b|님과|선배님|챌린지|challenge/i.test(t) && mentionedMembers(t).members.length > 0;
+  return tagged || withMember;
+}
+
 /**
  * 다른 유튜브 채널 출연: 일정에 "유튜브 ○○"(또는 제목에 채널 이름)으로 들어오고 그 채널 영상이 근거로 붙은 것.
  * 공식 채널 영상과 고정 출연으로 따로 묶이는 회차는 뺀다. 채널 이름은 영상 근거의 채널, 없으면 제보 제목 "채널: 제목"의 앞부분.
@@ -169,6 +186,8 @@ export function youtubeAppearances(events: PublicEvent[], skipEventIds: Readonly
     if (!yt) continue;
     const channel = yt.publisher ?? yt.title!.split(':')[0].trim();
     if (OWN.has(channel)) continue;
+    // 다른 가수 채널의 챌린지 쇼츠는 채널별 외부활동이 아니라 '챌린지 모아보기'로 (challengeClips)
+    if (isChallengeClip(yt.url, (yt.title ?? '').replace(/^[^:]{2,40}:\s/, ''), channel)) continue;
     const program = e.title.replace(/^유튜브\s+/, '').trim();
     if (!/^유튜브\s/.test(e.title) && !(e.kind === '발매' && sq(e.title).includes(sq(channel)))) continue;
     const key = sq(channel);
@@ -188,6 +207,23 @@ export function youtubeAppearances(events: PublicEvent[], skipEventIds: Readonly
     if (top && top.length <= 24) entry.name = top;
   }
   return out;
+}
+
+/** 다른 가수 채널의 챌린지 쇼츠 (일정 근거 영상에서): 같은 영상은 한 번만 */
+export function challengeClips(events: PublicEvent[]) {
+  const out = new Map<string, { url: string; title: string; channel: string; date: string; members: string[] }>();
+  for (const e of events) {
+    for (const src of e.sources) {
+      const id = youtubeId(src.url);
+      if (!id || out.has(id) || !/youtu/.test(src.url)) continue;
+      const channel = src.publisher ?? (src.title ?? '').split(':')[0].trim();
+      if (!channel || OWN.has(channel)) continue;
+      const title = (src.title ?? '').replace(/^[^:]{2,40}:\s/, '');
+      if (!isChallengeClip(src.url, title, channel)) continue;
+      out.set(id, { url: `https://www.youtube.com/watch?v=${id}`, title, channel, date: src.publishedAt ? kst(src.publishedAt) : e.date, members: e.members });
+    }
+  }
+  return [...out.values()];
 }
 
 export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activity[], eras: EraPage[], feed: FeedItem[] = [], hidden: NewsHide[] = [], unavailableIds: ReadonlySet<string> = new Set()): SeriesPage[] {
@@ -361,12 +397,28 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
   const hiddenKeys = new Set(hidden.flatMap((entry) => [entry.url, ...entry.urls]).map(sourceKey));
   const originals = feed.filter((f) => (f.type === 'youtube' || f.type === 'sns') && f.publisher && f.members.length);
 
+  // 챌린지 모아보기: 다른 가수 채널의 챌린지 쇼츠를 한 곳에 (연도별, 제목 앞에 같이 찍은 가수)
+  const challengeVids = challengeClips(events)
+    .filter((c) => !hiddenKeys.has(sourceKey(c.url)) && !unavailableIds.has(sourceKey(c.url)))
+    .map((c): SeriesVideo => {
+      const id = youtubeId(c.url)!;
+      return { id, title: `${c.channel} · ${c.title}`, url: c.url, thumb: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`, date: c.date, ep: null, members: c.members };
+    });
+
   // 시리즈 단서: 제보(seriesKind·seriesName), 일정의 짧은 외부 예능, 이미 아는 이름이 든 소식 → (종류, 이름)으로 묶는다
   type Rec = { url: string; title: string; date: string; members: string[]; image?: string };
   const hints = new Map<string, { type: HintType; names: string[]; records: Rec[] }>();
   const hint = (type: HintType, name: string, rec: Rec) => {
     const k = sq(name);
     if (!k) return;
+    // 제보로 들어온 챌린지 쇼츠도 챌린지 모아보기로
+    const yt = youtubeId(rec.url);
+    if (type === '외부활동' && yt && isChallengeClip(rec.url, rec.title, name)) {
+      if (!challengeVids.some((v) => v.id === yt) && !hiddenKeys.has(yt) && !unavailableIds.has(yt)) {
+        challengeVids.push({ id: yt, title: `${name} · ${rec.title}`, url: `https://www.youtube.com/watch?v=${yt}`, thumb: `https://i.ytimg.com/vi/${yt}/mqdefault.jpg`, date: rec.date, ep: null, members: rec.members });
+      }
+      return;
+    }
     const h = hints.get(`${type}|${k}`) ?? { type, names: [], records: [] };
     h.names.push(name.trim());
     h.records.push(rec);
@@ -400,6 +452,7 @@ export function buildSeries(videos: Video[], events: PublicEvent[], acts: Activi
     const hit = nameList.find(([key, { type }]) => title.includes(key.split('|')[1]) && topicFits[type](f.title, topic));
     if (hit) hint(hit[1].type, hit[1].name, feedRec(f));
   }
+  addVideoCollection('챌린지 모아보기', challengeVids, [...new Set(challengeVids.flatMap((v) => v.members))], 'c-challenges');
   const hintsFor = (catalogId: string) => [...hints].filter(([key]) => catalogOf.get(key) === catalogId).flatMap(([key, h]) => (hints.delete(key), h.records));
 
   for (const { id, name, type, publishers, match, records } of CATALOG) {
