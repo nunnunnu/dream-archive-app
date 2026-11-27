@@ -4,6 +4,7 @@
  * 사용: npm run track -- "ENA 크래시2" --members 지성 --days 월,화 --time 22:00 --start 2026-11-16 [--episodes 12] [--end 2026-12-22]
  *       npm run track -- --list
  */
+import './lib/env.ts';
 import { createHash } from 'node:crypto';
 import { JsonRepo } from './lib/repo.ts';
 import { addTracked, loadTracked } from './lib/tracked.ts';

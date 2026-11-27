@@ -516,6 +516,12 @@ export function consolidate(
       events.push(e);
       continue;
     }
+    // 직접 등록한 고정 출연은 등록할 때 적은 멤버가 기준 (함께 묶인 기사에 멤버가 없으면 '단체'로 보이던 문제)
+    const trackedMembers = g.find((x) => x.evidence.startsWith('추적 목록'))?.members ?? [];
+    if (trackedMembers.length) {
+      e.members = MEMBER_ORDER.filter((m) => e.members.includes(m) || trackedMembers.includes(m));
+      e.scope = scopeOf(e.members);
+    }
     const weekdays = rec.weekdays.map((w) => WEEKDAY_INDEX[w]).filter((n) => n !== undefined);
     // 결방이 있으면 그만큼 회차가 뒤로 밀리므로 넉넉히 만든 뒤 결방일을 빼고 번호를 다시 매긴다
     const extra = cancellations.length;
@@ -705,6 +711,21 @@ export function consolidate(
       evidence: x.evidence,
       sources: [x.source],
     });
+  }
+
+  // 3-0) 회차가 있는 반복 방송(추적 목록·회차 목록에서 펼친 것)과 같은 날·같은 프로그램 일정은 그 회차로 합친다 (출처·멤버만 더함).
+  //   "다음 주도 월,화 밤 10시 <크래시2> 본방사수" 같은 글이 '지성 출연' 일정으로 회차 옆에 따로 생기던 문제.
+  //   출처가 믿을 만해도 합친다 (아래 3-1 중복 합치기는 약한 출처만 본다)
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.seriesId) continue;
+    const ep = events.find((c) => c.seriesId && c.episode && c.date === e.date && kindCompatible(c.kind, e.kind)
+      && timeCompatible(c.time, e.time, 0) && similarTarget(c.title, e.title));
+    if (!ep) continue;
+    for (const src of e.sources) if (!ep.sources.some((x) => x.url === src.url)) ep.sources.push(src);
+    ep.members = MEMBER_ORDER.filter((m) => ep.members.includes(m) || e.members.includes(m));
+    ep.scope = scopeOf(ep.members);
+    events.splice(i, 1);
   }
 
   // 3-1) 신뢰 단계: 바로 믿는 출처가 있거나, 서로 다른 발행처 두 곳 이상이 같은 일정을 말할 때만 캘린더에.
